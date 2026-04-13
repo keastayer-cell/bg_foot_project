@@ -1,0 +1,16 @@
+.DS_Store
+
+# local env
+.env
+*.local
+
+# backend
+app/target/
+
+# frontend
+web/node_modules/
+web/dist/
+
+# editor/build caches
+app/.vite/
+web/.vite/

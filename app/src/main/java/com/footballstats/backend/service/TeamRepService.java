@@ -1,0 +1,329 @@
+package com.footballstats.backend.service;
+
+import com.footballstats.backend.domain.Player;
+import com.footballstats.backend.domain.PlayerTeam;
+import com.footballstats.backend.domain.Season;
+import com.footballstats.backend.domain.SeasonPlayer;
+import com.footballstats.backend.domain.UserTeamScope;
+import com.footballstats.backend.repository.PlayerRepository;
+import com.footballstats.backend.repository.PlayerTeamRepository;
+import com.footballstats.backend.repository.UserTeamScopeRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+@Service
+public class TeamRepService {
+
+    private final UserTeamScopeRepository userTeamScopeRepository;
+    private final PlayerRepository playerRepository;
+    private final PlayerTeamRepository playerTeamRepository;
+    private final SeasonPlayerService seasonPlayerService;
+    private final MediaAssetService mediaAssetService;
+
+    public TeamRepService(
+        UserTeamScopeRepository userTeamScopeRepository,
+        PlayerRepository playerRepository,
+        PlayerTeamRepository playerTeamRepository,
+        SeasonPlayerService seasonPlayerService,
+        MediaAssetService mediaAssetService
+    ) {
+        this.userTeamScopeRepository = userTeamScopeRepository;
+        this.playerRepository = playerRepository;
+        this.playerTeamRepository = playerTeamRepository;
+        this.seasonPlayerService = seasonPlayerService;
+        this.mediaAssetService = mediaAssetService;
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeamRepSeasonData> listAvailableSeasons(Long userId) {
+        TeamScopeContext context = requireScope(userId);
+        long rosterCount = playerTeamRepository.findCurrentRosterByTeamId(context.teamId()).size();
+        return seasonPlayerService.listAvailableSeasonsForTeam(context.teamId()).stream()
+            .map(season -> new TeamRepSeasonData(
+                season.getId(),
+                season.getName(),
+                rosterCount,
+                seasonPlayerService.countActiveSeasonPlayers(context.teamId(), season.getId())
+            ))
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeamRepPlayerData> listTeamPlayers(Long userId) {
+        TeamScopeContext context = requireScope(userId);
+        Map<Long, List<Long>> seasonIdsByPlayerId = new LinkedHashMap<>();
+        for (SeasonPlayer seasonPlayer : seasonPlayerService.listActiveSeasonAssignmentsForTeam(context.teamId())) {
+            seasonIdsByPlayerId.computeIfAbsent(seasonPlayer.getPlayer().getId(), ignored -> new java.util.ArrayList<>())
+                .add(seasonPlayer.getSeason().getId());
+        }
+
+        return playerTeamRepository.findCurrentRosterByTeamId(context.teamId()).stream()
+            .map(PlayerTeam::getPlayer)
+            .map(player -> toPlayerData(player, seasonIdsByPlayerId.getOrDefault(player.getId(), List.of())))
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public TeamRepSeasonPlayersData getSeasonPlayers(Long userId, Long seasonId) {
+        TeamScopeContext context = requireApplicationScope(userId);
+        Set<Long> selectedPlayerIds = seasonPlayerService.getActivePlayerIds(context.teamId(), seasonId);
+        Season season = seasonPlayerService.listAvailableSeasonsForTeam(context.teamId()).stream()
+            .filter(item -> item.getId().equals(seasonId))
+            .findFirst()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сезон команды не найден."));
+
+        Map<Long, TeamRepSeasonPlayerData> playersById = new LinkedHashMap<>();
+
+        for (Player player : playerTeamRepository.findCurrentRosterByTeamId(context.teamId()).stream().map(PlayerTeam::getPlayer).toList()) {
+            playersById.put(player.getId(), new TeamRepSeasonPlayerData(
+                player.getId(),
+                player.getFullName(),
+                player.getBirthDate(),
+                player.getResidence(),
+                mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
+                selectedPlayerIds.contains(player.getId())
+            ));
+        }
+
+        for (SeasonPlayer seasonPlayer : seasonPlayerService.listActiveSeasonPlayers(context.teamId(), seasonId)) {
+            Player player = seasonPlayer.getPlayer();
+            playersById.put(player.getId(), new TeamRepSeasonPlayerData(
+                player.getId(),
+                player.getFullName(),
+                player.getBirthDate(),
+                player.getResidence(),
+                mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
+                true
+            ));
+        }
+
+        List<TeamRepSeasonPlayerData> players = playersById.values().stream()
+            .sorted(Comparator.comparing(TeamRepSeasonPlayerData::fullName, String.CASE_INSENSITIVE_ORDER))
+            .toList();
+
+        List<TeamRepAvailablePlayerData> availablePlayers = seasonPlayerService.listAvailablePlayersForSeason(context.teamId(), seasonId).stream()
+            .map(player -> new TeamRepAvailablePlayerData(
+                player.getId(),
+                player.getFullName(),
+                player.getBirthDate(),
+                player.getResidence(),
+                mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO)
+            ))
+            .toList();
+
+        return new TeamRepSeasonPlayersData(season.getId(), season.getName(), context.teamId(), context.teamName(), players, availablePlayers);
+    }
+
+    @Transactional
+    public TeamRepPlayerData createPlayer(Long userId, TeamRepPlayerDraft request) {
+        TeamScopeContext context = requireRosterScope(userId);
+
+        String normalizedName = normalizeRequired(request.fullName(), "ФИО игрока обязательно.");
+        if (playerRepository.existsByFullNameIgnoreCase(normalizedName)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Игрок с таким именем уже существует.");
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+        Player player = new Player();
+        player.setFullName(normalizedName);
+        player.setBirthDate(request.birthDate());
+        player.setResidence(normalizeOptional(request.residence()));
+        player.setCreatedByUserId(userId);
+        player.setUpdatedByUserId(userId);
+        player.setUpdatedAt(now);
+        Player saved = playerRepository.save(player);
+
+        var photo = mediaAssetService.saveAsset(
+            MediaAssetService.OWNER_PLAYER,
+            saved.getId(),
+            MediaAssetService.KIND_PLAYER_PHOTO,
+            request.photoDataUrl(),
+            userId
+        );
+        if (photo != null) {
+            saved.setPhotoMediaId(photo.getId());
+            saved = playerRepository.save(saved);
+        }
+
+        PlayerTeam membership = new PlayerTeam();
+        membership.setPlayer(saved);
+        membership.setTeam(context.scope().getTeam());
+        membership.setValidFrom(LocalDate.now());
+        membership.setActive(true);
+        playerTeamRepository.save(membership);
+
+        return toPlayerData(saved, List.of());
+    }
+
+    @Transactional
+    public TeamRepPlayerData updatePlayer(Long userId, Long playerId, TeamRepPlayerDraft request) {
+        TeamScopeContext context = requireRosterScope(userId);
+        Player player = playerRepository.findById(playerId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Игрок не найден."));
+
+        boolean inRoster = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, context.teamId()).isPresent();
+        if (!inRoster) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Можно редактировать только игроков своей команды.");
+        }
+
+        String normalizedName = normalizeRequired(request.fullName(), "ФИО игрока обязательно.");
+        if (!player.getFullName().equalsIgnoreCase(normalizedName) && playerRepository.existsByFullNameIgnoreCase(normalizedName)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Игрок с таким именем уже существует.");
+        }
+
+        player.setFullName(normalizedName);
+        player.setBirthDate(request.birthDate());
+        player.setResidence(normalizeOptional(request.residence()));
+        player.setUpdatedByUserId(userId);
+        player.setUpdatedAt(OffsetDateTime.now());
+        Player saved = playerRepository.save(player);
+
+        var photo = mediaAssetService.saveAsset(
+            MediaAssetService.OWNER_PLAYER,
+            saved.getId(),
+            MediaAssetService.KIND_PLAYER_PHOTO,
+            request.photoDataUrl(),
+            userId
+        );
+        if (photo != null) {
+            saved.setPhotoMediaId(photo.getId());
+            saved = playerRepository.save(saved);
+        }
+
+        List<Long> seasonIds = seasonPlayerService.listActiveSeasonAssignmentsForPlayer(context.teamId(), saved.getId()).stream()
+            .map(item -> item.getSeason().getId())
+            .toList();
+        return toPlayerData(saved, seasonIds);
+    }
+
+    @Transactional
+    public TeamRepSeasonPlayersData replaceSeasonPlayers(Long userId, Long seasonId, List<Long> playerIds) {
+        TeamScopeContext context = requireApplicationScope(userId);
+        seasonPlayerService.replaceSeasonPlayers(context.teamId(), seasonId, playerIds, userId);
+        return getSeasonPlayers(userId, seasonId);
+    }
+
+    @Transactional
+    public TeamRepSeasonPlayersData addSeasonPlayer(Long userId, Long seasonId, Long playerId) {
+        TeamScopeContext context = requireApplicationScope(userId);
+        boolean alreadyInRoster = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, context.teamId()).isPresent();
+        if (alreadyInRoster) {
+            seasonPlayerService.addSeasonPlayer(context.teamId(), seasonId, playerId, userId);
+        } else {
+            seasonPlayerService.attachAvailablePlayerToTeamAndSeason(context.teamId(), seasonId, playerId, userId);
+        }
+        return getSeasonPlayers(userId, seasonId);
+    }
+
+    @Transactional
+    public TeamRepSeasonPlayersData removeSeasonPlayer(Long userId, Long seasonId, Long playerId) {
+        TeamScopeContext context = requireApplicationScope(userId);
+        seasonPlayerService.removeSeasonPlayer(context.teamId(), seasonId, playerId, userId);
+        return getSeasonPlayers(userId, seasonId);
+    }
+
+    private TeamRepPlayerData toPlayerData(Player player, List<Long> seasonIds) {
+        return new TeamRepPlayerData(
+            player.getId(),
+            player.getFullName(),
+            player.getBirthDate(),
+            player.getResidence(),
+            mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
+            seasonIds,
+            player.isActive()
+        );
+    }
+
+    private TeamScopeContext requireScope(Long userId) {
+        UserTeamScope scope = userTeamScopeRepository.findByUser_IdAndActiveTrue(userId).stream()
+            .findFirst()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Для пользователя не назначена команда."));
+        return new TeamScopeContext(scope, scope.getTeam().getId(), scope.getTeam().getName());
+    }
+
+    private TeamScopeContext requireRosterScope(Long userId) {
+        TeamScopeContext context = requireScope(userId);
+        if (!context.scope().isCanEditRoster()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Нет прав на редактирование состава команды.");
+        }
+        return context;
+    }
+
+    private TeamScopeContext requireApplicationScope(Long userId) {
+        TeamScopeContext context = requireScope(userId);
+        if (!context.scope().isCanEditApplication()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Нет прав на редактирование заявки сезона.");
+        }
+        return context;
+    }
+
+    private String normalizeOptional(String value) {
+        String normalized = String.valueOf(value == null ? "" : value).trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String normalizeRequired(String value, String message) {
+        String normalized = normalizeOptional(value);
+        if (normalized == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+        }
+        return normalized;
+    }
+
+    private record TeamScopeContext(UserTeamScope scope, Long teamId, String teamName) {}
+
+    public record TeamRepSeasonData(Long id, String name, long rosterPlayersCount, long selectedPlayersCount) {}
+
+    public record TeamRepPlayerData(
+        Long id,
+        String fullName,
+        LocalDate birthDate,
+        String residence,
+        String photoDataUrl,
+        List<Long> seasonIds,
+        boolean active
+    ) {}
+
+    public record TeamRepSeasonPlayersData(
+        Long seasonId,
+        String seasonName,
+        Long teamId,
+        String teamName,
+        List<TeamRepSeasonPlayerData> players,
+        List<TeamRepAvailablePlayerData> availablePlayers
+    ) {}
+
+    public record TeamRepSeasonPlayerData(
+        Long id,
+        String fullName,
+        LocalDate birthDate,
+        String residence,
+        String photoDataUrl,
+        boolean selectedForSeason
+    ) {}
+
+    public record TeamRepAvailablePlayerData(
+        Long id,
+        String fullName,
+        LocalDate birthDate,
+        String residence,
+        String photoDataUrl
+    ) {}
+
+    public record TeamRepPlayerDraft(
+        String fullName,
+        LocalDate birthDate,
+        String residence,
+        String photoDataUrl
+    ) {}
+}

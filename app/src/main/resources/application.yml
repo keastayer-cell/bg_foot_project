@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: football-stats-app
+
+  config:
+    import: optional:file:.env[.properties]
+
+  profiles:
+    active: ${APP_PROFILE:local}
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    default-schema: public
+    schemas: public,${DB_SCHEMA:work}
+
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: ${APP_PORT:8080}
+
+logging:
+  level:
+    org.springframework: info
