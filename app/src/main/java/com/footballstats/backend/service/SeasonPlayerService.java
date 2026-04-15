@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -131,8 +132,15 @@ public class SeasonPlayerService {
     public void attachAvailablePlayerToTeamAndSeason(Long teamId, Long seasonId, Long playerId, Long actorUserId) {
         validateSeasonMembership(teamId, seasonId);
         validateSeasonUniqueness(teamId, seasonId, Set.of(playerId));
-        playerRepository.findById(playerId)
+        Player player = playerRepository.findById(playerId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Игрок не найден."));
+        Team team = teamRepository.findById(teamId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда не найдена."));
+
+        // Добавление свободного игрока в заявку представителя означает перевод игрока
+        // в текущий состав команды представителя, иначе roster и season view расходятся.
+        reassignPlayerToTeam(player, team, actorUserId);
+
         activateSeasonPlayer(teamId, seasonId, playerId, actorUserId, OffsetDateTime.now());
     }
 
@@ -144,6 +152,17 @@ public class SeasonPlayerService {
         seasonPlayer.setUpdatedByUserId(actorUserId);
         seasonPlayer.setUpdatedAt(OffsetDateTime.now());
         seasonPlayerRepository.save(seasonPlayer);
+    }
+
+    @Transactional
+    public void deactivateActiveAssignmentsForPlayerInTeam(Long teamId, Long playerId, Long actorUserId) {
+        OffsetDateTime now = OffsetDateTime.now();
+        for (SeasonPlayer assignment : seasonPlayerRepository.findAllActiveDetailedByTeamIdAndPlayerId(teamId, playerId)) {
+            assignment.setActive(false);
+            assignment.setUpdatedByUserId(actorUserId);
+            assignment.setUpdatedAt(now);
+            seasonPlayerRepository.save(assignment);
+        }
     }
 
     @Transactional
@@ -195,6 +214,24 @@ public class SeasonPlayerService {
         seasonPlayer.setUpdatedAt(now);
         seasonPlayer.setActive(true);
         seasonPlayerRepository.save(seasonPlayer);
+    }
+
+    private void reassignPlayerToTeam(Player player, Team team, Long actorUserId) {
+        LocalDate today = LocalDate.now();
+
+        playerTeamRepository.findByPlayer_IdAndActiveTrue(player.getId()).forEach(membership -> {
+            deactivateActiveAssignmentsForPlayerInTeam(membership.getTeam().getId(), player.getId(), actorUserId);
+            membership.setActive(false);
+            membership.setValidTo(today.minusDays(1));
+            playerTeamRepository.save(membership);
+        });
+
+        PlayerTeam newMembership = new PlayerTeam();
+        newMembership.setPlayer(player);
+        newMembership.setTeam(team);
+        newMembership.setValidFrom(today);
+        newMembership.setActive(true);
+        playerTeamRepository.save(newMembership);
     }
 
     private void validateSeasonMembership(Long teamId, Long seasonId) {

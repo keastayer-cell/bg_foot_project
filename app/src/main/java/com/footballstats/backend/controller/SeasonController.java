@@ -6,8 +6,11 @@ import com.footballstats.backend.domain.MatchProtocolStatus;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.Tour;
 import com.footballstats.backend.domain.TourMatch;
+import com.footballstats.backend.domain.SeasonStandingsConfig;
+import com.footballstats.backend.domain.SeasonStandingsRow;
 import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.service.SeasonService;
+import com.footballstats.backend.service.SeasonStandingsService;
 import com.footballstats.backend.service.TourService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -32,10 +35,12 @@ public class SeasonController {
 
     private final SeasonService seasonService;
     private final TourService tourService;
+    private final SeasonStandingsService seasonStandingsService;
 
-    public SeasonController(SeasonService seasonService, TourService tourService) {
+    public SeasonController(SeasonService seasonService, TourService tourService, SeasonStandingsService seasonStandingsService) {
         this.seasonService = seasonService;
         this.tourService = tourService;
+        this.seasonStandingsService = seasonStandingsService;
     }
 
     @GetMapping("/api/seasons")
@@ -96,13 +101,16 @@ public class SeasonController {
     @GetMapping("/api/seasons/{seasonId}/overview")
     public ResponseEntity<SeasonOverviewResponse> getSeasonOverview(@PathVariable Long seasonId) {
         TourService.SeasonOverviewData overview = tourService.getPublishedSeasonOverview(seasonId);
+        SeasonStandingsService.SeasonStandingsSnapshot standings = seasonStandingsService.getSeasonStandings(seasonId);
         List<TourOverviewResponse> tours = overview.tours().stream()
             .map(tour -> toTourOverviewResponse(tour, overview.matchesByTourId().getOrDefault(tour.getId(), List.of())))
             .toList();
         return ResponseEntity.ok(new SeasonOverviewResponse(
             toResponse(overview.season()),
             overview.teams().stream().map(this::toTeamResponse).toList(),
-            tours
+            tours,
+            toStandingsConfigResponse(standings.config()),
+            standings.rows().stream().map(this::toStandingsRowResponse).toList()
         ));
     }
 
@@ -171,6 +179,30 @@ public class SeasonController {
         );
     }
 
+    private StandingsConfigResponse toStandingsConfigResponse(SeasonStandingsConfig config) {
+        return new StandingsConfigResponse(
+            config.getWinPoints(),
+            config.getDrawPoints(),
+            config.getLossPoints(),
+            config.getLastCalculatedAt()
+        );
+    }
+
+    private SeasonStandingsRowResponse toStandingsRowResponse(SeasonStandingsRow row) {
+        return new SeasonStandingsRowResponse(
+            row.getPosition(),
+            row.getTeam().getId(),
+            row.getTeam().getName(),
+            row.getTeam().getShortName(),
+            row.getTeam().getLogoDataUrl(),
+            row.getMatchesPlayed(),
+            row.getGoalsFor(),
+            row.getGoalsAgainst(),
+            row.getGoalDifference(),
+            row.getPoints()
+        );
+    }
+
     private MatchProtocolStatus protocolStatus(MatchProtocol protocol) {
         return protocol == null || protocol.getStatus() == null ? MatchProtocolStatus.SCHEDULED : protocol.getStatus();
     }
@@ -208,7 +240,29 @@ public class SeasonController {
     public record SeasonOverviewResponse(
         SeasonResponse season,
         List<SeasonTeamResponse> teams,
-        List<TourOverviewResponse> tours
+        List<TourOverviewResponse> tours,
+        StandingsConfigResponse standingsConfig,
+        List<SeasonStandingsRowResponse> standings
+    ) {}
+
+    public record StandingsConfigResponse(
+        Integer winPoints,
+        Integer drawPoints,
+        Integer lossPoints,
+        OffsetDateTime lastCalculatedAt
+    ) {}
+
+    public record SeasonStandingsRowResponse(
+        Integer position,
+        Long teamId,
+        String teamName,
+        String teamShortName,
+        String teamLogoDataUrl,
+        Integer matchesPlayed,
+        Integer goalsFor,
+        Integer goalsAgainst,
+        Integer goalDifference,
+        Integer points
     ) {}
 
     public record TourOverviewResponse(

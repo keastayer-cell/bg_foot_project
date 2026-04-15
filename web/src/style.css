@@ -1812,6 +1812,16 @@ select option {
 	width: min(620px, 100%);
 }
 
+.team-rep-season-modal {
+	width: min(560px, 100%);
+}
+
+.team-rep-season-players-modal {
+	width: min(760px, 100%);
+	max-height: min(80vh, 900px);
+	overflow: auto;
+}
+
 .team-rep-fullscreen {
 	position: fixed;
 	inset: 0;
@@ -1852,11 +1862,22 @@ select option {
 	background: rgba(255, 255, 255, 0.03);
 }
 
+.team-rep-inline-picker.compact {
+	padding: 0;
+	border: 0;
+	background: transparent;
+}
+
 .team-rep-inline-picker-form {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	gap: 10px;
 	align-items: center;
+}
+
+.team-rep-season-modal-actions {
+	justify-content: flex-end;
+	margin-top: 0;
 }
 
 @media (max-width: 700px) {

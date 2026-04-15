@@ -49,20 +49,19 @@ public class MatchController {
             request.status(),
             request.homeScore(),
             request.awayScore(),
+            request.homeTechnicalDefeat(),
+            request.awayTechnicalDefeat(),
             request.bestPlayerId(),
             request.notes(),
             request.startedAt(),
             request.finishedAt(),
-            request.events() == null ? List.of() : request.events().stream()
-                .map(event -> new MatchProtocolService.MatchEventDraft(
-                    event.eventType(),
-                    event.teamId(),
-                    event.playerId(),
-                    event.relatedPlayerId(),
-                    event.minute(),
-                    event.extraMinute(),
-                    event.valueText(),
-                    event.sortOrder()
+            request.playerStats() == null ? List.of() : request.playerStats().stream()
+                .map(playerStat -> new MatchProtocolService.PlayerProtocolStatDraft(
+                    playerStat.teamId(),
+                    playerStat.playerId(),
+                    playerStat.goals(),
+                    playerStat.yellowCards(),
+                    playerStat.redCards()
                 ))
                 .toList(),
             currentUserId(authentication)
@@ -103,6 +102,8 @@ public class MatchController {
                 protocol.getStatus(),
                 protocol.getHomeScore(),
                 protocol.getAwayScore(),
+                protocol.isHomeTechnicalDefeat(),
+                protocol.isAwayTechnicalDefeat(),
                 protocol.getBestPlayer() == null ? null : protocol.getBestPlayer().getId(),
                 protocol.getBestPlayer() == null ? null : protocol.getBestPlayer().getFullName(),
                 protocol.getStartedAt(),
@@ -182,6 +183,8 @@ public class MatchController {
         MatchProtocolStatus status,
         Integer homeScore,
         Integer awayScore,
+        boolean homeTechnicalDefeat,
+        boolean awayTechnicalDefeat,
         Long bestPlayerId,
         String bestPlayerName,
         OffsetDateTime startedAt,
@@ -231,11 +234,21 @@ public class MatchController {
         MatchProtocolStatus status,
         Integer homeScore,
         Integer awayScore,
+        Boolean homeTechnicalDefeat,
+        Boolean awayTechnicalDefeat,
         Long bestPlayerId,
         String notes,
         OffsetDateTime startedAt,
         OffsetDateTime finishedAt,
-        List<MatchEventUpsertRequest> events
+        List<MatchPlayerStatUpsertRequest> playerStats
+    ) {}
+
+    public record MatchPlayerStatUpsertRequest(
+        @NotNull(message = "teamId обязателен.") Long teamId,
+        @NotNull(message = "playerId обязателен.") Long playerId,
+        Integer goals,
+        Integer yellowCards,
+        Integer redCards
     ) {}
 
     public record MatchLineupUpsertRequest(

@@ -1,0 +1,1300 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Football Stats Web - руководство для тестировщика</title>
+    <style>
+      :root {
+        --bg: #f4efe6;
+        --panel: #fffdf8;
+        --panel-strong: #fff8ee;
+        --text: #1f2430;
+        --muted: #5c6677;
+        --line: #dfd4c0;
+        --brand: #0d5f54;
+        --brand-soft: #d9efe9;
+        --accent: #a63f20;
+        --accent-soft: #fde7df;
+        --warning: #8b6a11;
+        --warning-soft: #fff2c8;
+        --shadow: 0 16px 40px rgba(52, 42, 24, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top right, rgba(13, 95, 84, 0.11), transparent 30%),
+          linear-gradient(180deg, #fbf7f0 0%, var(--bg) 100%);
+      }
+
+      a {
+        color: var(--brand);
+      }
+
+      .page {
+        width: min(1380px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 32px 0 64px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 18px;
+        padding: 30px;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: linear-gradient(135deg, rgba(13, 95, 84, 0.96), rgba(14, 42, 51, 0.96));
+        color: #f7f1e8;
+        box-shadow: var(--shadow);
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(2rem, 3vw, 3.2rem);
+        line-height: 1.02;
+      }
+
+      .hero p {
+        margin: 0;
+        max-width: 980px;
+        font-size: 1.03rem;
+        line-height: 1.6;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .hero-stat {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+      }
+
+      .hero-stat strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 1.3rem;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 320px minmax(0, 1fr);
+        gap: 24px;
+        margin-top: 24px;
+        align-items: start;
+      }
+
+      .toc,
+      .section,
+      .note,
+      .warning,
+      .shot,
+      .api-table-wrap,
+      .matrix-wrap {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .toc {
+        position: sticky;
+        top: 20px;
+        padding: 22px;
+      }
+
+      .toc h2 {
+        margin: 0 0 14px;
+        font-size: 1.12rem;
+      }
+
+      .toc ol {
+        margin: 0;
+        padding-left: 22px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .toc li {
+        line-height: 1.45;
+      }
+
+      .main {
+        display: grid;
+        gap: 20px;
+      }
+
+      .section {
+        padding: 28px;
+      }
+
+      .section h2 {
+        margin: 0 0 16px;
+        font-size: 1.7rem;
+      }
+
+      .section h3 {
+        margin: 24px 0 12px;
+        font-size: 1.16rem;
+      }
+
+      .section p,
+      .section li,
+      .section td,
+      .section th {
+        font-size: 0.99rem;
+        line-height: 1.62;
+      }
+
+      .section ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+
+      .section ul + ul,
+      .section p + ul,
+      .section ul + p,
+      .section p + p,
+      .section table + p,
+      .section .note,
+      .section .warning,
+      .section .shot,
+      .section .matrix-wrap,
+      .section .api-table-wrap {
+        margin-top: 14px;
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .pill {
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: var(--brand-soft);
+        color: var(--brand);
+        font-size: 0.84rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .pill.warn {
+        background: var(--warning-soft);
+        color: var(--warning);
+      }
+
+      .pill.danger {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .cards-2,
+      .cards-3,
+      .cards-4 {
+        display: grid;
+        gap: 14px;
+      }
+
+      .cards-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .cards-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .cards-4 {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .mini-card {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: var(--panel-strong);
+        border: 1px solid var(--line);
+      }
+
+      .mini-card h4 {
+        margin: 0 0 8px;
+        font-size: 1rem;
+      }
+
+      .mini-card p {
+        margin: 0;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        font-size: 0.84rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+        background: rgba(13, 95, 84, 0.05);
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      code {
+        padding: 0.15rem 0.35rem;
+        border-radius: 8px;
+        background: #f3ede4;
+        color: #173038;
+        font-size: 0.92em;
+      }
+
+      .note,
+      .warning {
+        padding: 16px 18px;
+      }
+
+      .note {
+        background: #eef8f5;
+        border: 1px solid #c8e7de;
+      }
+
+      .warning {
+        background: #fff3ee;
+        border: 1px solid #f4cdc0;
+      }
+
+      .note strong,
+      .warning strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      .shot {
+        padding: 18px;
+      }
+
+      .shot img {
+        display: block;
+        width: 100%;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+      }
+
+      .shot figcaption {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 0.94rem;
+        line-height: 1.55;
+      }
+
+      .api-table-wrap,
+      .matrix-wrap {
+        overflow: auto;
+      }
+
+      .footer {
+        margin-top: 24px;
+        padding: 24px 28px;
+        border-radius: 24px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--muted);
+        box-shadow: var(--shadow);
+      }
+
+      @media (max-width: 1160px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .toc {
+          position: static;
+        }
+
+        .cards-4,
+        .cards-3 {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 760px) {
+        .page {
+          width: min(100vw - 20px, 100%);
+          padding-top: 16px;
+        }
+
+        .hero,
+        .section,
+        .toc,
+        .footer {
+          padding: 20px;
+          border-radius: 20px;
+        }
+
+        .hero-grid,
+        .cards-2,
+        .cards-3,
+        .cards-4 {
+          grid-template-columns: 1fr;
+        }
+
+        th,
+        td {
+          padding: 10px 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div class="pill-row">
+          <span class="pill">Football Stats Web</span>
+          <span class="pill">QA / Test Guide</span>
+          <span class="pill warn">Обновлено: 14.04.2026</span>
+        </div>
+        <h1>Подробное описание бизнес-логики веб-части для тестировщика</h1>
+        <p>
+          Это tester-facing документ по текущему состоянию фронтенда проекта <code>football-stats-web</code>.
+          Ниже разобраны реальные сценарии работы страниц, роль каждого компонента, его API-вызовы,
+          реакция интерфейса на успешный и ошибочный ответ, а также важные ограничения и legacy-участки,
+          которые не должны приниматься за основную боевую логику.
+        </p>
+        <div class="hero-grid">
+          <div class="hero-stat">
+            Основной стек
+            <strong>Vue 3 + Vite + Vue Router</strong>
+          </div>
+          <div class="hero-stat">
+            Главный принцип
+            <strong>Страница = сценарий + API + роль</strong>
+          </div>
+          <div class="hero-stat">
+            Важный акцент
+            <strong>Часть экранов legacy и не равна production-flow</strong>
+          </div>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="toc">
+          <h2>Содержание</h2>
+          <ol>
+            <li><a href="#business-context">Что это за продукт и зачем он нужен</a></li>
+            <li><a href="#scope">Область тестирования и карта данных</a></li>
+            <li><a href="#global">Сквозная бизнес-логика приложения</a></li>
+            <li><a href="#app">App shell, авторизация и маршрутизация</a></li>
+            <li><a href="#tours">Страница туров и таблицы сезона</a></li>
+            <li><a href="#match">Страница матча и протокол</a></li>
+            <li><a href="#players">Страница игроков и модальное окно карточки</a></li>
+            <li><a href="#teams">Страница команд</a></li>
+            <li><a href="#admin">Админ-панель</a></li>
+            <li><a href="#teamrep">Кабинет представителя команды</a></li>
+            <li><a href="#explorer">API Explorer и экран теста endpoint</a></li>
+            <li><a href="#legacy">Legacy и неосновные части фронтенда</a></li>
+            <li><a href="#matrix">Сводная матрица страниц, API и триггеров</a></li>
+            <li><a href="#risks">Замечания для QA</a></li>
+          </ol>
+        </aside>
+
+        <main class="main">
+          <section class="section" id="business-context">
+            <h2>Вводный бизнес-контекст проекта</h2>
+            <p>
+              <code>Football Stats Web</code> - это веб-интерфейс для локального футбольного турнира, который объединяет публичную витрину соревнования,
+              операционную работу организаторов и рабочее место представителей команд. По сути, система нужна для того, чтобы в одном месте вести сезон,
+              публиковать туры, собирать составы команд на матчи, оформлять официальные протоколы и показывать участникам и болельщикам актуальную турнирную картину.
+            </p>
+
+            <div class="cards-4">
+              <article class="mini-card">
+                <h4>Для кого продукт</h4>
+                <p>Для организаторов турнира, представителей команд, игроков, зрителей и всех, кому нужен прозрачный статус сезона и матчей.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Что решает</h4>
+                <p>Убирает разрозненный учет в чатах и таблицах, фиксирует официальный состав матча, результат и историю сезона в едином интерфейсе.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Главная сущность</h4>
+                <p>Сезон турнира: внутри него есть команды, автоматически сформированные туры, матчи, заявки, протоколы и турнирная таблица.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Ожидаемый результат</h4>
+                <p>После подтверждения протокола матч становится официально завершенным, а публичная таблица и статистика отражают факт турнира.</p>
+              </article>
+            </div>
+
+            <h3>Какая бизнес-модель зашита в продукт</h3>
+            <ul>
+              <li>Организатор создает сезон и задает его формат: количество кругов, наличие плей-офф, состав участников.</li>
+              <li>На основе состава команд и настроек формата backend формирует сетку регулярных туров.</li>
+              <li>Организатор назначает матчи по турам и публикует туры, после чего они становятся видны на публичной главной странице.</li>
+              <li>Представитель команды ведет свой roster и формирует сезонную заявку, а затем подает заявку на конкретный матч.</li>
+              <li>Администратор на основе уже поданных составов оформляет официальный протокол матча: счет, голы, карточки, техническое поражение при необходимости.</li>
+              <li>После подтверждения протокола матч становится источником истины для standings, статистики игроков и общей картины сезона.</li>
+            </ul>
+
+            <h3>Кто и как взаимодействует с системой</h3>
+            <div class="cards-3">
+              <article class="mini-card">
+                <h4>Организатор / SUPER_ADMIN</h4>
+                <p>Управляет справочниками и турнирным контуром: сезоны, команды, туры, матчи, игроки, роли и окончательное утверждение результата матча.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Представитель команды / TEAM_REP</h4>
+                <p>Поддерживает актуальный состав своей команды, переводит игроков в заявку сезона и подает заявку на матч от имени своей команды.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Публичный пользователь</h4>
+                <p>Смотрит календарь, турнирную таблицу, карточки матчей и игроков. Для него система выступает как официальный информационный сайт турнира.</p>
+              </article>
+            </div>
+
+            <div class="note">
+              <strong>Если описать продукт одной фразой</strong>
+              Это цифровой контур управления футбольным сезоном: от настройки турнира и состава команд до официального протокола матча и публичного отображения результатов.
+            </div>
+
+            <div class="warning">
+              <strong>Почему этот вводный блок важен для тестировщика</strong>
+              Без него экраны выглядят как набор отдельных форм и таблиц. На практике же здесь есть единая предметная цепочка: сезон - тур - матч - заявка - протокол - таблица.
+              Именно поэтому многие проверки нужно строить не по отдельному экрану, а по сквозному бизнес-сценарию.
+            </div>
+          </section>
+
+          <section class="section" id="scope">
+            <h2>1. Область тестирования и карта данных</h2>
+            <p>
+              Текущий фронтенд состоит из публичных страниц, role-based закрытых экранов и нескольких legacy-модулей.
+              При тестировании важно различать, какие страницы живут на реальном backend API, а какие используют локальные мок-данные
+              или вообще служат как демонстрационные/вспомогательные экраны.
+            </p>
+
+            <div class="cards-4">
+              <article class="mini-card">
+                <h4>Реальный backend API</h4>
+                <p>
+                  <code>/</code>, <code>/match/:id</code>, <code>/players</code>, <code>/admin</code>,
+                  <code>/team-rep-dashboard</code>, <code>/api-explorer</code>, <code>/api-explorer/test/:endpointKey</code>.
+                </p>
+              </article>
+              <article class="mini-card">
+                <h4>Смешанный режим</h4>
+                <p>
+                  Экран API Explorer статичен по каталогу endpoint-ов, но тестовый экран выполняет реальные HTTP-запросы к backend.
+                </p>
+              </article>
+              <article class="mini-card">
+                <h4>Локальные данные</h4>
+                <p>
+                  <code>/teams</code>, <code>/create</code>, <code>Home.vue</code> и часть admin-ban функционала работают на локальном store/localStorage.
+                </p>
+              </article>
+              <article class="mini-card">
+                <h4>Для QA-акцента</h4>
+                <p>
+                  Тестировать как основной контур нужно публичные сезоны, матч, игроков, админку, кабинет TEAM_REP и API Explorer.
+                </p>
+              </article>
+            </div>
+
+            <div class="note">
+              <strong>Главный принцип чтения этого документа</strong>
+              Сначала смотрим бизнес-смысл страницы, затем триггеры загрузки данных, затем матрицу endpoint-ов, затем граничные состояния.
+              Такой порядок совпадает с тем, как тестировщик обычно строит чек-листы.
+            </div>
+          </section>
+
+          <section class="section" id="global">
+            <h2>2. Сквозная бизнес-логика приложения</h2>
+
+            <h3>2.1 Роли и права</h3>
+            <div class="cards-4">
+              <article class="mini-card">
+                <h4>Гость / неавторизованный пользователь</h4>
+                <p>Читает публичные страницы. Не видит защищенную навигацию. Может открыть API Explorer напрямую.</p>
+              </article>
+              <article class="mini-card">
+                <h4>USER</h4>
+                <p>Логически близок к гостю, но уже имеет JWT и может вызывать защищенные read-only endpoint-ы через токен.</p>
+              </article>
+              <article class="mini-card">
+                <h4>TEAM_REP</h4>
+                <p>Редактирует состав своей команды, управляет заявкой на сезон и подает заявку на матч за свою команду.</p>
+              </article>
+              <article class="mini-card">
+                <h4>SUPER_ADMIN</h4>
+                <p>Создает сезоны, команды, матчи, игроков, роли, team-scope и заполняет/подтверждает протоколы матчей.</p>
+              </article>
+            </div>
+
+            <h3>2.2 Общая модель работы с API</h3>
+            <ul>
+              <li>Во фронтенде есть два основных wrapper-а: <code>authorizedApiRequest</code> и <code>optionalAuthApiRequest</code>.</li>
+              <li><code>authorizedApiRequest</code> падает сразу, если токена нет, и всегда добавляет <code>Authorization: Bearer ...</code>.</li>
+              <li><code>optionalAuthApiRequest</code> отправляет тот же запрос без токена, если пользователь не авторизован.</li>
+              <li>Базовый слой <code>apiRequest</code> унифицирует обработку ответа: парсит JSON, выбрасывает <code>Error</code> по <code>response.ok === false</code>, маскирует чувствительные поля в dev-логах.</li>
+              <li>Сетевые ошибки приводятся к единому сообщению: сервер недоступен.</li>
+            </ul>
+
+            <h3>2.3 Логи в dev-режиме</h3>
+            <ul>
+              <li><code>main.js</code> переопределяет глобальный <code>fetch</code> и логирует все API-запросы в консоль браузера.</li>
+              <li><code>auth.js</code> дополнительно логирует запросы, проходящие через wrapper-ы авторизации.</li>
+              <li>В dev это может давать двойные логи по одному и тому же запросу. Для QA это не дефект бизнес-логики, а особенность инструмента диагностики.</li>
+            </ul>
+
+            <h3>2.4 Общая логика ошибок</h3>
+            <ul>
+              <li>Каждая страница обычно держит локальный <code>errorText</code>, <code>pageError</code>, <code>messageError</code> или эквивалент.</li>
+              <li>При неуспехе фронтенд не перезагружает весь SPA, а показывает текст ошибки внутри текущего экрана.</li>
+              <li>После успешного действия почти везде есть повторная загрузка или локальная синхронизация состояния, чтобы UI не расходился с backend.</li>
+            </ul>
+          </section>
+
+          <section class="section" id="app">
+            <h2>3. App shell, авторизация и маршрутизация</h2>
+            <p>
+              Файл <code>App.vue</code> определяет общий каркас сайта: верхнюю панель, навигацию, кнопку входа/регистрации,
+              вывод имени пользователя либо ярлыка представителя команды, а также модальное окно авторизации.
+            </p>
+
+            <div class="pill-row">
+              <span class="pill">Файл: App.vue</span>
+              <span class="pill">Маршрутизация: router/index.js</span>
+              <span class="pill">Auth store: store/auth.js</span>
+            </div>
+
+            <h3>3.1 Бизнес-логика верхней панели</h3>
+            <ul>
+              <li>Публично видны ссылки только на туры, игроков и команды.</li>
+              <li>Ссылка на админ-панель и API Explorer в верхнем меню появляется только для <code>SUPER_ADMIN</code>.</li>
+              <li>Для <code>TEAM_REP</code> вместо обычного имени показывается кнопка профиля вида <code>Представитель команды "..."</code>, ведущая в личный кабинет.</li>
+              <li>При выходе из системы токен и пользователь удаляются из <code>sessionStorage</code>, после чего SPA принудительно уходит на главную страницу.</li>
+            </ul>
+
+            <h3>3.2 Модальное окно авторизации</h3>
+            <div class="api-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Действие</th>
+                    <th>Endpoint</th>
+                    <th>Триггер</th>
+                    <th>Результат UI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Регистрация</td>
+                    <td><code>POST /api/auth/register</code></td>
+                    <td>Вкладка «Регистрация», submit формы</td>
+                    <td>Токен и профиль пишутся в <code>sessionStorage</code>, затем идет добор данных через <code>/api/auth/me</code> и <code>/api/admin/access/me</code>, модалка закрывается через 500 мс.</td>
+                  </tr>
+                  <tr>
+                    <td>Вход</td>
+                    <td><code>POST /api/auth/login</code></td>
+                    <td>Вкладка «Вход», submit формы</td>
+                    <td>Та же цепочка, что у регистрации, но без создания нового пользователя.</td>
+                  </tr>
+                  <tr>
+                    <td>Добор текущего профиля</td>
+                    <td><code>GET /api/auth/me</code><br /><code>GET /api/admin/access/me</code></td>
+                    <td>После успешного auth и при загрузке приложения с уже сохраненной сессией</td>
+                    <td>Фронтенд узнает роли, имя команды, <code>teamId</code> и флаги <code>canEditRoster</code>, <code>canEditApplication</code>.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>3.3 Route guard</h3>
+            <ul>
+              <li><code>/create</code> требует просто авторизацию.</li>
+              <li><code>/admin</code> требует авторизацию и роль <code>SUPER_ADMIN</code>.</li>
+              <li><code>/team-rep-dashboard</code> требует авторизацию и роль <code>TEAM_REP</code>.</li>
+              <li><code>/api-explorer</code> фактически не защищен route guard-ом, хотя в верхнем меню показывается только администратору. Это важная особенность для QA.</li>
+            </ul>
+
+            <figure class="shot">
+              <img src="/tester-guide-assets/auth-modal.png" alt="Окно авторизации" />
+              <figcaption>
+                Окно входа/регистрации. Это общая точка входа в аутентификацию для всего SPA. Отсюда нельзя выполнить гостевой логин: гостевой сценарий вынесен в API Explorer.
+              </figcaption>
+            </figure>
+          </section>
+
+          <section class="section" id="tours">
+            <h2>4. Страница туров и таблицы сезона</h2>
+            <p>
+              Маршрут <code>/</code> обслуживается файлом <code>Tours.vue</code> и является основной публичной стартовой страницей.
+              Ее бизнес-задача: одним взглядом дать сезонный обзор, не заставляя пользователя отдельно ходить за таблицей,
+              командами сезона и списком туров.
+            </p>
+
+            <h3>4.1 Что делает страница в бизнес-смысле</h3>
+            <ul>
+              <li>Показывает список активных сезонов.</li>
+              <li>После выбора сезона запрашивает aggregated overview объекта сезона.</li>
+              <li>Отображает метаданные формата турнира: число кругов, число команд, число туров регулярки, наличие плей-офф.</li>
+              <li>Слева рисует сохраненную турнирную таблицу сезона.</li>
+              <li>Справа рисует только опубликованные туры с вложенными матчами.</li>
+              <li>При раскрытии тура показывает матчи в порядке kickoff time.</li>
+            </ul>
+
+            <h3>4.2 API и триггеры</h3>
+            <div class="api-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Endpoint</th>
+                    <th>Когда вызывается</th>
+                    <th>Что именно приходит</th>
+                    <th>Что делает фронт</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>GET /api/seasons?active_flag=1</code></td>
+                    <td>На <code>onMounted</code></td>
+                    <td>Список активных сезонов</td>
+                    <td>Заполняет селект сезона. Если сезон еще не выбран, автоматически подставляет первый сезон в списке.</td>
+                  </tr>
+                  <tr>
+                    <td><code>GET /api/seasons/{seasonId}/overview</code></td>
+                    <td>При изменении выбранного сезона</td>
+                    <td>Сезон, команды сезона, опубликованные туры, матчи внутри туров, <code>standingsConfig</code>, <code>standings</code></td>
+                    <td>Обновляет правую колонку с турами и левую таблицу standings без дополнительных запросов.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>4.3 Встроенная бизнес-логика на фронте</h3>
+            <ul>
+              <li>При смене сезона фронтенд сбрасывает раскрытый тур, чтобы не показывать несовместимое состояние от прошлого сезона.</li>
+              <li>Туры сортируются по <code>sortOrder</code>, затем по <code>roundNumber</code>, затем по <code>id</code>.</li>
+              <li>Матчи внутри тура сортируются по <code>kickoffAt</code>, затем по <code>id</code>.</li>
+              <li>Для таблицы берутся уже готовые standings из backend. На клиенте таблица не пересчитывается.</li>
+              <li>Статус матча отображается через локальный mapper: <code>LIVE</code>, <code>FINISHED</code>, <code>VERIFIED</code>, <code>LINEUPS_SUBMITTED</code>, default = запланирован.</li>
+            </ul>
+
+            <div class="note">
+              <strong>Ключевой архитектурный смысл</strong>
+              Стартовая страница больше не пересчитывает таблицу на клиенте. Она только читает уже сохраненный snapshot сезона из backend.
+              Для QA это означает, что проверять корректность standings нужно через цепочку: подтверждение протокола матча - пересчет в backend - новый overview.
+            </div>
+
+            <div class="warning">
+              <strong>Что обязательно проверить</strong>
+              Если таблица не совпадает с ожидаемым результатом после подтверждения протокола, проблема почти наверняка не в рендере <code>Tours.vue</code>,
+              а в backend-пересчете или в содержимом <code>/api/seasons/{id}/overview</code>.
+            </div>
+          </section>
+
+          <section class="section" id="match">
+            <h2>5. Страница матча и протокол</h2>
+            <p>
+              Маршрут <code>/match/:id</code> обслуживается файлом <code>Match.vue</code>. Это самый важный экран по бизнес-логике,
+              потому что именно здесь сходятся публичный просмотр матча, работа представителя команды с заявкой и работа администратора с протоколом.
+            </p>
+
+            <div class="pill-row">
+              <span class="pill">Публичный просмотр</span>
+              <span class="pill">TEAM_REP редактирует заявку</span>
+              <span class="pill danger">SUPER_ADMIN заполняет и подтверждает протокол</span>
+            </div>
+
+            <h3>5.1 Бизнес-смысл экрана</h3>
+            <ul>
+              <li>Показать базовую карточку матча: команды, логотипы, время, текущий счет, сезон, тур, статус протокола.</li>
+              <li>Показать составы обеих команд и уже сохраненную статистику игроков в виде публичных иконок.</li>
+              <li>Разрешить TEAM_REP подать либо скорректировать только свою заявку на матч.</li>
+              <li>Разрешить SUPER_ADMIN перевести поданные составы в официальный протокол матча.</li>
+            </ul>
+
+            <h3>5.2 Основные запросы</h3>
+            <div class="api-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Endpoint</th>
+                    <th>Кто вызывает</th>
+                    <th>Когда</th>
+                    <th>Реакция UI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>GET /api/matches/{matchId}</code></td>
+                    <td>Все роли</td>
+                    <td>При первом открытии страницы и при локальном refresh</td>
+                    <td>Заполняет весь экран: hero, lineups, available players, protocol, saved events.</td>
+                  </tr>
+                  <tr>
+                    <td><code>PUT /api/matches/{matchId}/lineups/{teamId}</code></td>
+                    <td>SUPER_ADMIN или TEAM_REP своей команды</td>
+                    <td>Добавление игрока, удаление игрока, очистка заявки</td>
+                    <td>Backend возвращает обновленный match payload, фронт сразу заменяет локальный match и синхронизирует draft протокола.</td>
+                  </tr>
+                  <tr>
+                    <td><code>PUT /api/matches/{matchId}/protocol</code></td>
+                    <td>SUPER_ADMIN</td>
+                    <td>Сохранить или подтвердить протокол</td>
+                    <td>Возвращается обновленный match с актуальным протоколом и событиями, далее фронт заново пересобирает draft.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>5.3 Как работает логика заявки</h3>
+            <ul>
+              <li>Для каждой команды рисуется отдельная карточка состава.</li>
+              <li>Если у пользователя нет прав на эту команду, он видит только read-only список игроков и иконки статистики.</li>
+              <li>Если права есть, доступны действия: добавить игрока, убрать игрока, очистить заявку.</li>
+              <li>Перед открытием модалки добавления игрока фронтенд делает <code>refreshMatch()</code>, чтобы список доступных игроков был свежим и не расходился с backend.</li>
+              <li>В payload заявки уходит не diff, а полный массив <code>playerIds</code> на команду.</li>
+            </ul>
+
+            <h3>5.4 Как работает draft протокола</h3>
+            <ul>
+              <li>Фронтенд не хранит протокол в свободной форме. Он строит <code>protocolDraft</code> из текущего backend payload.</li>
+              <li>Источник уже сохраненной статистики игрока - это не поля протокола как таковые, а список backend-событий <code>protocol.events</code>.</li>
+              <li>Из этих событий собирается <code>savedStatsMap</code>, по которому и рисуются мячи и карточки возле игроков в публичной части.</li>
+              <li>В админской части по тем же игрокам создаются редактируемые ячейки: голы, желтые, красные.</li>
+            </ul>
+
+            <h3>5.5 Ключевые валидации протокола</h3>
+            <div class="cards-3">
+              <article class="mini-card">
+                <h4>Нельзя сохранить протокол без двух заявок</h4>
+                <p>Если обе команды не подали составы, кнопка сохранения выдаст ошибку про необходимость сначала подать обе заявки.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Сумма голов игроков должна совпасть со счетом</h4>
+                <p>При обычном матче фронтенд сам считает голы по игрокам по каждой команде и сравнивает с полями счета.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Техническое поражение исключает индивидуальную статистику</h4>
+                <p>При включении tech defeat все поля игрока обнуляются, а счет жестко становится 0:3 или 3:0.</p>
+              </article>
+            </div>
+
+            <h3>5.6 Техническое поражение</h3>
+            <ul>
+              <li>Выбор технического поражения одной стороны автоматически снимает тех.поражение у другой стороны.</li>
+              <li>При включении флага блокируются ручные инпуты счета.</li>
+              <li>При выключении обоих флагов счет сбрасывается в <code>0:0</code>, а редактирование ручного счета снова становится доступным.</li>
+              <li>В публичной шапке матча поверх счета показывается отдельная подпись вида <code>Тех. пор. Команда</code>.</li>
+            </ul>
+
+            <h3>5.7 Что уходит в protocol API</h3>
+            <ul>
+              <li><code>status</code> = <code>FINISHED</code> при обычном сохранении и <code>VERIFIED</code> при подтверждении.</li>
+              <li><code>homeScore</code> и <code>awayScore</code> - либо вручную выставленные значения, либо принудительный <code>0:3 / 3:0</code> при tech defeat.</li>
+              <li><code>playerStats</code> - массив по каждому игроку состава, где фронт нормализует отрицательные значения в ноль.</li>
+              <li>Поля <code>bestPlayerId</code>, <code>notes</code>, <code>startedAt</code>, <code>finishedAt</code> сейчас всегда отправляются как <code>null</code> и не участвуют в UI-сценарии.</li>
+            </ul>
+
+            <figure class="shot">
+              <img src="/tester-guide-assets/match-page.png" alt="Страница матча" />
+              <figcaption>
+                Публичная часть карточки матча. В текущем состоянии без авторизации видно шапку матча, обе заявки и уже сохраненную статистику игроков.
+                Админские элементы протокола на скриншоте отсутствуют, так как они появляются только для роли <code>SUPER_ADMIN</code>.
+              </figcaption>
+            </figure>
+          </section>
+
+          <section class="section" id="players">
+            <h2>6. Страница игроков и модальное окно карточки</h2>
+            <p>
+              Маршрут <code>/players</code> обслуживается файлом <code>Players.vue</code>. Страница является публичным каталогом игроков с поиском,
+              пагинацией и большим модальным окном детальной карточки игрока.
+            </p>
+
+            <h3>6.1 Бизнес-смысл</h3>
+            <ul>
+              <li>Показать постраничный список игроков.</li>
+              <li>Дать поиск по фамилии/имени без мгновенного спама в API.</li>
+              <li>По клику на игрока открыть реальную карточку с фото, базовыми данными, суммарной статистикой и историей команд.</li>
+            </ul>
+
+            <h3>6.2 API-цепочка</h3>
+            <div class="api-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Endpoint</th>
+                    <th>Когда</th>
+                    <th>Назначение</th>
+                    <th>Реакция UI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>GET /api/players?pagenum=X&amp;pagesize=20&amp;name=QUERY</code></td>
+                    <td>При открытии страницы, при смене страницы, при изменении debounced поиска</td>
+                    <td>Получить список игроков</td>
+                    <td>Заполняет плоский список имен, пагинацию и счетчики.</td>
+                  </tr>
+                  <tr>
+                    <td><code>GET /api/players/{playerId}</code></td>
+                    <td>При открытии модалки игрока</td>
+                    <td>Базовая карточка игрока</td>
+                    <td>ФИО, фото, дата рождения, текущая команда, город, голы, ЖК, КК.</td>
+                  </tr>
+                  <tr>
+                    <td><code>GET /api/players/{playerId}/history</code></td>
+                    <td>При открытии модалки игрока</td>
+                    <td>История команд</td>
+                    <td>Параллельно наполняет нижний блок карточки.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>6.3 Локальная логика</h3>
+            <ul>
+              <li>Поиск завернут в <code>useDebounce(search, 1000)</code>, то есть API идет только через 1 секунду после остановки ввода.</li>
+              <li>При изменении строки поиска номер страницы принудительно сбрасывается на 0.</li>
+              <li>Карточка игрока грузит детали и историю параллельно через <code>Promise.all</code>.</li>
+              <li>Если фото отсутствует, UI рисует крупный placeholder <code>Нет фото</code>, а не ломает layout.</li>
+              <li>Если история пустая, вместо пустого блока показывается явный текст про отсутствие истории переходов.</li>
+            </ul>
+
+            <div class="warning">
+              <strong>Важная наблюдаемая особенность</strong>
+              В текущем runtime страница игроков работает публично даже без авторизации. При этом каталог API описывает часть player-endpoint-ов как auth-required.
+              Для QA это значит, что реальное поведение и декларативное описание API надо сверять отдельно.
+            </div>
+
+            <figure class="shot">
+              <img src="/tester-guide-assets/players-modal.png" alt="Страница игроков и модальное окно" />
+              <figcaption>
+                Живой пример карточки игрока: список, пагинация и уже открытая модалка с фото, статистикой и историей команды.
+                Это не mock, а данные из <code>/api/players/{id}</code> и <code>/api/players/{id}/history</code>.
+              </figcaption>
+            </figure>
+          </section>
+
+          <section class="section" id="teams">
+            <h2>7. Страница команд</h2>
+            <p>
+              Маршрут <code>/teams</code> обслуживается файлом <code>Teams.vue</code>. На текущий момент это не полноценный backend-driven экран,
+              а витрина, читающая <code>standings</code> из локального <code>store.js</code>.
+            </p>
+
+            <h3>7.1 Что это означает для тестировщика</h3>
+            <ul>
+              <li>Страница не делает HTTP-запросов.</li>
+              <li>Она не синхронизирована с новой season standings архитектурой, которая используется на главной странице.</li>
+              <li>Если здесь пусто, это не означает, что в backend нет команд или турнирной таблицы.</li>
+              <li>Этот экран нельзя использовать как эталон для проверки актуального season overview.</li>
+            </ul>
+
+            <figure class="shot">
+              <img src="/tester-guide-assets/teams-page.png" alt="Страница команд" />
+              <figcaption>
+                Текущее состояние экрана команд. Он может показывать пустое состояние независимо от того, что реально есть в backend,
+                потому что живет на legacy store-данных.
+              </figcaption>
+            </figure>
+          </section>
+
+          <section class="section" id="admin">
+            <h2>8. Админ-панель</h2>
+            <p>
+              Маршрут <code>/admin</code> обслуживается файлом <code>Admin.vue</code> и открыт только для <code>SUPER_ADMIN</code>.
+              Это главный back-office экран, разбитый на вкладки. Внутри каждой вкладки фронтенд реализует отдельный законченный business flow.
+            </p>
+
+            <h3>8.1 Состав вкладок</h3>
+            <div class="cards-4">
+              <article class="mini-card">
+                <h4>Сезоны</h4>
+                <p>Создание, редактирование, деактивация сезона и полный набор команд сезона.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Команды</h4>
+                <p>CRUD команд, логотипы, города и короткие названия.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Туры</h4>
+                <p>Выбор сезона, список туров, добавление матчей, публикация тура, удаление матчей.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Игроки</h4>
+                <p>Создание, редактирование и мягкое удаление игроков.</p>
+              </article>
+            </div>
+
+            <div class="cards-4" style="margin-top:14px;">
+              <article class="mini-card">
+                <h4>Роли</h4>
+                <p>Поиск пользователя, выдача роли, замена роли, снятие роли через real admin-access API.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Представители</h4>
+                <p>Поиск TEAM_REP, назначение команды, снятие привязки через team scope.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Бан</h4>
+                <p>Локальный frontend-only сценарий на <code>localStorage</code>, не backend-security механизм.</p>
+              </article>
+              <article class="mini-card">
+                <h4>Сообщения</h4>
+                <p>Все успехи и ошибки централизованно выводятся внизу панели через <code>messageOk</code> и <code>messageError</code>.</p>
+              </article>
+            </div>
+
+            <h3>8.2 Основная логика по вкладкам</h3>
+            <div class="api-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Вкладка</th>
+                    <th>Основные endpoint-ы</th>
+                    <th>Логика UI</th>
+                    <th>Что важно проверить</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Сезоны</td>
+                    <td><code>POST /api/seasons</code><br /><code>PUT /api/seasons/{id}</code><br /><code>GET/PUT /api/seasons/{id}/teams</code><br /><code>DELETE /api/seasons/{id}</code></td>
+                    <td>Есть отдельные подрежимы «создать» и «редактировать». Команды сезона формируются как явный список выбранных команд.</td>
+                    <td>После сохранения должен обновляться сезонный реестр и при совпадении с выбранным сезоном тура - список туров.</td>
+                  </tr>
+                  <tr>
+                    <td>Команды</td>
+                    <td><code>GET /api/teams?active_flag=1</code><br /><code>POST /api/teams</code><br /><code>PUT /api/teams/{id}</code><br /><code>DELETE /api/teams/{id}</code></td>
+                    <td>Форма умеет читать изображение и конвертировать его в <code>dataUrl</code> до отправки.</td>
+                    <td>Редактирование и деактивация должны обновлять список команд и косвенно влиять на выборы в сезонах/турах.</td>
+                  </tr>
+                  <tr>
+                    <td>Туры</td>
+                    <td><code>GET /api/tours?season_id=...</code><br /><code>GET /api/teams?season_id=...</code><br /><code>GET /api/tours/{tourId}/matches</code><br /><code>POST /api/tours/{tourId}/matches</code><br /><code>PUT /api/tours/{tourId}/publish</code><br /><code>DELETE /api/tours/{tourId}/matches/{matchId}</code></td>
+                    <td>Сначала выбирается сезон, затем тур. До выбора тура экран матча не активен. Нельзя публиковать пустой тур.</td>
+                    <td>На публичную главную попадают только опубликованные туры. Это критическая business rule.</td>
+                  </tr>
+                  <tr>
+                    <td>Игроки</td>
+                    <td><code>GET /api/players?active_flag=1&amp;pagenum=0&amp;pagesize=500</code><br /><code>POST /api/players</code><br /><code>PUT /api/players/{id}</code><br /><code>DELETE /api/players/{id}</code></td>
+                    <td>Есть create/edit режимы. Фото игрока также грузится как <code>dataUrl</code>.</td>
+                    <td>После изменения игрока реестр должен сразу обновиться, а деактивация должна убирать игрока из списка редактирования.</td>
+                  </tr>
+                  <tr>
+                    <td>Роли</td>
+                    <td><code>GET /api/admin/access/users</code><br /><code>GET /api/admin/access/users/{userId}</code><br /><code>POST/DELETE /api/admin/access/users/{userId}/roles/{roleCode}</code></td>
+                    <td>Поиск по email дебаунсится на 5 секунд, но есть и ручная кнопка «Найти». Замена роли делается последовательностью revoke + assign.</td>
+                    <td>Проверять, что роль в UI реально обновляется после refresh access пользователя.</td>
+                  </tr>
+                  <tr>
+                    <td>Представители</td>
+                    <td><code>GET /api/admin/access/users?role=TEAM_REP</code><br /><code>GET /api/admin/access/users/{userId}</code><br /><code>POST /api/admin/access/users/{userId}/team-scopes</code><br /><code>DELETE /api/admin/access/users/{userId}/team-scopes/{teamId}</code></td>
+                    <td>Перед назначением новой команды старые scope-ы снимаются. UI явно предупреждает, если найдено несколько активных привязок.</td>
+                    <td>После назначения представитель должен увидеть команду в своем кабинете и получить права на roster/application.</td>
+                  </tr>
+                  <tr>
+                    <td>Бан</td>
+                    <td>HTTP нет</td>
+                    <td>Все хранится в <code>localStorage</code> под ключом реестра пользователей.</td>
+                    <td>Не интерпретировать как реальный серверный механизм блокировки.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>8.3 Нюансы, важные для QA</h3>
+            <ul>
+              <li>При создании сезона фронтенд сначала создает сам сезон, затем отдельным запросом привязывает к нему набор команд.</li>
+              <li>Регулярные туры не создаются вручную на фронте: UI лишь отображает рассчитанный backend-формат сезона.</li>
+              <li>На вкладке ролей старые helper-функции <code>assignRole()</code> и <code>removeRole()</code> остаются в коде, но реальная вкладка использует server-side admin-access API.</li>
+              <li>На вкладке бана ситуация обратная: там до сих пор используется локальная модель на <code>localStorage</code>, а не backend endpoint.</li>
+            </ul>
+          </section>
+
+          <section class="section" id="teamrep">
+            <h2>9. Кабинет представителя команды</h2>
+            <p>
+              Маршрут <code>/team-rep-dashboard</code> обслуживается файлом <code>TeamRepDashboard.vue</code> и закрыт route guard-ом по роли <code>TEAM_REP</code>.
+              Это основной рабочий кабинет представителя команды, через который управляется текущий roster и seasonal application.
+            </p>
+
+            <h3>9.1 Бизнес-смысл кабинета</h3>
+            <ul>
+              <li>Показать представителю его профиль и закрепленную команду.</li>
+              <li>Показать список сезонов, в которых участвует его команда.</li>
+              <li>Позволить редактировать текущий состав команды.</li>
+              <li>Позволить по каждому сезону формировать отдельную заявку.</li>
+              <li>Позволить создавать нового игрока и сразу добавлять его в состав команды.</li>
+            </ul>
+
+            <h3>9.2 Загрузка данных</h3>
+            <div class="api-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Endpoint</th>
+                    <th>Когда</th>
+                    <th>Что делает</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>GET /api/team-rep/seasons</code></td>
+                    <td>На старте кабинета и при ручном обновлении</td>
+                    <td>Возвращает сезоны команды с агрегированными счетчиками по заявке.</td>
+                  </tr>
+                  <tr>
+                    <td><code>GET /api/team-rep/players</code></td>
+                    <td>На старте кабинета и после изменений состава</td>
+                    <td>Возвращает текущий roster команды представителя.</td>
+                  </tr>
+                  <tr>
+                    <td><code>GET /api/team-rep/seasons/{seasonId}/players</code></td>
+                    <td>После выбора сезона, перед открытием модалки добавления игрока</td>
+                    <td>Возвращает текущее представление seasonal application и список доступных игроков.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>9.3 Управление заявкой на сезон</h3>
+            <ul>
+              <li>После выбора сезона можно включить фильтр «Показать игроков в заявке», тогда в основном roster-блоке останутся только игроки, относящиеся к выбранному сезону.</li>
+              <li>Кнопка «Добавить игрока» открывает модалку, где список собирается из двух источников: текущий roster, который еще не включен в сезон, и доступные внешние игроки без команды.</li>
+              <li>Если выбран игрок уже из текущего состава, POST просто добавит его в сезон.</li>
+              <li>Если выбран свободный игрок из <code>availablePlayers</code>, backend переведет его в команду представителя и одновременно добавит в заявку сезона.</li>
+              <li>Удаление из сезона не удаляет карточку игрока и не отвязывает его от команды, а лишь снимает seasonal membership.</li>
+            </ul>
+
+            <h3>9.4 Управление текущим составом команды</h3>
+            <ul>
+              <li>Удаление из команды идет через <code>DELETE /api/teams/{teamId}/players/{playerId}</code>.</li>
+              <li>После удаления фронтенд делает <code>loadDashboard()</code>, а если выбран сезон - еще и <code>loadSeasonView()</code>, чтобы UI не оставил игрока в seasonal blocks.</li>
+              <li>Создание и редактирование игрока выполняется через <code>/api/team-rep/players</code> и <code>/api/team-rep/players/{id}</code>.</li>
+              <li>Фото игрока предварительно читается через <code>FileReader</code> и отправляется как <code>dataUrl</code>.</li>
+            </ul>
+
+            <div class="note">
+              <strong>Ключевая бизнес-идея</strong>
+              В кабинете TEAM_REP различаются два уровня: текущий roster команды и заявка на конкретный сезон. Игрок может состоять в составе команды,
+              но не входить в seasonal application. Именно это различие надо тестировать отдельно.
+            </div>
+          </section>
+
+          <section class="section" id="explorer">
+            <h2>10. API Explorer и экран теста endpoint</h2>
+            <p>
+              Эти страницы обслуживаются файлами <code>ApiExplorer.vue</code> и <code>ApiExplorerTest.vue</code>.
+              Они нужны одновременно как справочник по API и как встроенный ручной тестер запросов к backend.
+            </p>
+
+            <h3>10.1 API Explorer</h3>
+            <ul>
+              <li>Строится не по live schema, а по статическому каталогу <code>src/data/apiExplorerCatalog.js</code>.</li>
+              <li>Каталог является single source of truth для списка endpoint-ов, их описаний, параметров и примеров request body.</li>
+              <li>Поэтому экран сам по себе не доказывает, что endpoint реально доступен. Он описывает ожидаемую контрактную модель.</li>
+            </ul>
+
+            <figure class="shot">
+              <img src="/tester-guide-assets/api-explorer.png" alt="API Explorer" />
+              <figcaption>
+                Индекс endpoint-ов. Здесь tester быстро видит группы ресурсов, HTTP-методы и может перейти на экран ручного выполнения запроса.
+              </figcaption>
+            </figure>
+
+            <h3>10.2 Экран теста конкретного endpoint</h3>
+            <ul>
+              <li>Путь: <code>/api-explorer/test/:endpointKey</code>.</li>
+              <li>На вход берется ключ endpoint-а и через <code>findEndpointByKey</code> поднимается metadata из каталога.</li>
+              <li>Path params, query params и JSON body генерируются динамически исходя из метаданных.</li>
+              <li>Перед отправкой фронт проверяет, что в URL не остались шаблоны <code>{param}</code>.</li>
+              <li>Если endpoint помечен как <code>auth: true</code>, в запрос автоматически добавляется текущий JWT из auth store.</li>
+              <li>Если JSON body невалиден, запрос вообще не отправляется, а пользователь получает ошибку в UI.</li>
+            </ul>
+
+            <figure class="shot">
+              <img src="/tester-guide-assets/api-explorer-test.png" alt="Экран теста endpoint" />
+              <figcaption>
+                Экран ручного прогона endpoint-а. На скриншоте показан сценарий гостевого входа.
+                После нажатия «Тест» ниже появляется статус, время выполнения и тело ответа backend.
+              </figcaption>
+            </figure>
+          </section>
+
+          <section class="section" id="legacy">
+            <h2>11. Legacy и неосновные части фронтенда</h2>
+
+            <h3>11.1 CreateMatch.vue</h3>
+            <ul>
+              <li>Маршрут <code>/create</code> существует, но не входит в основную публичную навигацию.</li>
+              <li>Сценарий работает через локальный <code>store.js</code>, а не через реальный backend.</li>
+              <li>Форма принимает команды, счет, дату, лучшего игрока и строку бомбардиров, разбирая ее на клиенте.</li>
+              <li>Этот экран не является текущим боевым способом создания матчей. Реальный production flow создания матча находится в админке на вкладке туров.</li>
+            </ul>
+
+            <h3>11.2 Home.vue</h3>
+            <ul>
+              <li>Файл существует, но не используется роутером как текущая главная страница.</li>
+              <li>Это legacy-экран старой модели: локальная таблица, последние матчи и топ-игроки на основе <code>store.js</code>.</li>
+              <li>Проверять актуальное состояние турнира по нему нельзя.</li>
+            </ul>
+
+            <h3>11.3 store.js</h3>
+            <ul>
+              <li>Хранит seeded demo-данные по турам, матчам и игрокам.</li>
+              <li>Нужен для устаревших экранов и для части демонстрационной логики.</li>
+              <li>Именно отсюда питаются страницы <code>/teams</code> и legacy flow <code>/create</code>.</li>
+            </ul>
+          </section>
+
+          <section class="section" id="matrix">
+            <h2>12. Сводная матрица страниц, API и триггеров</h2>
+            <div class="matrix-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Страница / компонент</th>
+                    <th>Роль</th>
+                    <th>Основные API</th>
+                    <th>Триггер вызова</th>
+                    <th>Основной бизнес-результат</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>App.vue auth modal</td>
+                    <td>Все</td>
+                    <td><code>/api/auth/register</code><br /><code>/api/auth/login</code><br /><code>/api/auth/me</code><br /><code>/api/admin/access/me</code></td>
+                    <td>Submit формы входа/регистрации, восстановление сессии</td>
+                    <td>Авторизация, восстановление ролей и team-scope пользователя.</td>
+                  </tr>
+                  <tr>
+                    <td>Tours.vue</td>
+                    <td>Публично</td>
+                    <td><code>/api/seasons?active_flag=1</code><br /><code>/api/seasons/{id}/overview</code></td>
+                    <td>Открытие страницы, смена сезона</td>
+                    <td>Сезонный обзор: standings snapshot + опубликованные туры.</td>
+                  </tr>
+                  <tr>
+                    <td>Match.vue</td>
+                    <td>Публично / TEAM_REP / SUPER_ADMIN</td>
+                    <td><code>/api/matches/{id}</code><br /><code>/api/matches/{id}/lineups/{teamId}</code><br /><code>/api/matches/{id}/protocol</code></td>
+                    <td>Открытие матча, редактирование заявки, сохранение протокола</td>
+                    <td>Официальная карточка матча, lineups и protocol workflow.</td>
+                  </tr>
+                  <tr>
+                    <td>Players.vue</td>
+                    <td>Публично</td>
+                    <td><code>/api/players</code><br /><code>/api/players/{id}</code><br /><code>/api/players/{id}/history</code></td>
+                    <td>Открытие страницы, поиск, пагинация, открытие модалки</td>
+                    <td>Каталог игроков и подробная player card.</td>
+                  </tr>
+                  <tr>
+                    <td>Admin.vue</td>
+                    <td>SUPER_ADMIN</td>
+                    <td>Seasons API, Teams API, Tours API, Players API, Admin Access API</td>
+                    <td>Переключение вкладок, submit форм, кнопки публикации/назначения/удаления</td>
+                    <td>Полное административное управление турниром.</td>
+                  </tr>
+                  <tr>
+                    <td>TeamRepDashboard.vue</td>
+                    <td>TEAM_REP</td>
+                    <td><code>/api/team-rep/*</code><br /><code>/api/teams/{teamId}/players/{playerId}</code></td>
+                    <td>Открытие кабинета, выбор сезона, действия по составу</td>
+                    <td>Работа с командой и заявкой на сезон.</td>
+                  </tr>
+                  <tr>
+                    <td>ApiExplorer.vue</td>
+                    <td>Фактически публично</td>
+                    <td>HTTP нет</td>
+                    <td>Открытие страницы</td>
+                    <td>Справочник endpoint-ов по статическому каталогу.</td>
+                  </tr>
+                  <tr>
+                    <td>ApiExplorerTest.vue</td>
+                    <td>Зависит от endpoint-а</td>
+                    <td>Любой endpoint из каталога</td>
+                    <td>Кнопка «Тест»</td>
+                    <td>Ручной прогон реального запроса к backend.</td>
+                  </tr>
+                  <tr>
+                    <td>Teams.vue</td>
+                    <td>Публично</td>
+                    <td>HTTP нет</td>
+                    <td>Открытие страницы</td>
+                    <td>Legacy-витрина на локальном store.</td>
+                  </tr>
+                  <tr>
+                    <td>CreateMatch.vue</td>
+                    <td>Auth required</td>
+                    <td>HTTP нет</td>
+                    <td>Submit формы</td>
+                    <td>Legacy/demo flow создания матча, не production контур.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="section" id="risks">
+            <h2>13. Замечания для QA</h2>
+            <div class="cards-2">
+              <article class="warning">
+                <strong>Различать production и legacy</strong>
+                Текущая боевая логика турниров, игроков, матча, админки и team representative идет через backend API.
+                Страницы <code>/teams</code>, <code>/create</code> и <code>Home.vue</code> не должны использоваться как эталон текущей предметной модели.
+              </article>
+              <article class="warning">
+                <strong>Бан пользователя сейчас не серверный</strong>
+                Вкладка «Бан» в админке работает на <code>localStorage</code>. Она не блокирует реальные backend-вызовы и не является полноценной системой безопасности.
+              </article>
+              <article class="warning">
+                <strong>API Explorer route доступнее, чем menu link</strong>
+                В навигации ссылка на API Explorer скрыта для не-админа, но сам route сейчас не закрыт router guard-ом.
+              </article>
+              <article class="warning">
+                <strong>Игроки публично доступны в текущем runtime</strong>
+                Это наблюдаемое поведение стоит отдельно подтвердить security-правилами backend, потому что каталог API местами описывает эти endpoint-ы строже.
+              </article>
+            </div>
+
+            <div class="note">
+              <strong>Рекомендуемый приоритет тестирования</strong>
+              1) главная страница и season overview, 2) карточка матча и протокол, 3) player catalog и modal, 4) admin season/team/tour flows,
+              5) кабинет TEAM_REP, 6) API Explorer как вспомогательный инструмент проверки контрактов.
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <footer class="footer">
+        Документ подготовлен как статический HTML-файл внутри <code>public</code>, чтобы его можно было открыть локально через dev/preview сервер
+        по прямому URL без дополнительных роутов и без сборки отдельного документационного сайта.
+      </footer>
+    </div>
+  </body>
+</html>

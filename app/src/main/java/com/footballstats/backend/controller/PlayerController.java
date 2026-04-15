@@ -9,6 +9,7 @@ import com.footballstats.backend.repository.TeamRepository;
 import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.service.AccessControlService;
 import com.footballstats.backend.service.MediaAssetService;
+import com.footballstats.backend.service.SeasonPlayerService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.domain.Page;
@@ -46,19 +47,22 @@ public class PlayerController {
     private final TeamRepository teamRepository;
     private final AccessControlService accessControlService;
     private final MediaAssetService mediaAssetService;
+    private final SeasonPlayerService seasonPlayerService;
 
     public PlayerController(
         PlayerRepository playerRepository,
         PlayerTeamRepository playerTeamRepository,
         TeamRepository teamRepository,
         AccessControlService accessControlService,
-        MediaAssetService mediaAssetService
+        MediaAssetService mediaAssetService,
+        SeasonPlayerService seasonPlayerService
     ) {
         this.playerRepository = playerRepository;
         this.playerTeamRepository = playerTeamRepository;
         this.teamRepository = teamRepository;
         this.accessControlService = accessControlService;
         this.mediaAssetService = mediaAssetService;
+        this.seasonPlayerService = seasonPlayerService;
     }
 
     // ----------------------------------------------------------------
@@ -263,6 +267,7 @@ public class PlayerController {
         Authentication authentication
     ) {
         checkRosterEditAccess(authentication, teamId);
+        Long actorUserId = currentUserId(authentication);
 
         Player player = playerRepository.findById(playerId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Игрок не найден."));
@@ -275,6 +280,7 @@ public class PlayerController {
 
         // Завершаем активную привязку к другой команде, если есть
         playerTeamRepository.findByPlayer_IdAndActiveTrue(playerId).forEach(pt -> {
+            seasonPlayerService.deactivateActiveAssignmentsForPlayerInTeam(pt.getTeam().getId(), playerId, actorUserId);
             pt.setActive(false);
             pt.setValidTo(LocalDate.now().minusDays(1));
             playerTeamRepository.save(pt);

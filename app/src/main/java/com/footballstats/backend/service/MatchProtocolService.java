@@ -24,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ public class MatchProtocolService {
     private final PlayerRepository playerRepository;
     private final AccessControlService accessControlService;
     private final SeasonPlayerService seasonPlayerService;
+    private final SeasonStandingsService seasonStandingsService;
 
     public MatchProtocolService(
         TourMatchRepository tourMatchRepository,
@@ -50,7 +52,8 @@ public class MatchProtocolService {
         MatchLineupPlayerRepository matchLineupPlayerRepository,
         PlayerRepository playerRepository,
         AccessControlService accessControlService,
-        SeasonPlayerService seasonPlayerService
+        SeasonPlayerService seasonPlayerService,
+        SeasonStandingsService seasonStandingsService
     ) {
         this.tourMatchRepository = tourMatchRepository;
         this.matchProtocolRepository = matchProtocolRepository;
@@ -60,6 +63,7 @@ public class MatchProtocolService {
         this.playerRepository = playerRepository;
         this.accessControlService = accessControlService;
         this.seasonPlayerService = seasonPlayerService;
+        this.seasonStandingsService = seasonStandingsService;
     }
 
     @Transactional(readOnly = true)
@@ -82,19 +86,29 @@ public class MatchProtocolService {
         MatchProtocolStatus status,
         Integer homeScore,
         Integer awayScore,
+        Boolean homeTechnicalDefeat,
+        Boolean awayTechnicalDefeat,
         Long bestPlayerId,
         String notes,
         OffsetDateTime startedAt,
         OffsetDateTime finishedAt,
-        List<MatchEventDraft> eventDrafts,
+        List<PlayerProtocolStatDraft> playerStatDrafts,
         Long actorUserId
     ) {
         TourMatch match = getExistingDetailedMatch(matchId);
         MatchProtocol protocol = getOrCreateProtocol(match, actorUserId);
+        MatchProtocolStatus previousStatus = protocol.getStatus();
+
+        boolean homeTech = Boolean.TRUE.equals(homeTechnicalDefeat);
+        boolean awayTech = Boolean.TRUE.equals(awayTechnicalDefeat);
+        validateTechnicalDefeat(homeTech, awayTech);
+
+        List<PlayerProtocolStatDraft> normalizedPlayerStats = normalizePlayerStats(match, playerStatDrafts);
+        ProtocolScoreData scoreData = resolveProtocolScore(match, homeScore, awayScore, homeTech, awayTech, normalizedPlayerStats);
 
         matchEventRepository.deleteByMatch_Id(matchId);
 
-        List<MatchEventDraft> drafts = eventDrafts == null ? List.of() : eventDrafts;
+        List<MatchEventDraft> drafts = homeTech || awayTech ? List.of() : buildEventDraftsFromPlayerStats(normalizedPlayerStats);
         for (int index = 0; index < drafts.size(); index += 1) {
             MatchEventDraft draft = drafts.get(index);
             MatchEvent event = new MatchEvent();
@@ -116,8 +130,10 @@ public class MatchProtocolService {
         List<MatchEvent> persistedEvents = matchEventRepository.findAllDetailedByMatchId(matchId);
 
         protocol.setStatus(status == null ? MatchProtocolStatus.SCHEDULED : status);
-        protocol.setHomeScore(homeScore == null ? calculateScore(match, persistedEvents, true) : Math.max(0, homeScore));
-        protocol.setAwayScore(awayScore == null ? calculateScore(match, persistedEvents, false) : Math.max(0, awayScore));
+        protocol.setHomeScore(scoreData.homeScore());
+        protocol.setAwayScore(scoreData.awayScore());
+        protocol.setHomeTechnicalDefeat(homeTech);
+        protocol.setAwayTechnicalDefeat(awayTech);
         protocol.setBestPlayer(resolvePlayer(bestPlayerId));
         protocol.setNotes(normalizeNullable(notes));
         protocol.setStartedAt(startedAt);
@@ -125,6 +141,10 @@ public class MatchProtocolService {
         protocol.setUpdatedByUserId(actorUserId);
         protocol.setUpdatedAt(OffsetDateTime.now());
         matchProtocolRepository.save(protocol);
+
+        if (previousStatus == MatchProtocolStatus.VERIFIED || protocol.getStatus() == MatchProtocolStatus.VERIFIED) {
+            seasonStandingsService.recalculateSeasonStandings(match.getTour().getSeason().getId(), actorUserId);
+        }
 
         TourMatch refreshedMatch = getExistingDetailedMatch(matchId);
         MatchLineupsData lineups = loadLineups(refreshedMatch);
@@ -173,6 +193,7 @@ public class MatchProtocolService {
         if (normalizedIds.isEmpty()) {
             if (lineup != null) {
                 matchLineupPlayerRepository.deleteByLineup_Id(lineup.getId());
+                matchLineupPlayerRepository.flush();
                 matchLineupRepository.delete(lineup);
             }
             syncProtocolStatusAfterLineupChange(match, actorUserId);
@@ -187,6 +208,7 @@ public class MatchProtocolService {
             lineup.setCreatedAt(now);
         } else {
             matchLineupPlayerRepository.deleteByLineup_Id(lineup.getId());
+            matchLineupPlayerRepository.flush();
         }
         lineup.setSubmittedByUserId(actorUserId);
         lineup.setUpdatedByUserId(actorUserId);
@@ -303,7 +325,11 @@ public class MatchProtocolService {
                 seasonId
             ))
             .toList();
+        Set<Long> selectedPlayerIds = players.stream()
+            .map(LineupPlayerData::playerId)
+            .collect(java.util.stream.Collectors.toSet());
         List<AvailablePlayerData> availablePlayers = seasonPlayerService.listEligibleRosterMemberships(team.getId(), seasonId).stream()
+            .filter(item -> !selectedPlayerIds.contains(item.getPlayer().getId()))
             .map(item -> new AvailablePlayerData(
                 item.getPlayer().getId(),
                 item.getPlayer().getFullName(),
@@ -336,24 +362,154 @@ public class MatchProtocolService {
         matchProtocolRepository.save(protocol);
     }
 
-    private int calculateScore(TourMatch match, List<MatchEvent> events, boolean homeScore) {
-        long ownTeamId = homeScore ? match.getHomeTeam().getId() : match.getAwayTeam().getId();
-        long oppositeTeamId = homeScore ? match.getAwayTeam().getId() : match.getHomeTeam().getId();
-        int score = 0;
-        for (MatchEvent event : events) {
-            Long teamId = event.getTeam() == null ? null : event.getTeam().getId();
-            if (teamId == null) {
-                continue;
-            }
-            if ((event.getEventType() == MatchEventType.GOAL || event.getEventType() == MatchEventType.PENALTY_GOAL)
-                && teamId.equals(ownTeamId)) {
-                score += 1;
-            }
-            if (event.getEventType() == MatchEventType.OWN_GOAL && teamId.equals(oppositeTeamId)) {
-                score += 1;
-            }
+    private void validateTechnicalDefeat(boolean homeTechnicalDefeat, boolean awayTechnicalDefeat) {
+        if (homeTechnicalDefeat && awayTechnicalDefeat) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Нельзя поставить техническое поражение обеим командам одновременно.");
         }
-        return score;
+    }
+
+    private ProtocolScoreData resolveProtocolScore(
+        TourMatch match,
+        Integer homeScore,
+        Integer awayScore,
+        boolean homeTechnicalDefeat,
+        boolean awayTechnicalDefeat,
+        List<PlayerProtocolStatDraft> playerStats
+    ) {
+        if (homeTechnicalDefeat) {
+            validateEmptyPlayerStatsForTechnicalDefeat(playerStats);
+            return new ProtocolScoreData(0, 3);
+        }
+        if (awayTechnicalDefeat) {
+            validateEmptyPlayerStatsForTechnicalDefeat(playerStats);
+            return new ProtocolScoreData(3, 0);
+        }
+
+        int normalizedHomeScore = homeScore == null ? 0 : Math.max(0, homeScore);
+        int normalizedAwayScore = awayScore == null ? 0 : Math.max(0, awayScore);
+        int generatedHomeGoals = countGoals(match.getHomeTeam().getId(), playerStats);
+        int generatedAwayGoals = countGoals(match.getAwayTeam().getId(), playerStats);
+
+        if (generatedHomeGoals != normalizedHomeScore || generatedAwayGoals != normalizedAwayScore) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Сумма голов по игрокам должна совпадать со счетом матча."
+            );
+        }
+
+        return new ProtocolScoreData(normalizedHomeScore, normalizedAwayScore);
+    }
+
+    private List<PlayerProtocolStatDraft> normalizePlayerStats(TourMatch match, List<PlayerProtocolStatDraft> playerStatDrafts) {
+        List<PlayerProtocolStatDraft> source = playerStatDrafts == null ? List.of() : playerStatDrafts;
+        if (source.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Set<Long>> lineupPlayerIdsByTeam = new LinkedHashMap<>();
+        for (MatchLineupPlayer lineupPlayer : matchLineupPlayerRepository.findAllDetailedByMatchId(match.getId())) {
+            Long teamId = lineupPlayer.getLineup().getTeam().getId();
+            lineupPlayerIdsByTeam.computeIfAbsent(teamId, ignored -> new HashSet<>()).add(lineupPlayer.getPlayer().getId());
+        }
+
+        Map<String, PlayerProtocolStatDraft> uniqueStats = new LinkedHashMap<>();
+        for (PlayerProtocolStatDraft draft : source) {
+            if (draft == null || draft.teamId() == null || draft.playerId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Для статистики игрока обязательны teamId и playerId.");
+            }
+
+            Team team = resolveEventTeam(match, draft.teamId());
+            Set<Long> lineupPlayerIds = lineupPlayerIdsByTeam.getOrDefault(team.getId(), Set.of());
+            if (!lineupPlayerIds.contains(draft.playerId())) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Статистику можно заполнять только для игроков, включенных в заявку матча."
+                );
+            }
+
+            String uniqueKey = team.getId() + ":" + draft.playerId();
+            if (uniqueStats.containsKey(uniqueKey)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Игрок не может повторяться в протоколе дважды.");
+            }
+
+            uniqueStats.put(uniqueKey, new PlayerProtocolStatDraft(
+                team.getId(),
+                draft.playerId(),
+                normalizeNonNegative(draft.goals(), "Количество голов не может быть отрицательным."),
+                normalizeNonNegative(draft.yellowCards(), "Количество желтых карточек не может быть отрицательным."),
+                normalizeNonNegative(draft.redCards(), "Количество красных карточек не может быть отрицательным.")
+            ));
+        }
+
+        return uniqueStats.values().stream()
+            .sorted(Comparator.comparing(PlayerProtocolStatDraft::teamId).thenComparing(PlayerProtocolStatDraft::playerId))
+            .toList();
+    }
+
+    private List<MatchEventDraft> buildEventDraftsFromPlayerStats(List<PlayerProtocolStatDraft> playerStats) {
+        List<MatchEventDraft> eventDrafts = new ArrayList<>();
+        int sortOrder = 1;
+        for (PlayerProtocolStatDraft playerStat : playerStats) {
+            sortOrder = appendRepeatedEvents(eventDrafts, MatchEventType.GOAL, playerStat, playerStat.goals(), sortOrder);
+            sortOrder = appendRepeatedEvents(eventDrafts, MatchEventType.YELLOW_CARD, playerStat, playerStat.yellowCards(), sortOrder);
+            sortOrder = appendRepeatedEvents(eventDrafts, MatchEventType.RED_CARD, playerStat, playerStat.redCards(), sortOrder);
+        }
+        return eventDrafts;
+    }
+
+    private int appendRepeatedEvents(
+        List<MatchEventDraft> eventDrafts,
+        MatchEventType eventType,
+        PlayerProtocolStatDraft playerStat,
+        int count,
+        int sortOrderStart
+    ) {
+        int nextSortOrder = sortOrderStart;
+        for (int index = 0; index < count; index += 1) {
+            eventDrafts.add(new MatchEventDraft(
+                eventType,
+                playerStat.teamId(),
+                playerStat.playerId(),
+                null,
+                0,
+                null,
+                null,
+                nextSortOrder
+            ));
+            nextSortOrder += 1;
+        }
+        return nextSortOrder;
+    }
+
+    private void validateEmptyPlayerStatsForTechnicalDefeat(List<PlayerProtocolStatDraft> playerStats) {
+        boolean hasNonZeroStats = playerStats.stream().anyMatch(this::hasAnyStats);
+        if (hasNonZeroStats) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "При техническом поражении статистика игроков должна быть пустой."
+            );
+        }
+    }
+
+    private int countGoals(Long teamId, List<PlayerProtocolStatDraft> playerStats) {
+        return playerStats.stream()
+            .filter(item -> teamId.equals(item.teamId()))
+            .mapToInt(PlayerProtocolStatDraft::goals)
+            .sum();
+    }
+
+    private boolean hasAnyStats(PlayerProtocolStatDraft playerStat) {
+        return playerStat.goals() > 0 || playerStat.yellowCards() > 0 || playerStat.redCards() > 0;
+    }
+
+    private int normalizeNonNegative(Integer value, String message) {
+        if (value == null) {
+            return 0;
+        }
+        if (value < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+        }
+        return value;
     }
 
     private String normalizeNullable(String value) {
@@ -406,5 +562,18 @@ public class MatchProtocolService {
         Integer extraMinute,
         String valueText,
         Integer sortOrder
+    ) {}
+
+    public record PlayerProtocolStatDraft(
+        Long teamId,
+        Long playerId,
+        int goals,
+        int yellowCards,
+        int redCards
+    ) {}
+
+    private record ProtocolScoreData(
+        int homeScore,
+        int awayScore
     ) {}
 }

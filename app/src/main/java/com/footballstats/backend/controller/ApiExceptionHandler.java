@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -53,5 +54,12 @@ public class ApiExceptionHandler {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", "Некорректное значение параметра: " + ex.getName() + ".");
         return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatus(ResponseStatusException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", ex.getReason() == null || ex.getReason().isBlank() ? "Не удалось выполнить запрос." : ex.getReason());
+        return ResponseEntity.status(ex.getStatusCode()).body(body);
     }
 }

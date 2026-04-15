@@ -29,6 +29,7 @@ public class TourService {
     private final TeamRepository teamRepository;
     private final SeasonTeamRepository seasonTeamRepository;
     private final MatchProtocolRepository matchProtocolRepository;
+    private final SeasonStandingsService seasonStandingsService;
 
     public TourService(
         TourRepository tourRepository,
@@ -36,7 +37,8 @@ public class TourService {
         SeasonRepository seasonRepository,
         TeamRepository teamRepository,
         SeasonTeamRepository seasonTeamRepository,
-        MatchProtocolRepository matchProtocolRepository
+        MatchProtocolRepository matchProtocolRepository,
+        SeasonStandingsService seasonStandingsService
     ) {
         this.tourRepository = tourRepository;
         this.tourMatchRepository = tourMatchRepository;
@@ -44,6 +46,7 @@ public class TourService {
         this.teamRepository = teamRepository;
         this.seasonTeamRepository = seasonTeamRepository;
         this.matchProtocolRepository = matchProtocolRepository;
+        this.seasonStandingsService = seasonStandingsService;
     }
 
     @Transactional(readOnly = true)
@@ -85,6 +88,7 @@ public class TourService {
         tour.setUpdatedByUserId(actorUserId);
         tour.setUpdatedAt(OffsetDateTime.now());
         tourRepository.save(tour);
+        seasonStandingsService.recalculateSeasonStandings(tour.getSeason().getId(), actorUserId);
         return getExistingDetailedTour(tourId);
     }
 
@@ -161,6 +165,7 @@ public class TourService {
         Tour tour = getExistingTour(tourId);
         TourMatch match = tourMatchRepository.findByIdAndTour_Id(matchId, tourId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Матч тура не найден."));
+        Long seasonId = tour.getSeason().getId();
 
         tourMatchRepository.delete(match);
 
@@ -170,6 +175,8 @@ public class TourService {
             tour.setUpdatedAt(OffsetDateTime.now());
             tourRepository.save(tour);
         }
+
+        seasonStandingsService.recalculateSeasonStandings(seasonId, actorUserId);
     }
 
     private Season getExistingSeason(Long seasonId) {

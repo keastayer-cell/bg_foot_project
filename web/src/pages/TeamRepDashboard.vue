@@ -34,38 +34,63 @@
       <p v-if="dashboardLoading" class="muted-text">Загрузка данных...</p>
       <p v-else-if="!teamSeasons.length" class="muted-text">Для вашей команды пока нет доступных сезонов.</p>
 
-      <div v-else class="team-rep-season-grid">
-        <article class="team-rep-season-card" v-for="season in teamSeasons" :key="season.id">
-          <div class="team-rep-history-main">
-            <div class="team-rep-history-season">{{ season.name }}</div>
+      <div v-else class="team-rep-form">
+        <label>
+          Выберите сезон для просмотра заявки
+          <select v-model="selectedSeasonId">
+            <option value="">— выберите —</option>
+            <option v-for="season in teamSeasons" :key="season.id" :value="String(season.id)">
+              {{ season.name }}
+            </option>
+          </select>
+        </label>
+
+        <template v-if="selectedSeasonSummary">
+          <div class="toolbar team-rep-card-head team-rep-season-actions">
+            <div class="team-rep-badge-row">
+              <span class="team-rep-season-chip">В заявке: {{ selectedSeasonSummary.selectedPlayersCount }}</span>
+            </div>
+            <div class="actions-row team-rep-season-actions-row">
+              <button
+                class="btn-ghost"
+                type="button"
+                @click="toggleSelectedSeasonPlayersFilter"
+              >
+                {{ showSelectedSeasonPlayersOnly ? 'Показать весь состав' : 'Показать игроков в заявке' }}
+              </button>
+              <button class="btn-primary" type="button" @click="openAddPlayerModal(selectedSeasonSummary.id)">Добавить игрока</button>
+            </div>
           </div>
-          <div class="team-rep-badge-row">
-            <span class="team-rep-season-chip">Состав: {{ season.rosterPlayersCount }}</span>
-            <span class="team-rep-season-chip">В заявке: {{ season.selectedPlayersCount }}</span>
-          </div>
-          <div class="actions-row team-rep-history-actions">
-            <button class="btn-primary" type="button" @click="openSeason(season.id)">Открыть заявку</button>
-          </div>
-        </article>
+        </template>
+
+        <p v-if="seasonError" class="error-text">{{ seasonError }}</p>
+        <p v-if="seasonSuccess" class="success-text">{{ seasonSuccess }}</p>
       </div>
     </article>
 
     <article class="card team-rep-players-card">
       <div class="toolbar team-rep-card-head">
-        <h3 class="section-title">Текущий состав команды</h3>
+        <div>
+          <h3 class="section-title">Текущий состав команды</h3>
+          <p v-if="showSelectedSeasonPlayersOnly && selectedSeasonSummary" class="muted-text team-rep-filter-hint">
+            Показаны только игроки, относящиеся к сезону «{{ selectedSeasonSummary.name }}».
+          </p>
+        </div>
       </div>
 
       <p v-if="dashboardLoading" class="muted-text">Загрузка состава...</p>
-      <p v-else-if="!teamPlayers.length" class="muted-text">В текущем составе команды пока нет игроков.</p>
+      <p v-else-if="!displayedTeamPlayers.length" class="muted-text">
+        {{ showSelectedSeasonPlayersOnly ? 'Для выбранного сезона в текущем составе нет игроков.' : 'В текущем составе команды пока нет игроков.' }}
+      </p>
 
       <div v-else class="team-rep-player-list">
-        <article class="team-rep-player-item" v-for="player in teamPlayers" :key="player.id">
+        <article class="team-rep-player-item" v-for="player in displayedTeamPlayers" :key="player.id">
           <div class="team-rep-player-main">
             <strong>{{ player.fullName }}</strong>
             <span class="muted-text" v-if="player.birthDate">ДР: {{ formatDateOnly(player.birthDate) }}</span>
             <span class="muted-text" v-if="player.residence">Прописка: {{ player.residence }}</span>
-            <div class="team-rep-season-chip-row" v-if="player.seasonIds?.length">
-              <span class="team-rep-season-chip" v-for="seasonId in player.seasonIds" :key="seasonId">Сезон #{{ seasonId }}</span>
+            <div class="team-rep-season-chip-row" v-if="player.seasons?.length">
+              <span class="team-rep-season-chip" v-for="season in player.seasons" :key="season.id">{{ season.name }}</span>
             </div>
           </div>
           <img
@@ -76,33 +101,38 @@
           />
           <div class="actions-row team-rep-player-row-actions">
             <button class="btn-ghost" type="button" @click="openEditPlayerModal(player)">Редактировать</button>
+            <button
+              v-if="selectedSeasonId && playerHasSelectedSeason(player)"
+              class="btn-danger btn-compact"
+              type="button"
+              @click="removeFromSelectedSeason(player.id)"
+            >
+              Убрать из сезона
+            </button>
+            <button class="btn-danger btn-compact" type="button" @click="removeFromTeam(player.id)">Удалить из команды</button>
           </div>
         </article>
       </div>
     </article>
 
-    <div v-if="seasonView" class="team-rep-fullscreen">
-      <article class="card team-rep-fullscreen-card">
-        <div class="toolbar team-rep-players-head">
+    <div v-if="addPlayerModalOpen && seasonView" class="modal-backdrop" @click.self="closeSeasonModals">
+      <article class="card auth-modal team-rep-modal team-rep-season-modal">
+        <div class="toolbar auth-modal-head">
           <div>
-            <h3 class="section-title">Заявка: {{ seasonView.seasonName }}</h3>
-            <p class="muted-text">Команда: {{ seasonView.teamName }}</p>
+            <h3 class="section-title">Добавить игрока в заявку</h3>
+            <p class="muted-text">{{ seasonView.seasonName }} · {{ seasonView.teamName }}</p>
           </div>
-          <button class="btn-ghost" type="button" @click="closeSeason">Закрыть</button>
+          <button class="btn-ghost" type="button" @click="closeSeasonModals">Закрыть</button>
         </div>
 
-        <div class="team-rep-inline-picker">
-          <div>
-            <strong>Добавить существующего игрока</strong>
-            <p class="muted-text">Список показывает игроков, которые ещё не привязаны к этому сезону. После добавления игрок перейдёт в вашу команду и сразу попадёт в заявку.</p>
-          </div>
-          <div class="team-rep-inline-picker-form">
-            <select v-model="selectedAvailablePlayerId">
-              <option value="">Выберите игрока</option>
-              <option v-for="player in seasonView.availablePlayers" :key="player.id" :value="String(player.id)">
-                {{ player.fullName }}
-              </option>
-            </select>
+        <div class="team-rep-inline-picker compact">
+          <select v-model="selectedAvailablePlayerId">
+            <option value="">Выберите игрока</option>
+            <option v-for="player in seasonSelectablePlayers" :key="player.id" :value="String(player.id)">
+              {{ player.fullName }}
+            </option>
+          </select>
+          <div class="actions-row team-rep-season-modal-actions">
             <button class="btn-primary" type="button" @click="addAvailablePlayerToSeason" :disabled="seasonLoading || !selectedAvailablePlayerId">
               Добавить
             </button>
@@ -110,44 +140,6 @@
         </div>
 
         <p class="error-text" v-if="seasonError">{{ seasonError }}</p>
-        <p class="success-text" v-if="seasonSuccess">{{ seasonSuccess }}</p>
-
-        <div class="team-rep-player-list" v-if="seasonView.players.length">
-          <article class="team-rep-player-item" v-for="player in seasonView.players" :key="player.id">
-            <div class="team-rep-player-main">
-              <strong>{{ player.fullName }}</strong>
-              <span class="muted-text" v-if="player.birthDate">ДР: {{ formatDateOnly(player.birthDate) }}</span>
-              <span class="muted-text" v-if="player.residence">Прописка: {{ player.residence }}</span>
-            </div>
-            <img
-              v-if="player.photoDataUrl"
-              :src="player.photoDataUrl"
-              alt="Фото игрока"
-              class="team-rep-player-photo"
-            />
-            <div class="actions-row team-rep-player-row-actions">
-              <button
-                v-if="player.selectedForSeason"
-                class="btn-ghost"
-                type="button"
-                @click="removeFromSeason(player.id)"
-                :disabled="seasonLoading"
-              >
-                Убрать из заявки
-              </button>
-              <button
-                v-else
-                class="btn-primary"
-                type="button"
-                @click="addRosterPlayerToSeason(player.id)"
-                :disabled="seasonLoading"
-              >
-                Добавить в заявку
-              </button>
-            </div>
-          </article>
-        </div>
-        <p v-else class="muted-text">В текущем составе команды нет игроков.</p>
       </article>
     </div>
 
@@ -193,7 +185,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watchEffect } from 'vue'
+import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
 
@@ -211,7 +203,10 @@ const seasonSuccess = ref('')
 const teamSeasons = ref([])
 const teamPlayers = ref([])
 const seasonView = ref(null)
+const selectedSeasonId = ref('')
 const selectedAvailablePlayerId = ref('')
+const addPlayerModalOpen = ref(false)
+const showSelectedSeasonPlayersOnly = ref(false)
 
 const playerModalOpen = ref(false)
 const editingPlayerId = ref(null)
@@ -230,12 +225,47 @@ const profile = computed(() => ({
   teamName: user.value?.teamName || 'Не назначена',
 }))
 
+const selectedSeasonSummary = computed(() => {
+  return teamSeasons.value.find((season) => String(season.id) === String(selectedSeasonId.value)) || null
+})
+
+const displayedTeamPlayers = computed(() => {
+  const players = Array.isArray(teamPlayers.value) ? teamPlayers.value : []
+  if (!showSelectedSeasonPlayersOnly.value || !selectedSeasonId.value) {
+    return players
+  }
+
+  return players.filter(player => playerHasSelectedSeason(player))
+})
+
+const seasonSelectablePlayers = computed(() => {
+  if (!seasonView.value) {
+    return []
+  }
+
+  const combined = new Map()
+
+  for (const player of seasonView.value.players || []) {
+    if (!player.selectedForSeason) {
+      combined.set(String(player.id), player)
+    }
+  }
+
+  for (const player of seasonView.value.availablePlayers || []) {
+    combined.set(String(player.id), player)
+  }
+
+  return Array.from(combined.values()).sort((left, right) =>
+    String(left.fullName || '').localeCompare(String(right.fullName || ''), 'ru', { sensitivity: 'base' })
+  )
+})
+
 watchEffect(() => {
   if (isAuthenticated.value && hasRole('TEAM_REP')) {
     return
   }
 
-  closeSeason()
+  closeSeasonModals()
   closePlayerModal()
   router.replace('/')
 })
@@ -245,6 +275,18 @@ onMounted(async () => {
   if (isAuthenticated.value && hasRole('TEAM_REP')) {
     await loadDashboard()
   }
+})
+
+watch(selectedSeasonId, async (seasonId) => {
+  if (!seasonId) {
+    seasonView.value = null
+    seasonError.value = ''
+    seasonSuccess.value = ''
+    showSelectedSeasonPlayersOnly.value = false
+    return
+  }
+
+  await loadSeasonView(seasonId)
 })
 
 async function loadDashboard() {
@@ -258,6 +300,13 @@ async function loadDashboard() {
     ])
     teamSeasons.value = Array.isArray(seasonsPayload) ? seasonsPayload : []
     teamPlayers.value = Array.isArray(playersPayload) ? playersPayload : []
+    if (selectedSeasonId.value) {
+      const stillExists = teamSeasons.value.some((season) => String(season.id) === String(selectedSeasonId.value))
+      if (!stillExists) {
+        selectedSeasonId.value = ''
+        seasonView.value = null
+      }
+    }
   } catch (error) {
     pageError.value = error.message || 'Не удалось загрузить кабинет представителя.'
   } finally {
@@ -265,7 +314,7 @@ async function loadDashboard() {
   }
 }
 
-async function openSeason(seasonId) {
+async function loadSeasonView(seasonId) {
   seasonLoading.value = true
   seasonError.value = ''
   seasonSuccess.value = ''
@@ -282,15 +331,29 @@ async function openSeason(seasonId) {
   }
 }
 
-function closeSeason() {
-  seasonView.value = null
+async function openAddPlayerModal(seasonId) {
+  await loadSeasonView(seasonId)
+  if (!seasonView.value) {
+    return
+  }
+  addPlayerModalOpen.value = true
+}
+
+function closeSeasonModals() {
+  addPlayerModalOpen.value = false
   selectedAvailablePlayerId.value = ''
   seasonError.value = ''
   seasonSuccess.value = ''
 }
 
-async function addRosterPlayerToSeason(playerId) {
-  await mutateSeasonPlayer(playerId, 'POST', 'Игрок добавлен в заявку сезона.')
+function toggleSelectedSeasonPlayersFilter() {
+  if (!selectedSeasonId.value) {
+    seasonError.value = 'Сначала выберите сезон.'
+    return
+  }
+
+  seasonError.value = ''
+  showSelectedSeasonPlayersOnly.value = !showSelectedSeasonPlayersOnly.value
 }
 
 async function removeFromSeason(playerId) {
@@ -322,10 +385,51 @@ async function mutateSeasonPlayer(playerId, method, successMessage) {
     selectedAvailablePlayerId.value = ''
     seasonSuccess.value = successMessage
     await loadDashboard()
+    if (method === 'POST') {
+      addPlayerModalOpen.value = false
+    }
   } catch (error) {
     seasonError.value = error.message || 'Не удалось изменить заявку сезона.'
   } finally {
     seasonLoading.value = false
+  }
+}
+
+function playerHasSelectedSeason(player) {
+  return Array.isArray(player?.seasons)
+    && player.seasons.some((season) => String(season.id) === String(selectedSeasonId.value))
+}
+
+async function removeFromSelectedSeason(playerId) {
+  if (!selectedSeasonId.value) {
+    pageError.value = 'Сначала выберите сезон.'
+    return
+  }
+
+  await removeFromSeason(playerId)
+}
+
+async function removeFromTeam(playerId) {
+  pageError.value = ''
+  pageSuccess.value = ''
+
+  const teamId = user.value?.teamId
+  if (!teamId) {
+    pageError.value = 'Не удалось определить текущую команду пользователя.'
+    return
+  }
+
+  try {
+    await authorizedApiRequest(`/api/teams/${encodeURIComponent(teamId)}/players/${encodeURIComponent(playerId)}`, {
+      method: 'DELETE',
+    })
+    pageSuccess.value = 'Игрок отвязан от текущей команды.'
+    await loadDashboard()
+    if (selectedSeasonId.value) {
+      await loadSeasonView(selectedSeasonId.value)
+    }
+  } catch (error) {
+    pageError.value = error.message || 'Не удалось удалить игрока из команды.'
   }
 }
 
@@ -380,7 +484,7 @@ async function savePlayer() {
     await loadDashboard()
 
     if (seasonView.value) {
-      await openSeason(seasonView.value.seasonId)
+      await loadSeasonView(seasonView.value.seasonId)
     }
   } catch (error) {
     playerModalError.value = error.message || 'Не удалось сохранить игрока.'
@@ -413,3 +517,22 @@ function formatDateOnly(value) {
   }).format(date)
 }
 </script>
+
+<style scoped>
+.team-rep-season-actions {
+  align-items: center;
+}
+
+.team-rep-season-actions-row {
+  align-items: center;
+}
+
+.team-rep-filter-hint {
+  margin-top: 6px;
+}
+
+.btn-compact {
+  min-width: 0;
+  padding-inline: 12px;
+}
+</style>

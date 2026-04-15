@@ -24,19 +24,22 @@ public class SeasonService {
     private final TeamRepository teamRepository;
     private final SeasonStructureService seasonStructureService;
     private final SeasonPlayerService seasonPlayerService;
+    private final SeasonStandingsService seasonStandingsService;
 
     public SeasonService(
         SeasonRepository seasonRepository,
         SeasonTeamRepository seasonTeamRepository,
         TeamRepository teamRepository,
         SeasonStructureService seasonStructureService,
-        SeasonPlayerService seasonPlayerService
+        SeasonPlayerService seasonPlayerService,
+        SeasonStandingsService seasonStandingsService
     ) {
         this.seasonRepository = seasonRepository;
         this.seasonTeamRepository = seasonTeamRepository;
         this.teamRepository = teamRepository;
         this.seasonStructureService = seasonStructureService;
         this.seasonPlayerService = seasonPlayerService;
+        this.seasonStandingsService = seasonStandingsService;
     }
 
     @Transactional(readOnly = true)
@@ -61,7 +64,9 @@ public class SeasonService {
         season.setUpdatedByUserId(actorUserId);
         season.setActive(true);
         season.setUpdatedAt(OffsetDateTime.now());
-        return seasonRepository.save(season);
+        Season savedSeason = seasonRepository.save(season);
+        seasonStandingsService.initializeSeasonStandings(savedSeason.getId(), actorUserId);
+        return savedSeason;
     }
 
     @Transactional
@@ -147,6 +152,7 @@ public class SeasonService {
         season.setUpdatedAt(OffsetDateTime.now());
         seasonRepository.save(season);
         seasonStructureService.syncRegularToursForSeason(season, actorUserId);
+        seasonStandingsService.recalculateSeasonStandings(seasonId, actorUserId);
 
         return teams.stream().sorted((left, right) -> left.getName().compareToIgnoreCase(right.getName())).toList();
     }

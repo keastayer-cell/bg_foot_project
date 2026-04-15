@@ -4,9 +4,9 @@
       <div class="home-hero-head">
         <div>
           <p class="eyebrow">Сезонный обзор</p>
-          <h1 class="section-title home-title">Туры и команды сезона</h1>
+          <h1 class="section-title home-title">Туры и таблица сезона</h1>
           <p class="muted-text home-subtitle">
-            Выберите сезон, чтобы посмотреть его состав участников и структуру туров.
+            Выберите сезон, чтобы посмотреть турнирную таблицу и структуру туров.
           </p>
         </div>
 
@@ -42,37 +42,46 @@
     </article>
 
     <div class="home-main-grid">
-      <article class="card teams-card">
-        <div class="section-head">
-          <h2 class="section-title">Команды сезона</h2>
+      <article class="card standings-card">
+        <div class="section-head standings-head">
+          <div>
+            <h2 class="section-title">Турнирная таблица</h2>
+          </div>
           <span class="muted-text" v-if="loadingSeasonData">Загрузка...</span>
+          <span class="muted-text" v-else-if="standingsConfig?.lastCalculatedAt">Обновлено: {{ formatMatchDateTime(standingsConfig.lastCalculatedAt) }}</span>
         </div>
 
-        <table class="stats-table" v-if="seasonTeams.length">
+        <table class="stats-table" v-if="seasonStandings.length">
           <thead>
             <tr>
-              <th>#</th>
+              <th>Место</th>
               <th>Команда</th>
-              <th>Короткое</th>
-              <th>Город</th>
+              <th>И</th>
+              <th>ЗМ</th>
+              <th>ПМ</th>
+              <th>РМ</th>
+              <th>О</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(team, index) in seasonTeams" :key="team.id">
-              <td>{{ index + 1 }}</td>
+            <tr v-for="row in seasonStandings" :key="row.teamId">
+              <td>{{ row.position }}</td>
               <td>
                 <div class="team-cell">
-                  <img v-if="team.logoDataUrl" :src="team.logoDataUrl" :alt="team.name" class="team-logo" />
-                  <span>{{ team.name }}</span>
+                  <img v-if="row.teamLogoDataUrl" :src="row.teamLogoDataUrl" :alt="row.teamName" class="team-logo" />
+                  <span>{{ row.teamName }}</span>
                 </div>
               </td>
-              <td>{{ team.shortName || '—' }}</td>
-              <td>{{ team.city || '—' }}</td>
+              <td>{{ row.matchesPlayed }}</td>
+              <td>{{ row.goalsFor }}</td>
+              <td>{{ row.goalsAgainst }}</td>
+              <td>{{ signedGoalDifference(row.goalDifference) }}</td>
+              <td><strong>{{ row.points }}</strong></td>
             </tr>
           </tbody>
         </table>
-        <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData">В выбранном сезоне пока нет команд.</p>
-        <p class="empty-text" v-else>Выберите сезон, чтобы посмотреть состав участников.</p>
+        <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData">Подтвержденных матчей в опубликованных турах пока нет.</p>
+        <p class="empty-text" v-else>Выберите сезон, чтобы посмотреть таблицу.</p>
       </article>
 
       <article class="card tours-card">
@@ -130,6 +139,8 @@ const seasons = ref([])
 const selectedSeasonId = ref('')
 const seasonTeams = ref([])
 const seasonTours = ref([])
+const seasonStandings = ref([])
+const standingsConfig = ref(null)
 const expandedTourId = ref('')
 const loadingSeasons = ref(false)
 const loadingSeasonData = ref(false)
@@ -176,6 +187,8 @@ watch(selectedSeasonId, async (seasonId) => {
   if (!seasonId) {
     seasonTeams.value = []
     seasonTours.value = []
+    seasonStandings.value = []
+    standingsConfig.value = null
     return
   }
 
@@ -216,9 +229,13 @@ async function loadSeasonData(seasonId) {
     const payload = await optionalAuthApiRequest(`/api/seasons/${encodeURIComponent(seasonId)}/overview`, { method: 'GET' })
     seasonTeams.value = Array.isArray(payload?.teams) ? payload.teams : []
     seasonTours.value = Array.isArray(payload?.tours) ? payload.tours : []
+    seasonStandings.value = Array.isArray(payload?.standings) ? payload.standings : []
+    standingsConfig.value = payload?.standingsConfig || null
   } catch (error) {
     seasonTeams.value = []
     seasonTours.value = []
+    seasonStandings.value = []
+    standingsConfig.value = null
     pageError.value = error.message || 'Не удалось загрузить данные выбранного сезона.'
   } finally {
     loadingSeasonData.value = false
@@ -277,6 +294,11 @@ function matchScoreLabel(match) {
     return `${match.homeScore} : ${match.awayScore}`
   }
   return '— : —'
+}
+
+function signedGoalDifference(value) {
+  const normalized = Number(value || 0)
+  return normalized > 0 ? `+${normalized}` : `${normalized}`
 }
 
 function matchStatusLabel(status) {
@@ -344,6 +366,15 @@ onMounted(async () => {
   gap: 12px;
 }
 
+.standings-card {
+  display: grid;
+  gap: 14px;
+}
+
+.standings-head {
+  align-items: start;
+}
+
 .season-meta-card {
   padding: 12px 14px;
   border-radius: 12px;
@@ -365,7 +396,8 @@ onMounted(async () => {
 
 .home-main-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+  align-items: start;
   gap: 24px;
 }
 

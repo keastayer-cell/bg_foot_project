@@ -61,15 +61,24 @@ public class TeamRepService {
     @Transactional(readOnly = true)
     public List<TeamRepPlayerData> listTeamPlayers(Long userId) {
         TeamScopeContext context = requireScope(userId);
-        Map<Long, List<Long>> seasonIdsByPlayerId = new LinkedHashMap<>();
+        List<PlayerTeam> rosterMemberships = playerTeamRepository.findCurrentRosterByTeamId(context.teamId());
+        Set<Long> rosterPlayerIds = rosterMemberships.stream()
+            .map(item -> item.getPlayer().getId())
+            .collect(java.util.stream.Collectors.toSet());
+        Map<Long, List<TeamRepPlayerSeasonData>> seasonsByPlayerId = new LinkedHashMap<>();
+
         for (SeasonPlayer seasonPlayer : seasonPlayerService.listActiveSeasonAssignmentsForTeam(context.teamId())) {
-            seasonIdsByPlayerId.computeIfAbsent(seasonPlayer.getPlayer().getId(), ignored -> new java.util.ArrayList<>())
-                .add(seasonPlayer.getSeason().getId());
+            Long playerId = seasonPlayer.getPlayer().getId();
+            if (!rosterPlayerIds.contains(playerId)) {
+                continue;
+            }
+            seasonsByPlayerId.computeIfAbsent(playerId, ignored -> new java.util.ArrayList<>())
+                .add(new TeamRepPlayerSeasonData(seasonPlayer.getSeason().getId(), seasonPlayer.getSeason().getName()));
         }
 
-        return playerTeamRepository.findCurrentRosterByTeamId(context.teamId()).stream()
+        return rosterMemberships.stream()
             .map(PlayerTeam::getPlayer)
-            .map(player -> toPlayerData(player, seasonIdsByPlayerId.getOrDefault(player.getId(), List.of())))
+            .map(player -> toPlayerData(player, seasonsByPlayerId.getOrDefault(player.getId(), List.of())))
             .toList();
     }
 
@@ -91,7 +100,8 @@ public class TeamRepService {
                 player.getBirthDate(),
                 player.getResidence(),
                 mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
-                selectedPlayerIds.contains(player.getId())
+                selectedPlayerIds.contains(player.getId()),
+                true
             ));
         }
 
@@ -103,7 +113,8 @@ public class TeamRepService {
                 player.getBirthDate(),
                 player.getResidence(),
                 mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
-                true
+                true,
+                playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(player.getId(), context.teamId()).isPresent()
             ));
         }
 
@@ -200,10 +211,10 @@ public class TeamRepService {
             saved = playerRepository.save(saved);
         }
 
-        List<Long> seasonIds = seasonPlayerService.listActiveSeasonAssignmentsForPlayer(context.teamId(), saved.getId()).stream()
-            .map(item -> item.getSeason().getId())
+        List<TeamRepPlayerSeasonData> seasons = seasonPlayerService.listActiveSeasonAssignmentsForPlayer(context.teamId(), saved.getId()).stream()
+            .map(item -> new TeamRepPlayerSeasonData(item.getSeason().getId(), item.getSeason().getName()))
             .toList();
-        return toPlayerData(saved, seasonIds);
+        return toPlayerData(saved, seasons);
     }
 
     @Transactional
@@ -232,14 +243,15 @@ public class TeamRepService {
         return getSeasonPlayers(userId, seasonId);
     }
 
-    private TeamRepPlayerData toPlayerData(Player player, List<Long> seasonIds) {
+    private TeamRepPlayerData toPlayerData(Player player, List<TeamRepPlayerSeasonData> seasons) {
         return new TeamRepPlayerData(
             player.getId(),
             player.getFullName(),
             player.getBirthDate(),
             player.getResidence(),
             mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
-            seasonIds,
+            seasons.stream().map(TeamRepPlayerSeasonData::id).toList(),
+            seasons,
             player.isActive()
         );
     }
@@ -291,8 +303,11 @@ public class TeamRepService {
         String residence,
         String photoDataUrl,
         List<Long> seasonIds,
+        List<TeamRepPlayerSeasonData> seasons,
         boolean active
     ) {}
+
+    public record TeamRepPlayerSeasonData(Long id, String name) {}
 
     public record TeamRepSeasonPlayersData(
         Long seasonId,
@@ -309,7 +324,8 @@ public class TeamRepService {
         LocalDate birthDate,
         String residence,
         String photoDataUrl,
-        boolean selectedForSeason
+        boolean selectedForSeason,
+        boolean inCurrentRoster
     ) {}
 
     public record TeamRepAvailablePlayerData(

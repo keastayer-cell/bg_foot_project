@@ -23,6 +23,10 @@ Spring Boot reads `.env` via:
 mvn spring-boot:run
 ```
 
+Подробная инструкция по перезапуску backend:
+
+- `BACKEND_RESTART_RU.md`
+
 ## Build
 
 ```bash

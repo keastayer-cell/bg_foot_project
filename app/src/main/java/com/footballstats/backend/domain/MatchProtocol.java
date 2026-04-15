@@ -37,6 +37,12 @@ public class MatchProtocol {
     @Column(name = "away_score")
     private Integer awayScore;
 
+    @Column(name = "home_technical_defeat", nullable = false)
+    private boolean homeTechnicalDefeat;
+
+    @Column(name = "away_technical_defeat", nullable = false)
+    private boolean awayTechnicalDefeat;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "best_player_id")
     private Player bestPlayer;
@@ -96,6 +102,22 @@ public class MatchProtocol {
 
     public void setAwayScore(Integer awayScore) {
         this.awayScore = awayScore;
+    }
+
+    public boolean isHomeTechnicalDefeat() {
+        return homeTechnicalDefeat;
+    }
+
+    public void setHomeTechnicalDefeat(boolean homeTechnicalDefeat) {
+        this.homeTechnicalDefeat = homeTechnicalDefeat;
+    }
+
+    public boolean isAwayTechnicalDefeat() {
+        return awayTechnicalDefeat;
+    }
+
+    public void setAwayTechnicalDefeat(boolean awayTechnicalDefeat) {
+        this.awayTechnicalDefeat = awayTechnicalDefeat;
     }
 
     public Player getBestPlayer() {
