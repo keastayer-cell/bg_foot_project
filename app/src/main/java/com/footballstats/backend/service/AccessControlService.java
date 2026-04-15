@@ -164,7 +164,15 @@ public class AccessControlService {
             ))
             .toList();
 
-        return new UserAccessResponse(user.getId(), user.getEmail(), user.getName(), roles, roleAnnotations, teamScopes);
+        return new UserAccessResponse(
+            user.getId(),
+            user.getEmail(),
+            user.getName(),
+            roles,
+            roleAnnotations,
+            teamScopes,
+            user.isMustChangePassword()
+        );
     }
 
     @Transactional(readOnly = true)

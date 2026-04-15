@@ -10,12 +10,20 @@ public class AppUserPrincipal implements UserDetails {
     private final Long userId;
     private final String email;
     private final String name;
+    private final boolean mustChangePassword;
     private final Collection<? extends GrantedAuthority> authorities;
 
-    public AppUserPrincipal(Long userId, String email, String name, Collection<? extends GrantedAuthority> authorities) {
+    public AppUserPrincipal(
+        Long userId,
+        String email,
+        String name,
+        boolean mustChangePassword,
+        Collection<? extends GrantedAuthority> authorities
+    ) {
         this.userId = userId;
         this.email = email;
         this.name = name;
+        this.mustChangePassword = mustChangePassword;
         this.authorities = authorities;
     }
 
@@ -25,6 +33,10 @@ public class AppUserPrincipal implements UserDetails {
 
     public String getName() {
         return name;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
     }
 
     @Override

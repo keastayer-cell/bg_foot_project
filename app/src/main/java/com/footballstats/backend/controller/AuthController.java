@@ -1,10 +1,12 @@
 package com.footballstats.backend.controller;
 
 import com.footballstats.backend.dto.auth.AuthResponse;
+import com.footballstats.backend.dto.auth.ChangePasswordRequest;
 import com.footballstats.backend.dto.auth.GuestLoginRequest;
 import com.footballstats.backend.dto.auth.LoginRequest;
 import com.footballstats.backend.dto.auth.RegisterRequest;
 import com.footballstats.backend.dto.auth.UserResponse;
+import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -39,6 +42,18 @@ public class AuthController {
     @PostMapping("/guest")
     public ResponseEntity<AuthResponse> guestLogin(@RequestBody(required = false) GuestLoginRequest request) {
         return ResponseEntity.ok(authService.guestLogin(request));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<AuthResponse> changePassword(
+        @Valid @RequestBody ChangePasswordRequest request,
+        Authentication authentication
+    ) {
+        Object principal = authentication.getPrincipal();
+        if (!(principal instanceof AppUserPrincipal appUserPrincipal)) {
+            throw new IllegalArgumentException("Не удалось определить пользователя из токена.");
+        }
+        return ResponseEntity.ok(authService.changePassword(appUserPrincipal, request));
     }
 
     @GetMapping("/me")

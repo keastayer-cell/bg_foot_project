@@ -408,7 +408,22 @@
 
       <div v-if="rolesFoundUser" class="admin-found-user">
         <p class="admin-found-email">{{ rolesFoundUser.email }}</p>
+        <p class="muted-text" v-if="rolesFoundUser.name">{{ rolesFoundUser.name }}</p>
+        <p class="muted-text">
+          Требуется смена пароля: {{ rolesFoundUser.mustChangePassword ? 'да' : 'нет' }}
+        </p>
         <p v-if="!rolesFoundUser.roles.length" class="muted-text">Ролей нет.</p>
+
+        <div class="actions-row">
+          <button class="btn-danger btn-sm" type="button" @click="resetPasswordForFoundUser">Сбросить пароль</button>
+        </div>
+
+        <article v-if="passwordResetResult" class="card admin-reset-password-card">
+          <p><strong>Временный пароль:</strong> {{ passwordResetResult.temporaryPassword }}</p>
+          <p class="muted-text">
+            Передайте этот пароль пользователю вручную. После входа система сразу потребует задать новый пароль.
+          </p>
+        </article>
 
         <div v-for="role in rolesFoundUser.roles" :key="role" class="admin-role-manage-row">
           <span class="admin-role-badge">{{ role }}</span>
@@ -605,6 +620,7 @@ const rolesFoundEmail = ref('')
 const replaceRoleTarget = ref('')
 const replaceRoleNewCode = ref('USER')
 const assignRoleCode = ref('USER')
+const passwordResetResult = ref(null)
 const rolesSearchDebounceMs = 5000
 let rolesSearchDebounceTimer = null
 
@@ -813,6 +829,7 @@ onBeforeUnmount(() => {
 function resetMessages() {
   messageError.value = ''
   messageOk.value = ''
+  passwordResetResult.value = null
 }
 
 function loadFromStorage(key) {
@@ -1616,6 +1633,23 @@ async function assignRoleToFound() {
   }
 }
 
+async function resetPasswordForFoundUser() {
+  resetMessages()
+  const user = rolesFoundUser.value
+  if (!user) return
+
+  try {
+    const payload = await authorizedApiRequest(`/api/admin/access/users/${user.id}/reset-password`, {
+      method: 'POST',
+    })
+    passwordResetResult.value = payload
+    await refreshFoundUserAccess()
+    messageOk.value = 'Пароль пользователя сброшен.'
+  } catch (error) {
+    messageError.value = error.message || 'Не удалось сбросить пароль пользователя.'
+  }
+}
+
 async function loadRoleUsers({ name = '', email = '', pagenum = 0, pagesize = 20 } = {}) {
   try {
     const search = new URLSearchParams()
@@ -1825,6 +1859,7 @@ async function refreshFoundUserAccess() {
       email: payload.email,
       name: payload.name,
       roles: Array.isArray(payload.roles) ? payload.roles : [],
+      mustChangePassword: Boolean(payload.mustChangePassword),
     }
   }
 }

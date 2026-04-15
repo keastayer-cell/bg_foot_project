@@ -52,6 +52,19 @@ export const endpointGroups = [
         access: 'GUEST / USER / TEAM_REP / SUPER_ADMIN',
         auth: true,
       },
+      {
+        key: 'auth-change-password',
+        title: 'Сменить пароль',
+        method: 'POST',
+        path: '/api/auth/change-password',
+        description: 'Меняет пароль текущего пользователя и выдает новый JWT. Используется и для обязательной смены временного пароля после админского сброса.',
+        access: 'USER / TEAM_REP / SUPER_ADMIN',
+        auth: true,
+        bodyExample: {
+          currentPassword: 'Football2026!',
+          newPassword: 'MyNewStrongPassword123!',
+        },
+      },
     ],
   },
   {
@@ -671,6 +684,18 @@ export const endpointGroups = [
         pathParams: [
           { name: 'userId', placeholder: 'например 6' },
           { name: 'roleCode', placeholder: 'SUPER_ADMIN | USER | TEAM_REP' },
+        ],
+      },
+      {
+        key: 'admin-access-reset-password',
+        title: 'Сбросить пароль пользователя',
+        method: 'POST',
+        path: '/api/admin/access/users/{userId}/reset-password',
+        description: 'Сбрасывает пароль пользователя на временный пароль по регламенту и включает обязательную смену пароля после входа.',
+        access: 'SUPER_ADMIN',
+        auth: true,
+        pathParams: [
+          { name: 'userId', placeholder: 'например 6' },
         ],
       },
       {

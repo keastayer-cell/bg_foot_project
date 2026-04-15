@@ -171,6 +171,7 @@ function applyAuthResponse(payload) {
     email: payload.email,
     name: payload.name,
     roles: payload.roles || [],
+    mustChangePassword: Boolean(payload.mustChangePassword),
     teamName: resolveTeamName(payload),
   }
   persistAuth()
@@ -222,6 +223,7 @@ async function loadCurrentUser() {
   if (!Array.isArray(user.value.roles)) {
     user.value.roles = []
   }
+  user.value.mustChangePassword = Boolean(user.value.mustChangePassword)
 
   const accessProfile = await apiRequest('/api/admin/access/me', {
     method: 'GET',
@@ -260,6 +262,17 @@ async function authorizedApiRequest(path, options = {}) {
     ...options,
     headers,
   })
+}
+
+async function changePassword({ currentPassword, newPassword }) {
+  const payload = await authorizedApiRequest('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+
+  applyAuthResponse(payload)
+  await loadCurrentUser().catch(() => null)
+  return user.value
 }
 
 // Запрос с опциональной авторизацией (для гостей)
@@ -304,6 +317,7 @@ export function useAuth() {
     login,
     guestLogin,
     logout,
+    changePassword,
     loadCurrentUser,
     authorizedApiRequest,
     optionalAuthApiRequest,

@@ -3,9 +3,11 @@ package com.footballstats.backend.controller;
 import com.footballstats.backend.domain.RoleCode;
 import com.footballstats.backend.dto.auth.UserResponse;
 import com.footballstats.backend.dto.auth.AssignTeamScopeRequest;
+import com.footballstats.backend.dto.auth.PasswordResetResponse;
 import com.footballstats.backend.dto.auth.UserAccessResponse;
 import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.service.AccessControlService;
+import com.footballstats.backend.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -31,9 +33,11 @@ import java.util.Locale;
 public class AdminAccessController {
 
     private final AccessControlService accessControlService;
+    private final AuthService authService;
 
-    public AdminAccessController(AccessControlService accessControlService) {
+    public AdminAccessController(AccessControlService accessControlService, AuthService authService) {
         this.accessControlService = accessControlService;
+        this.authService = authService;
     }
 
     @PostMapping("/users/{userId}/roles/{roleCode}")
@@ -78,6 +82,15 @@ public class AdminAccessController {
         return ResponseEntity.ok(accessControlService.getUserAccess(userId));
     }
 
+    @PostMapping("/users/{userId}/reset-password")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<PasswordResetResponse> resetPassword(
+        @PathVariable Long userId,
+        Authentication authentication
+    ) {
+        return ResponseEntity.ok(authService.resetUserPasswordByAdmin(currentUserId(authentication), userId));
+    }
+
     @GetMapping("/users")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<Page<UserResponse>> listUsers(
@@ -103,7 +116,8 @@ public class AdminAccessController {
             false,
             user.getEmail(),
             user.getName(),
-            accessControlService.getRoleCodes(user.getId())
+            accessControlService.getRoleCodes(user.getId()),
+            user.isMustChangePassword()
         ));
 
         return ResponseEntity.ok(page);
@@ -129,7 +143,8 @@ public class AdminAccessController {
             principal.getName(),
             roles,
             accessControlService.buildRoleAnnotations(roles),
-            List.of()
+            List.of(),
+            principal.isMustChangePassword()
         ));
     }
 
