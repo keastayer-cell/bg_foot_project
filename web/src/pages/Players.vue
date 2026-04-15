@@ -34,7 +34,7 @@
       <div class="players-list">
         <article class="players-row" v-for="player in players" :key="player.id">
           <button class="players-name-btn" type="button" @click="openPlayerModal(player)">
-            {{ player.name }}
+            {{ player.name }}<span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
           </button>
         </article>
       </div>
@@ -90,7 +90,7 @@
             <div class="player-info-grid">
               <div class="info-section">
                 <label>ФИО</label>
-                <p>{{ playerDetails.fullName }}</p>
+                <p>{{ playerDetails.fullName }}<span v-if="playerDetails.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></p>
               </div>
 
               <div class="info-section">
@@ -203,6 +203,7 @@ async function loadPlayers(nameQuery = '', requestedPage = 0) {
     players.value = content.map((item) => ({
       id: item.id,
       name: item.fullName,
+      isGoalkeeper: Boolean(item.isGoalkeeper),
     }))
     pageNum.value = Number.isInteger(payload?.number) ? payload.number : requestedPage
     totalPages.value = Number.isInteger(payload?.totalPages) ? payload.totalPages : 0
@@ -365,6 +366,14 @@ onMounted(async () => {
 
 .players-name-btn:hover {
   color: var(--brand);
+}
+
+.goalkeeper-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 0.9em;
+  line-height: 1;
 }
 
 .pagination-row {

@@ -338,6 +338,10 @@
             Прописка
             <input v-model.trim="playerForm.residence" type="text" placeholder="Город/деревня" required />
           </label>
+          <label class="admin-checkbox-row">
+            <input v-model="playerForm.isGoalkeeper" type="checkbox" />
+            <span>Вратарь</span>
+          </label>
           <label>
             Фото игрока
             <input type="file" accept="image/*" @change="onPlayerPhotoSelected" />
@@ -353,7 +357,7 @@
             Выберите игрока
             <select v-model="playerEditSelectId" @change="onPlayerSelectChange">
               <option value="">— выберите —</option>
-              <option v-for="item in playersList" :key="item.id" :value="String(item.id)">{{ item.fullName }}</option>
+              <option v-for="item in playersList" :key="item.id" :value="String(item.id)">{{ formatPlayerOptionLabel(item) }}</option>
             </select>
           </label>
           <template v-if="editingPlayerId">
@@ -368,6 +372,10 @@
             <label>
               Прописка
               <input v-model.trim="playerForm.residence" type="text" placeholder="Город/деревня" />
+            </label>
+            <label class="admin-checkbox-row">
+              <input v-model="playerForm.isGoalkeeper" type="checkbox" />
+              <span>Вратарь</span>
             </label>
             <label>
               Фото игрока
@@ -597,6 +605,7 @@ const playerForm = reactive({
   fullName: '',
   birthDate: '',
   residence: '',
+  isGoalkeeper: false,
   photoDataUrl: '',
 })
 
@@ -1363,6 +1372,7 @@ async function createPlayer() {
         fullName: playerForm.fullName,
         birthDate: playerForm.birthDate,
         residence: playerForm.residence,
+        isGoalkeeper: Boolean(playerForm.isGoalkeeper),
         photoDataUrl: playerForm.photoDataUrl,
       }),
     })
@@ -1379,6 +1389,7 @@ function startEditPlayer(item) {
   playerForm.fullName = item.fullName
   playerForm.birthDate = item.birthDate
   playerForm.residence = item.residence
+  playerForm.isGoalkeeper = Boolean(item.isGoalkeeper)
   playerForm.photoDataUrl = item.photoDataUrl || ''
   resetMessages()
 }
@@ -1404,6 +1415,7 @@ async function saveEditPlayer() {
         fullName: playerForm.fullName,
         birthDate: playerForm.birthDate,
         residence: playerForm.residence,
+        isGoalkeeper: Boolean(playerForm.isGoalkeeper),
         photoDataUrl: playerForm.photoDataUrl,
       }),
     })
@@ -1469,7 +1481,13 @@ function resetPlayerForm() {
   playerForm.fullName = ''
   playerForm.birthDate = ''
   playerForm.residence = ''
+  playerForm.isGoalkeeper = false
   playerForm.photoDataUrl = ''
+}
+
+function formatPlayerOptionLabel(player) {
+  if (!player) return ''
+  return `${player.fullName || ''}${player.isGoalkeeper ? ' 🧤' : ''}`
 }
 
 function assignRole() {

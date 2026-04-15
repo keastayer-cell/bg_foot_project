@@ -321,6 +321,7 @@ public class MatchProtocolService {
             .map(item -> new LineupPlayerData(
                 item.getPlayer().getId(),
                 item.getPlayer().getFullName(),
+                item.getPlayer().isGoalkeeper(),
                 item.getSortOrder(),
                 seasonId
             ))
@@ -333,6 +334,7 @@ public class MatchProtocolService {
             .map(item -> new AvailablePlayerData(
                 item.getPlayer().getId(),
                 item.getPlayer().getFullName(),
+                item.getPlayer().isGoalkeeper(),
                 seasonId
             ))
             .toList();
@@ -538,6 +540,7 @@ public class MatchProtocolService {
     public record LineupPlayerData(
         Long playerId,
         String playerName,
+        boolean isGoalkeeper,
         int sortOrder,
         Long seasonId
     ) {}
@@ -545,6 +548,7 @@ public class MatchProtocolService {
     public record AvailablePlayerData(
         Long playerId,
         String playerName,
+        boolean isGoalkeeper,
         Long seasonId
     ) {}
 

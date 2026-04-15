@@ -40,7 +40,6 @@
           <div class="section-head match-section-head">
             <div>
               <h3 class="section-title">Состав: {{ lineup.teamName }}</h3>
-              <p class="muted-text">Публично показывается заявка матча и статистика игроков из протокола.</p>
             </div>
             <span class="muted-text">{{ lineupSubmittedLabel(lineup) }}</span>
           </div>
@@ -49,8 +48,9 @@
             <li class="lineup-item" v-for="player in lineup.players" :key="player.playerId">
               <div class="lineup-player-main">
                 <span class="lineup-order">{{ player.sortOrder }}</span>
-                <div class="lineup-player-text">
+                <div class="lineup-player-inline">
                   <span class="player-name-single-line">{{ player.playerName }}</span>
+                  <span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
                   <div class="player-stat-icons" v-if="hasVisibleSavedStats(lineup.teamId, player.playerId)">
                     <div class="stat-icon-group" v-if="savedStatsFor(lineup.teamId, player.playerId).goals > 0" aria-label="Голы">
                       <span class="goal-ball" v-for="index in repeatCount(savedStatsFor(lineup.teamId, player.playerId).goals)" :key="`goal-${player.playerId}-${index}`">⚽</span>
@@ -175,6 +175,7 @@
                   <div class="protocol-player-name">
                     <span class="lineup-order">{{ player.sortOrder }}</span>
                     <span class="player-name-single-line">{{ player.playerName }}</span>
+                    <span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
                   </div>
 
                   <div class="player-stat-inputs">
@@ -222,7 +223,7 @@
             <select v-model="selectedAvailablePlayerId">
               <option value="">Выберите игрока</option>
               <option v-for="player in activeLineupForModal.availablePlayers" :key="player.playerId" :value="String(player.playerId)">
-                {{ player.playerName }}
+                {{ formatPlayerOptionLabel(player) }}
               </option>
             </select>
 
@@ -689,6 +690,11 @@ function repeatCount(count) {
   return Array.from({ length: Math.max(0, count) }, (_, index) => index + 1)
 }
 
+function formatPlayerOptionLabel(player) {
+  if (!player) return ''
+  return `${player.playerName || ''}${player.isGoalkeeper ? ' 🧤' : ''}`
+}
+
 function formatDateTime(value) {
   if (!value) return '—'
   const date = new Date(value)
@@ -906,7 +912,7 @@ function lineupSubmittedLabel(lineup) {
 .lineup-list,
 .protocol-player-list {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -916,10 +922,10 @@ function lineupSubmittedLabel(lineup) {
 .protocol-player-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 5px 8px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -927,24 +933,26 @@ function lineupSubmittedLabel(lineup) {
 .lineup-player-main,
 .protocol-player-name {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
   align-items: center;
   min-width: 0;
 }
 
-.lineup-player-text {
-  display: grid;
-  gap: 6px;
+.lineup-player-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .lineup-order {
-  min-width: 28px;
-  height: 28px;
+  min-width: 24px;
+  height: 24px;
   background: rgba(97, 232, 162, 0.12);
   color: var(--brand);
-  font-size: 0.8rem;
+  font-size: 0.74rem;
 }
 
 .player-name-single-line {
@@ -954,16 +962,25 @@ function lineupSubmittedLabel(lineup) {
   text-overflow: ellipsis;
 }
 
+.goalkeeper-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 0.9em;
+  line-height: 1;
+}
+
 .player-stat-icons,
 .player-stat-inputs {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .player-stat-icons {
-  min-height: 20px;
+  min-height: 16px;
+  flex-shrink: 0;
 }
 
 .stat-icon-group {
@@ -1007,17 +1024,17 @@ function lineupSubmittedLabel(lineup) {
 .tiny-field {
   display: grid;
   justify-items: center;
-  gap: 6px;
-  width: 42px;
-  font-size: 0.72rem;
+  gap: 3px;
+  width: 36px;
+  font-size: 0.68rem;
 }
 
 .micro-input {
-  width: 27px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .protocol-editor-actions-bottom {
@@ -1109,8 +1126,12 @@ function lineupSubmittedLabel(lineup) {
 
   .lineup-player-main,
   .protocol-player-name {
-    grid-template-columns: 30px minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .lineup-player-inline {
+    gap: 6px;
   }
 
   .lineup-actions {

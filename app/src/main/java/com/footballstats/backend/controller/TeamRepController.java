@@ -48,7 +48,7 @@ public class TeamRepController {
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(teamRepService.createPlayer(
             currentUserId(authentication),
-            new TeamRepService.TeamRepPlayerDraft(request.fullName(), request.birthDate(), request.residence(), request.photoDataUrl())
+            new TeamRepService.TeamRepPlayerDraft(request.fullName(), request.birthDate(), request.residence(), request.isGoalkeeper(), request.photoDataUrl())
         ));
     }
 
@@ -61,7 +61,7 @@ public class TeamRepController {
         return ResponseEntity.ok(teamRepService.updatePlayer(
             currentUserId(authentication),
             playerId,
-            new TeamRepService.TeamRepPlayerDraft(request.fullName(), request.birthDate(), request.residence(), request.photoDataUrl())
+            new TeamRepService.TeamRepPlayerDraft(request.fullName(), request.birthDate(), request.residence(), request.isGoalkeeper(), request.photoDataUrl())
         ));
     }
 
@@ -112,6 +112,7 @@ public class TeamRepController {
         @NotBlank(message = "ФИО игрока обязательно.") String fullName,
         LocalDate birthDate,
         String residence,
+        boolean isGoalkeeper,
         String photoDataUrl
     ) {}
 

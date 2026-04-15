@@ -121,10 +121,10 @@ public class MatchController {
             data.submittedAt(),
             data.submittedByUserId(),
             data.players().stream()
-                .map(player -> new MatchLineupPlayerResponse(player.playerId(), player.playerName(), player.sortOrder(), player.seasonId()))
+                .map(player -> new MatchLineupPlayerResponse(player.playerId(), player.playerName(), player.isGoalkeeper(), player.sortOrder(), player.seasonId()))
                 .toList(),
             data.availablePlayers().stream()
-                .map(player -> new AvailableRosterPlayerResponse(player.playerId(), player.playerName(), player.seasonId()))
+                .map(player -> new AvailableRosterPlayerResponse(player.playerId(), player.playerName(), player.isGoalkeeper(), player.seasonId()))
                 .toList()
         );
     }
@@ -220,6 +220,7 @@ public class MatchController {
     public record MatchLineupPlayerResponse(
         Long playerId,
         String playerName,
+        boolean isGoalkeeper,
         int sortOrder,
         Long seasonId
     ) {}
@@ -227,6 +228,7 @@ public class MatchController {
     public record AvailableRosterPlayerResponse(
         Long playerId,
         String playerName,
+        boolean isGoalkeeper,
         Long seasonId
     ) {}
 

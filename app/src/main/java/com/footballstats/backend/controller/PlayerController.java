@@ -158,6 +158,7 @@ public class PlayerController {
         player.setFullName(request.fullName().strip());
         player.setBirthDate(request.birthDate());
         player.setResidence(normalizeOptional(request.residence()));
+        player.setGoalkeeper(request.isGoalkeeper());
         Long actorUserId = currentUserId(authentication);
         player.setCreatedByUserId(actorUserId);
         player.setUpdatedByUserId(actorUserId);
@@ -197,6 +198,7 @@ public class PlayerController {
         player.setFullName(normalizedName);
         player.setBirthDate(request.birthDate());
         player.setResidence(normalizeOptional(request.residence()));
+        player.setGoalkeeper(request.isGoalkeeper());
         player.setUpdatedByUserId(currentUserId(authentication));
         player.setUpdatedAt(OffsetDateTime.now());
 
@@ -250,6 +252,7 @@ public class PlayerController {
             .map(pt -> new RosterPlayerResponse(
                 pt.getPlayer().getId(),
                 pt.getPlayer().getFullName(),
+                pt.getPlayer().isGoalkeeper(),
                 pt.getValidFrom()
             ))
             .toList();
@@ -356,6 +359,7 @@ public class PlayerController {
             player.getBirthDate(),
             player.getResidence(),
             player.getSeasonId(),
+            player.isGoalkeeper(),
             player.getGoals(),
             player.getYellowCards(),
             player.getRedCards(),
@@ -385,6 +389,7 @@ public class PlayerController {
         LocalDate birthDate,
         String residence,
         Long seasonId,
+        boolean isGoalkeeper,
         int goals,
         int yellowCards,
         int redCards,
@@ -394,13 +399,14 @@ public class PlayerController {
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
     ) {}
-    public record RosterPlayerResponse(Long id, String fullName, LocalDate inTeamSince) {}
+    public record RosterPlayerResponse(Long id, String fullName, boolean isGoalkeeper, LocalDate inTeamSince) {}
     public record MembershipRecord(Long teamId, String teamName, LocalDate validFrom, LocalDate validTo, boolean active) {}
     public record PlayerHistoryResponse(Long id, String fullName, List<MembershipRecord> history) {}
     public record PlayerUpsertRequest(
         @NotBlank(message = "ФИО игрока обязательно.") String fullName,
         LocalDate birthDate,
         String residence,
+        boolean isGoalkeeper,
         String photoDataUrl
     ) {}
 }

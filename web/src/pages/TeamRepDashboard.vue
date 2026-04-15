@@ -86,7 +86,7 @@
       <div v-else class="team-rep-player-list">
         <article class="team-rep-player-item" v-for="player in displayedTeamPlayers" :key="player.id">
           <div class="team-rep-player-main">
-            <strong>{{ player.fullName }}</strong>
+            <strong>{{ player.fullName }}<span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></strong>
             <span class="muted-text" v-if="player.birthDate">ДР: {{ formatDateOnly(player.birthDate) }}</span>
             <span class="muted-text" v-if="player.residence">Прописка: {{ player.residence }}</span>
             <div class="team-rep-season-chip-row" v-if="player.seasons?.length">
@@ -129,7 +129,7 @@
           <select v-model="selectedAvailablePlayerId">
             <option value="">Выберите игрока</option>
             <option v-for="player in seasonSelectablePlayers" :key="player.id" :value="String(player.id)">
-              {{ player.fullName }}
+              {{ formatPlayerOptionLabel(player) }}
             </option>
           </select>
           <div class="actions-row team-rep-season-modal-actions">
@@ -164,6 +164,11 @@
           <label>
             Прописка
             <input v-model.trim="playerForm.residence" type="text" placeholder="Например: Богородск" />
+          </label>
+
+          <label class="team-rep-checkbox-row">
+            <input v-model="playerForm.isGoalkeeper" type="checkbox" />
+            <span>Вратарь</span>
           </label>
 
           <label>
@@ -215,6 +220,7 @@ const playerForm = reactive({
   fullName: '',
   birthDate: '',
   residence: '',
+  isGoalkeeper: false,
   photoDataUrl: '',
 })
 
@@ -439,6 +445,7 @@ function openCreatePlayerModal() {
   playerForm.fullName = ''
   playerForm.birthDate = ''
   playerForm.residence = ''
+  playerForm.isGoalkeeper = false
   playerForm.photoDataUrl = ''
   playerModalOpen.value = true
 }
@@ -449,6 +456,7 @@ function openEditPlayerModal(player) {
   playerForm.fullName = player.fullName || ''
   playerForm.birthDate = player.birthDate || ''
   playerForm.residence = player.residence || ''
+  playerForm.isGoalkeeper = Boolean(player.isGoalkeeper)
   playerForm.photoDataUrl = player.photoDataUrl || ''
   playerModalOpen.value = true
 }
@@ -475,6 +483,7 @@ async function savePlayer() {
         fullName: playerForm.fullName,
         birthDate: playerForm.birthDate || null,
         residence: playerForm.residence || null,
+        isGoalkeeper: Boolean(playerForm.isGoalkeeper),
         photoDataUrl: playerForm.photoDataUrl || null,
       }),
     })
@@ -516,6 +525,11 @@ function formatDateOnly(value) {
     year: 'numeric',
   }).format(date)
 }
+
+function formatPlayerOptionLabel(player) {
+  if (!player) return ''
+  return `${player.fullName || ''}${player.isGoalkeeper ? ' 🧤' : ''}`
+}
 </script>
 
 <style scoped>
@@ -553,6 +567,20 @@ function formatDateOnly(value) {
 .team-rep-form label {
   display: grid;
   gap: 6px;
+}
+
+.team-rep-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goalkeeper-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 0.9em;
+  line-height: 1;
 }
 
 .team-rep-season-actions {
