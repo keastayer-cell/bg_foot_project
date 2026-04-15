@@ -519,6 +519,42 @@ function formatDateOnly(value) {
 </script>
 
 <style scoped>
+.team-rep-page {
+  display: grid;
+  gap: 16px;
+}
+
+.team-rep-card-head {
+  align-items: start;
+}
+
+.team-rep-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.team-rep-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.team-rep-value {
+  font-weight: 600;
+}
+
+.team-rep-form {
+  display: grid;
+  gap: 12px;
+}
+
+.team-rep-form label {
+  display: grid;
+  gap: 6px;
+}
+
 .team-rep-season-actions {
   align-items: center;
 }
@@ -527,12 +563,138 @@ function formatDateOnly(value) {
   align-items: center;
 }
 
+.team-rep-badge-row,
+.team-rep-season-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.team-rep-season-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(97, 232, 162, 0.08);
+  border: 1px solid rgba(97, 232, 162, 0.18);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
 .team-rep-filter-hint {
   margin-top: 6px;
+}
+
+.team-rep-player-list {
+  display: grid;
+  gap: 10px;
+}
+
+.team-rep-player-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.team-rep-player-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.team-rep-player-row-actions {
+  justify-content: flex-start;
+  margin-top: 0;
+}
+
+.team-rep-player-photo,
+.team-rep-player-photo-preview {
+  width: 84px;
+  height: 84px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+}
+
+.team-rep-modal {
+  width: min(720px, calc(100vw - 24px));
+}
+
+.team-rep-season-modal {
+  width: min(560px, calc(100vw - 24px));
+}
+
+.team-rep-inline-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.team-rep-inline-picker.compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.team-rep-season-modal-actions {
+  justify-content: flex-end;
 }
 
 .btn-compact {
   min-width: 0;
   padding-inline: 12px;
+}
+
+@media (max-width: 860px) {
+  .team-rep-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .team-rep-season-actions,
+  .team-rep-season-actions-row,
+  .team-rep-card-head {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .team-rep-player-item {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .team-rep-modal,
+  .team-rep-season-modal {
+    width: calc(100vw - 20px);
+  }
+
+  .team-rep-player-photo,
+  .team-rep-player-photo-preview {
+    width: 72px;
+    height: 72px;
+  }
+
+  .team-rep-card-head > .btn-primary,
+  .team-rep-card-head > .btn-ghost,
+  .team-rep-season-actions-row > *,
+  .team-rep-player-row-actions > *,
+  .team-rep-season-modal-actions > * {
+    width: 100%;
+  }
+
+  .team-rep-player-row-actions,
+  .team-rep-season-modal-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .team-rep-inline-picker select,
+  .team-rep-form input,
+  .team-rep-form select {
+    width: 100%;
+  }
 }
 </style>

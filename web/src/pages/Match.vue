@@ -1061,9 +1061,65 @@ function lineupSubmittedLabel(lineup) {
     flex-direction: column;
   }
 
+  .match-screen {
+    gap: 16px;
+  }
+
+  .match-team-card,
+  .match-score-card,
+  .match-section,
+  .protocol-side-card,
+  .protocol-score-center,
+  .protocol-team-card {
+    padding: 14px;
+  }
+
+  .match-score {
+    font-size: 1.9rem;
+  }
+
+  .match-team-logo {
+    width: 56px;
+    height: 56px;
+  }
+
+  .match-team-card h2 {
+    font-size: 1.15rem;
+  }
+
+  .protocol-score-center,
+  .match-score-card {
+    min-width: 0;
+  }
+
+  .score-square-input {
+    width: 58px;
+    height: 58px;
+    font-size: 1.4rem;
+  }
+
+  .protocol-score-separator {
+    font-size: 1.35rem;
+  }
+
   .lineup-item,
   .protocol-player-row {
     grid-template-columns: 1fr;
+  }
+
+  .lineup-player-main,
+  .protocol-player-name {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .lineup-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lineup-actions > * {
+    width: 100%;
   }
 
   .player-name-single-line {

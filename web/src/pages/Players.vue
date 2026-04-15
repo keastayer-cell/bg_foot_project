@@ -340,6 +340,7 @@ onMounted(async () => {
 .players-list {
   display: grid;
   gap: 8px;
+  align-content: start;
 }
 
 .players-row {
@@ -581,6 +582,23 @@ onMounted(async () => {
 }
 
 @media (max-width: 640px) {
+  .player-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .player-filters > * {
+    width: 100%;
+  }
+
+  .pagination-row {
+    flex-direction: column;
+  }
+
+  .pagination-row > * {
+    width: 100%;
+  }
+
   .modal-backdrop {
     padding: 10px;
   }
@@ -599,6 +617,21 @@ onMounted(async () => {
 
   .modal-actions {
     width: 100%;
+  }
+
+  .modal-actions > * {
+    width: 100%;
+  }
+
+  .player-modal-header .btn-ghost {
+    width: 100%;
+  }
+
+  .history-line,
+  .history-period {
+    align-items: start;
+    flex-direction: column;
+    gap: 6px;
   }
 }
 </style>
