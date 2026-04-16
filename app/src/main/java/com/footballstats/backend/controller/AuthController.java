@@ -61,7 +61,7 @@ public class AuthController {
     }
 
     @PostMapping("/guest")
-    public ResponseEntity<AuthResponse> guestLogin(@RequestBody(required = false) GuestLoginRequest request) {
+    public ResponseEntity<AuthResponse> guestLogin(@Valid @RequestBody(required = false) GuestLoginRequest request) {
         return ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, authCookieService.buildClearRefreshTokenCookie())
             .body(authService.guestLogin(request));

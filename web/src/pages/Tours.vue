@@ -937,12 +937,21 @@ onMounted(async () => {
 }
 
 .standings-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
+  column-gap: 18px;
+  row-gap: 12px;
+}
+
+.standings-head > div:first-child {
+  min-width: 0;
 }
 
 .standings-toolbar {
   display: grid;
   gap: 10px;
+  min-width: max-content;
   justify-items: end;
 }
 
@@ -1328,7 +1337,7 @@ onMounted(async () => {
   .section-head,
   .standings-head {
     align-items: start;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .standings-toolbar {
