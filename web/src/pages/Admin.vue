@@ -2,26 +2,41 @@
   <section class="section-wrap admin-hub">
     <article class="card admin-hub-header">
       <h2 class="section-title">Админ-панель</h2>
-      <p class="muted-text">Структурированные разделы администрирования.</p>
+      <p class="muted-text">Управление турниром, участниками и правами доступа из одного экрана.</p>
     </article>
 
     <article class="card admin-tabs-wrap">
-      <div class="admin-tabs">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="btn-ghost admin-tab-btn"
-          :class="{ 'admin-tab-active': activeTab === tab.id }"
-          type="button"
-          @click="activeTab = tab.id"
-        >
-          {{ tab.label }}
-        </button>
+      <div class="admin-tab-groups">
+        <section v-for="group in tabGroups" :key="group.id" class="admin-tab-group">
+          <div class="admin-tab-group-head">
+            <span class="admin-tab-group-kicker">{{ group.kicker }}</span>
+            <h3 class="admin-tab-group-title">{{ group.title }}</h3>
+          </div>
+          <div class="admin-tabs admin-tabs-grid">
+            <button
+              v-for="tab in group.items"
+              :key="tab.id"
+              class="btn-ghost admin-tab-btn"
+              :class="{ 'admin-tab-active': activeTab === tab.id }"
+              type="button"
+              @click="activeTab = tab.id"
+            >
+              <span class="admin-tab-label">{{ tab.label }}</span>
+            </button>
+          </div>
+        </section>
       </div>
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'seasons'">
-      <h3 class="section-title">Управление сезонами</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Сезоны и регламент</h3>
+        <p class="muted-text">Создание сезона, настройка регламента и состава участников.</p>
+      </div>
+      <div class="admin-inline-message" v-if="messageError || messageOk">
+        <p class="error-text" v-if="messageError">{{ messageError }}</p>
+        <p class="success-text" v-if="messageOk">{{ messageOk }}</p>
+      </div>
       <div class="admin-subnav">
         <button
           class="btn-ghost admin-subnav-btn"
@@ -37,7 +52,7 @@
         >Редактировать</button>
       </div>
 
-      <div class="admin-form">
+      <div class="admin-form admin-surface">
         <form v-if="seasonSubMode === 'create'" class="admin-form" @submit.prevent="createSeason">
           <label>
             Название сезона
@@ -55,6 +70,14 @@
           <label class="admin-checkbox-row">
             <input v-model="seasonForm.playoffEnabled" type="checkbox" />
             <span>Включить плей-офф</span>
+          </label>
+          <label>
+            Пропуск за ЖК
+            <input v-model="seasonForm.yellowCardsForSuspension" type="number" min="0" placeholder="0 = выключено" />
+          </label>
+          <label>
+            Пропуск за КК
+            <input v-model="seasonForm.redCardsForSuspension" type="number" min="0" placeholder="0 = выключено" />
           </label>
           <label v-if="seasonForm.playoffEnabled">
             Команд в плей-офф
@@ -82,10 +105,11 @@
               </article>
             </div>
             <p class="muted-text">Регулярный этап: {{ seasonRegularToursCount }} туров при {{ seasonSelectedTeams.length }} командах.</p>
+            <p class="muted-text">Дисциплина сезона: пропуск после {{ Number(seasonForm.yellowCardsForSuspension || 0) || 0 }} ЖК и после {{ Number(seasonForm.redCardsForSuspension || 0) || 0 }} КК. Значение 0 отключает правило.</p>
             <p v-if="seasonForm.playoffEnabled && seasonForm.playoffTeamCount" class="muted-text">Плей-офф включен: {{ seasonForm.playoffTeamCount }} команд. Сетка будет добавлена следующим этапом.</p>
           </div>
           <div class="actions-row">
-            <button class="btn-primary" type="submit">Создать сезон</button>
+            <button class="btn-primary" type="submit" :disabled="isSeasonCreateDisabled">Создать сезон</button>
           </div>
         </form>
 
@@ -115,6 +139,14 @@
               <input v-model="seasonForm.playoffEnabled" type="checkbox" />
               <span>Включить плей-офф</span>
             </label>
+            <label>
+              Пропуск за ЖК
+              <input v-model="seasonForm.yellowCardsForSuspension" type="number" min="0" placeholder="0 = выключено" />
+            </label>
+            <label>
+              Пропуск за КК
+              <input v-model="seasonForm.redCardsForSuspension" type="number" min="0" placeholder="0 = выключено" />
+            </label>
             <label v-if="seasonForm.playoffEnabled">
               Команд в плей-офф
               <select v-model="seasonForm.playoffTeamCount">
@@ -142,6 +174,7 @@
               </div>
             </div>
             <p class="muted-text">Регулярный этап: {{ seasonRegularToursCount }} туров при {{ seasonSelectedTeams.length }} командах.</p>
+            <p class="muted-text">Дисциплина сезона: пропуск после {{ Number(seasonForm.yellowCardsForSuspension || 0) || 0 }} ЖК и после {{ Number(seasonForm.redCardsForSuspension || 0) || 0 }} КК. Значение 0 отключает правило.</p>
             <p v-if="seasonForm.playoffEnabled && seasonForm.playoffTeamCount" class="muted-text">Плей-офф включен: {{ seasonForm.playoffTeamCount }} команд. Сетка будет добавлена следующим этапом.</p>
             <div class="actions-row">
               <button class="btn-primary" type="button" @click="saveEditSeason">Сохранить изменения</button>
@@ -154,7 +187,10 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'teams'">
-      <h3 class="section-title">Управление командами</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Команды и составы</h3>
+        <p class="muted-text">Карточка команды, текущий состав и сезонная заявка игроков.</p>
+      </div>
       <div class="admin-subnav">
         <button
           class="btn-ghost admin-subnav-btn"
@@ -170,7 +206,7 @@
         >Редактировать</button>
       </div>
 
-      <form v-if="teamSubMode === 'create'" class="admin-form" @submit.prevent="createTeam">
+      <form v-if="teamSubMode === 'create'" class="admin-form admin-surface" @submit.prevent="createTeam">
         <label>
           Название команды
           <input v-model.trim="teamForm.name" type="text" required />
@@ -187,13 +223,13 @@
           Лого команды
           <input type="file" accept="image/*" @change="onTeamLogoSelected" />
         </label>
-        <img v-if="teamForm.logoDataUrl" :src="teamForm.logoDataUrl" alt="Превью лого команды" class="team-rep-player-photo-preview" />
+        <img v-if="teamForm.logoDataUrl" :src="teamForm.logoDataUrl" alt="Превью лого команды" class="admin-team-logo-preview" />
         <div class="actions-row">
           <button class="btn-primary" type="submit">Создать команду</button>
         </div>
       </form>
 
-      <div v-else class="admin-form">
+      <div v-else class="admin-form admin-surface">
         <label>
           Выберите команду
           <select v-model="teamEditSelectId" @change="onTeamSelectChange">
@@ -202,6 +238,7 @@
           </select>
         </label>
         <template v-if="editingTeamId">
+          <div class="admin-sticky-actions-spacer"></div>
           <label>
             Название команды
             <input v-model.trim="teamForm.name" type="text" />
@@ -218,8 +255,97 @@
             Лого команды
             <input type="file" accept="image/*" @change="onTeamLogoSelected" />
           </label>
-          <img v-if="teamForm.logoDataUrl" :src="teamForm.logoDataUrl" alt="Превью лого команды" class="team-rep-player-photo-preview" />
-          <div class="actions-row">
+          <img v-if="teamForm.logoDataUrl" :src="teamForm.logoDataUrl" alt="Превью лого команды" class="admin-team-logo-preview" />
+          <div class="admin-team-management-grid">
+            <section class="admin-list admin-team-management-card">
+              <div class="toolbar admin-team-management-head">
+                <div>
+                  <h4 class="admin-list-title">Состав команды</h4>
+                  <p class="muted-text">Добавление и удаление игроков без перехода в кабинет представителя.</p>
+                </div>
+                <div class="actions-row admin-team-head-actions">
+                  <button class="btn-ghost btn-sm" type="button" @click="toggleTeamRosterVisibility">
+                    {{ isTeamRosterVisible ? 'Скрыть состав' : 'Показать весь состав' }}
+                  </button>
+                  <button class="btn-ghost btn-sm" type="button" @click="refreshAdminTeamContext">Обновить</button>
+                </div>
+              </div>
+
+              <div class="actions-row admin-team-picker-row">
+                <SearchableSelect
+                  v-model="teamRosterToAddId"
+                  :options="teamRosterAddOptions"
+                  placeholder="— выберите игрока —"
+                  search-placeholder="Начните вводить ФИО игрока"
+                  empty-text="Игрок по такому ФИО не найден"
+                />
+                <button class="btn-primary btn-sm" type="button" @click="addPlayerToEditingTeam" :disabled="teamRosterBusy || !teamRosterToAddId">
+                  Добавить в состав
+                </button>
+              </div>
+
+              <p v-if="!isTeamRosterVisible" class="muted-text">Состав скрыт. Нажмите «Показать весь состав», если нужен полный список игроков.</p>
+              <p v-else-if="!teamRoster.length" class="muted-text">В текущем составе команды пока нет игроков.</p>
+              <div v-else class="admin-list-items">
+                <article v-for="player in teamRoster" :key="`team-roster-${player.id}`" class="admin-list-item admin-player-manage-item">
+                  <div class="admin-player-manage-copy">
+                    <strong>{{ player.fullName }}<span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></strong>
+                    <span class="muted-text">В команде с {{ formatDateOnly(player.inTeamSince) }}</span>
+                  </div>
+                  <button class="btn-danger btn-sm" type="button" @click="removePlayerFromEditingTeam(player.id)" :disabled="teamRosterBusy">
+                    Удалить из состава
+                  </button>
+                </article>
+              </div>
+            </section>
+
+            <section class="admin-list admin-team-management-card">
+              <div class="toolbar admin-team-management-head">
+                <div>
+                  <h4 class="admin-list-title">Заявка на сезон</h4>
+                  <p class="muted-text">Включение игроков выбранной команды в выбранный сезон.</p>
+                </div>
+              </div>
+
+              <label>
+                Выберите сезон
+                <select v-model="selectedTeamSeasonId" @change="onAdminTeamSeasonChange">
+                  <option value="">— выберите —</option>
+                  <option v-for="season in teamSeasonOptions" :key="`team-season-${season.id}`" :value="String(season.id)">
+                    {{ season.name }}
+                  </option>
+                </select>
+              </label>
+
+              <p v-if="!teamSeasonOptions.length" class="muted-text">Эта команда пока не включена ни в один активный сезон.</p>
+              <p v-else-if="!selectedTeamSeasonId" class="muted-text">Выберите сезон, чтобы управлять заявкой команды.</p>
+              <p v-else-if="!teamSeasonPlayers.length" class="muted-text">В составе команды пока нет игроков для управления заявкой сезона.</p>
+
+              <div v-else class="admin-list-items">
+                <article v-for="player in teamSeasonPlayers" :key="`team-season-player-${player.id}`" class="admin-list-item admin-player-manage-item">
+                  <div class="admin-player-manage-copy">
+                    <strong>{{ player.fullName }}<span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></strong>
+                    <span class="muted-text" v-if="player.birthDate">ДР: {{ formatDateOnly(player.birthDate) }}</span>
+                    <span class="muted-text" v-if="player.residence">Прописка: {{ player.residence }}</span>
+                    <span class="admin-season-player-badge" :class="player.selectedForSeason ? 'is-selected' : 'is-not-selected'">
+                      {{ player.selectedForSeason ? 'В заявке' : 'Не в заявке' }}
+                    </span>
+                  </div>
+                  <button
+                    class="btn-sm"
+                    :class="player.selectedForSeason ? 'btn-danger' : 'btn-primary'"
+                    type="button"
+                    @click="toggleEditingTeamSeasonPlayer(player)"
+                    :disabled="teamSeasonBusy"
+                  >
+                    {{ player.selectedForSeason ? 'Убрать из сезона' : 'Добавить в сезон' }}
+                  </button>
+                </article>
+              </div>
+            </section>
+          </div>
+
+          <div class="actions-row admin-sticky-actions">
             <button class="btn-primary" type="button" @click="saveEditTeam">Сохранить изменения</button>
             <button class="btn-danger" type="button" @click="deactivateTeam(editingTeamId)">Удалить команду</button>
             <button class="btn-ghost" type="button" @click="cancelEditTeam(); teamEditSelectId = ''">Отмена</button>
@@ -229,9 +355,12 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'tours'">
-      <h3 class="section-title">Управление турами</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Туры и матчи</h3>
+        <p class="muted-text">Управление календарём сезона, публикацией туров и матчами внутри тура.</p>
+      </div>
 
-      <div class="admin-form">
+      <div class="admin-form admin-surface">
         <label>
           Сезон
           <select v-model="tourSeasonId" @change="onTourSeasonChange">
@@ -247,7 +376,7 @@
         </p>
       </div>
 
-      <div class="admin-form" v-if="tourSeasonId">
+      <div class="admin-form admin-surface" v-if="tourSeasonId">
         <label>
           Выберите тур
           <select v-model="selectedTourId" @change="onTourSelectChange">
@@ -259,7 +388,7 @@
       </div>
 
       <div v-if="selectedTour" class="admin-grid">
-        <form class="admin-form" @submit.prevent="createTourMatch">
+        <form class="admin-form admin-surface" @submit.prevent="createTourMatch">
           <h4 class="admin-list-title">Добавить матч в тур {{ selectedTour.name }}</h4>
           <label>
             Команда 1
@@ -277,7 +406,7 @@
           </label>
           <label>
             Время матча
-            <input v-model="matchForm.kickoffAt" type="datetime-local" />
+            <input v-model="matchForm.kickoffAt" type="datetime-local" class="admin-temporal-input admin-temporal-input-wide" step="60" />
           </label>
           <div class="actions-row">
             <button class="btn-primary" type="submit">Добавить матч</button>
@@ -285,7 +414,7 @@
           <p class="muted-text">Публично на сайт попадут только опубликованные туры.</p>
         </form>
 
-        <div class="admin-list">
+        <div class="admin-list admin-surface">
           <div class="tour-matches-header">
             <h4 class="admin-list-title">Матчи тура</h4>
             <button class="btn-ghost tour-publish-button" type="button" :disabled="!canPublishSelectedTour" @click="publishSelectedTour">
@@ -298,8 +427,19 @@
               <div class="tour-match-copy">
                 <strong>{{ match.homeTeamName }} - {{ match.awayTeamName }}</strong>
                 <span class="muted-text">{{ formatDateTime(match.kickoffAt) }}</span>
+                <span class="tour-match-status-badge" :class="protocolStatusBadgeClass(match.protocolStatus)">
+                  {{ matchProtocolStatusLabel(match.protocolStatus) }}
+                </span>
               </div>
-              <button class="btn-danger btn-sm" type="button" @click="deleteTourMatch(match.id)">Удалить</button>
+              <button
+                class="btn-danger btn-sm"
+                type="button"
+                @click="deleteTourMatch(match.id)"
+                :disabled="!canDeleteTourMatch(match)"
+                :title="tourMatchDeleteTitle(match)"
+              >
+                Удалить
+              </button>
             </article>
           </div>
           <p class="muted-text tour-publish-note">Публично на сайт попадут только опубликованные туры.</p>
@@ -308,7 +448,10 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'players'">
-      <h3 class="section-title">Управление игроками</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Игроки</h3>
+        <p class="muted-text">Единый реестр игроков с быстрым созданием и редактированием карточек.</p>
+      </div>
       <div class="admin-subnav">
         <button
           class="btn-ghost admin-subnav-btn"
@@ -325,18 +468,22 @@
       </div>
 
       <div class="admin-grid">
-        <form v-if="playerSubMode === 'create'" class="admin-form" @submit.prevent="createPlayer">
+        <form v-if="playerSubMode === 'create'" class="admin-form admin-surface" @submit.prevent="createPlayer">
           <label>
             ФИО
             <input v-model.trim="playerForm.fullName" type="text" required />
           </label>
           <label>
             Дата рождения
-            <input v-model="playerForm.birthDate" type="date" required />
+            <input v-model="playerForm.birthDate" type="date" class="admin-temporal-input" required />
           </label>
           <label>
             Прописка
             <input v-model.trim="playerForm.residence" type="text" placeholder="Город/деревня" required />
+          </label>
+          <label class="admin-checkbox-row">
+            <input v-model="playerForm.isGoalkeeper" type="checkbox" />
+            <span>Вратарь</span>
           </label>
           <label>
             Фото игрока
@@ -348,13 +495,16 @@
           </div>
         </form>
 
-        <div v-else class="admin-form">
+        <div v-else class="admin-form admin-surface">
           <label>
             Выберите игрока
-            <select v-model="playerEditSelectId" @change="onPlayerSelectChange">
-              <option value="">— выберите —</option>
-              <option v-for="item in playersList" :key="item.id" :value="String(item.id)">{{ item.fullName }}</option>
-            </select>
+            <SearchableSelect
+              v-model="playerEditSelectId"
+              :options="playerEditOptions"
+              placeholder="— выберите —"
+              search-placeholder="Начните вводить ФИО игрока"
+              empty-text="Игрок по такому ФИО не найден"
+            />
           </label>
           <template v-if="editingPlayerId">
             <label>
@@ -363,11 +513,15 @@
             </label>
             <label>
               Дата рождения
-              <input v-model="playerForm.birthDate" type="date" />
+              <input v-model="playerForm.birthDate" type="date" class="admin-temporal-input" />
             </label>
             <label>
               Прописка
               <input v-model.trim="playerForm.residence" type="text" placeholder="Город/деревня" />
+            </label>
+            <label class="admin-checkbox-row">
+              <input v-model="playerForm.isGoalkeeper" type="checkbox" />
+              <span>Вратарь</span>
             </label>
             <label>
               Фото игрока
@@ -386,9 +540,12 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'roles'">
-      <h3 class="section-title">Управление ролями</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Роли и доступ</h3>
+        <p class="muted-text">Поиск пользователя, управление ролями и сброс временного пароля.</p>
+      </div>
 
-      <div class="admin-form">
+      <div class="admin-form admin-surface">
         <label>
           Поиск по email
           <input v-model.trim="rolesSearch" type="text" placeholder="Начните вводить email..." />
@@ -408,7 +565,26 @@
 
       <div v-if="rolesFoundUser" class="admin-found-user">
         <p class="admin-found-email">{{ rolesFoundUser.email }}</p>
+        <p class="muted-text" v-if="rolesFoundUser.name">{{ rolesFoundUser.name }}</p>
+        <p class="muted-text">
+          Требуется смена пароля: {{ rolesFoundUser.mustChangePassword ? 'да' : 'нет' }}
+        </p>
         <p v-if="!rolesFoundUser.roles.length" class="muted-text">Ролей нет.</p>
+
+        <div class="actions-row">
+          <button class="btn-danger btn-sm" type="button" @click="resetPasswordForFoundUser">Сбросить пароль</button>
+        </div>
+
+        <article v-if="passwordResetResult" class="card admin-reset-password-card">
+          <p><strong>Одноразовая ссылка:</strong></p>
+          <p class="admin-reset-password-link">{{ absolutePasswordResetLink }}</p>
+          <div class="actions-row">
+            <button class="btn-ghost btn-sm" type="button" @click="copyPasswordResetLink">Скопировать ссылку</button>
+          </div>
+          <p class="muted-text">
+            Ссылка действует до {{ formatDateTime(passwordResetResult.expiresAt) }}. Передайте ее пользователю по безопасному каналу. После установки нового пароля ссылка станет недействительной.
+          </p>
+        </article>
 
         <div v-for="role in rolesFoundUser.roles" :key="role" class="admin-role-manage-row">
           <span class="admin-role-badge">{{ role }}</span>
@@ -439,9 +615,12 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'representatives'">
-      <h3 class="section-title">Управление Представителями</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Представители команд</h3>
+        <p class="muted-text">Привязка пользователей к командам и управление доступом представителя.</p>
+      </div>
 
-      <div class="admin-form">
+      <div class="admin-form admin-surface">
         <label>
           Поиск по email
           <input v-model.trim="repSearch" type="text" placeholder="Начните вводить email представителя..." />
@@ -481,9 +660,12 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'ban'">
-      <h3 class="section-title">Забанить пользователя</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Блокировки пользователей</h3>
+        <p class="muted-text">Локальный реестр блокировок и ручное управление статусом пользователя.</p>
+      </div>
       <div class="admin-grid">
-        <form class="admin-form" @submit.prevent="banUser">
+        <form class="admin-form admin-surface" @submit.prevent="banUser">
           <label>
             Email пользователя
             <input v-model.trim="banForm.email" type="email" required />
@@ -497,7 +679,7 @@
           </div>
         </form>
 
-        <div class="admin-list">
+        <div class="admin-list admin-surface">
           <h4 class="admin-list-title">Статус пользователей</h4>
           <p v-if="!usersRegistry.length" class="muted-text">Пока пусто.</p>
           <div class="admin-list-items" v-else>
@@ -525,18 +707,56 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useAuth } from '../store/auth'
 import { useStore } from '../store/store'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const USERS_KEY = 'football_stats_admin_users_registry'
 
-const tabs = [
-  { id: 'seasons', label: 'Управление сезонами' },
-  { id: 'teams', label: 'Управление командами' },
-  { id: 'tours', label: 'Управление турами' },
-  { id: 'players', label: 'Управление игроками' },
-  { id: 'roles', label: 'Управление ролями' },
-  { id: 'representatives', label: 'Управление Представителями' },
-  { id: 'ban', label: 'Бан пользователя' },
+const tabGroups = [
+  {
+    id: 'competition',
+    kicker: 'Турнир',
+    title: 'Соревнование и участники',
+    items: [
+      {
+        id: 'seasons',
+        label: 'Сезоны',
+      },
+      {
+        id: 'teams',
+        label: 'Команды',
+      },
+      {
+        id: 'players',
+        label: 'Игроки',
+      },
+      {
+        id: 'tours',
+        label: 'Туры и матчи',
+      },
+    ],
+  },
+  {
+    id: 'access',
+    kicker: 'Доступ',
+    title: 'Права и модерация',
+    items: [
+      {
+        id: 'roles',
+        label: 'Роли и доступ',
+      },
+      {
+        id: 'representatives',
+        label: 'Представители',
+      },
+      {
+        id: 'ban',
+        label: 'Блокировки',
+      },
+    ],
+  },
 ]
+
+const tabs = tabGroups.flatMap((group) => group.items)
 
 const activeTab = ref('seasons')
 
@@ -563,6 +783,8 @@ const seasonForm = reactive({
   roundsCount: '1',
   playoffEnabled: false,
   playoffTeamCount: '',
+  yellowCardsForSuspension: '0',
+  redCardsForSuspension: '0',
 })
 
 const matchForm = reactive({
@@ -582,6 +804,7 @@ const playerForm = reactive({
   fullName: '',
   birthDate: '',
   residence: '',
+  isGoalkeeper: false,
   photoDataUrl: '',
 })
 
@@ -589,10 +812,19 @@ const editingSeasonId = ref(null)
 const seasonSubMode = ref('create')
 const seasonEditSelectId = ref('')
 const seasonTeamIds = ref([])
+const originalSeasonTeamIds = ref([])
 const seasonTeamToAddId = ref('')
 const editingTeamId = ref(null)
 const teamSubMode = ref('create')
 const teamEditSelectId = ref('')
+const teamRoster = ref([])
+const teamSeasonOptions = ref([])
+const teamSeasonPlayers = ref([])
+const teamRosterToAddId = ref('')
+const selectedTeamSeasonId = ref('')
+const teamRosterBusy = ref(false)
+const teamSeasonBusy = ref(false)
+const isTeamRosterVisible = ref(false)
 const tourSeasonId = ref('')
 const selectedTourId = ref('')
 const editingPlayerId = ref(null)
@@ -605,6 +837,7 @@ const rolesFoundEmail = ref('')
 const replaceRoleTarget = ref('')
 const replaceRoleNewCode = ref('USER')
 const assignRoleCode = ref('USER')
+const passwordResetResult = ref(null)
 const rolesSearchDebounceMs = 5000
 let rolesSearchDebounceTimer = null
 
@@ -686,6 +919,17 @@ const repPrimaryActionLabel = computed(() => {
   return repCurrentTeamScope.value ? 'Изменить команду' : 'Назначить команду'
 })
 
+const absolutePasswordResetLink = computed(() => {
+  const resetPath = String(passwordResetResult.value?.resetPath || '').trim()
+  if (!resetPath) {
+    return ''
+  }
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return resetPath
+  }
+  return `${window.location.origin}${resetPath}`
+})
+
 const seasonSelectedTeams = computed(() => {
   const selectedIds = new Set(seasonTeamIds.value.map((id) => Number(id)))
   const teamsById = new Map(teamsList.value.map((team) => [Number(team.id), team]))
@@ -702,8 +946,33 @@ const seasonAvailableTeams = computed(() => {
   return teamsList.value.filter((team) => !selectedIds.has(Number(team.id)))
 })
 
+const teamPlayersAvailableForRoster = computed(() => {
+  const rosterIds = new Set(teamRoster.value.map((player) => Number(player.id)))
+  return playersList.value.filter((player) => !rosterIds.has(Number(player.id)))
+})
+
+const teamRosterAddOptions = computed(() => {
+  return teamPlayersAvailableForRoster.value.map((player) => ({
+    value: String(player.id),
+    label: formatAdminRosterPlayerOption(player),
+    keywords: `${player.fullName || ''}`,
+  }))
+})
+
+const playerEditOptions = computed(() => {
+  return playersList.value.map((player) => ({
+    value: String(player.id),
+    label: formatPlayerOptionLabel(player),
+    keywords: `${player.fullName || ''}`,
+  }))
+})
+
 const seasonRegularToursCount = computed(() => {
   return calculateRegularToursCount(seasonSelectedTeams.value.length, Number(seasonForm.roundsCount || 1))
+})
+
+const isSeasonCreateDisabled = computed(() => {
+  return !String(seasonForm.name || '').trim() || seasonSelectedTeams.value.length < 1
 })
 
 const selectedTourSeason = computed(() => {
@@ -789,6 +1058,12 @@ watch(repSelectedEmail, (value) => {
   void refreshRepresentativeAccessByEmail(normalized)
 })
 
+watch(playerEditSelectId, () => {
+  if (playerSubMode.value === 'edit') {
+    onPlayerSelectChange()
+  }
+})
+
 watch(activeTab, (tabId) => {
   if (tabId === 'representatives' && !repUsersList.value.length) {
     void loadRepresentativeUsers({ pagenum: 0, pagesize: 20 })
@@ -813,6 +1088,7 @@ onBeforeUnmount(() => {
 function resetMessages() {
   messageError.value = ''
   messageOk.value = ''
+  passwordResetResult.value = null
 }
 
 function loadFromStorage(key) {
@@ -879,7 +1155,7 @@ async function createSeason() {
     resetSeasonForm()
     messageOk.value = 'Сезон создан.'
   } catch (error) {
-    messageError.value = error.message || 'Не удалось создать сезон.'
+    showSeasonOperationError(error.message || 'Не удалось создать сезон.')
   }
 }
 
@@ -889,7 +1165,10 @@ async function startEditSeason(item) {
   seasonForm.roundsCount = String(item.roundsCount || 1)
   seasonForm.playoffEnabled = Boolean(item.playoffEnabled)
   seasonForm.playoffTeamCount = item.playoffTeamCount ? String(item.playoffTeamCount) : ''
+  seasonForm.yellowCardsForSuspension = String(item.yellowCardsForSuspension || 0)
+  seasonForm.redCardsForSuspension = String(item.redCardsForSuspension || 0)
   seasonTeamIds.value = await loadSeasonTeams(item.id)
+  originalSeasonTeamIds.value = [...seasonTeamIds.value]
   resetMessages()
 }
 
@@ -942,10 +1221,14 @@ async function saveEditSeason() {
       method: 'PUT',
       body: JSON.stringify(buildSeasonPayload()),
     })
-    await authorizedApiRequest(`/api/seasons/${editingSeasonId.value}/teams`, {
-      method: 'PUT',
-      body: JSON.stringify({ teamIds: seasonTeamIds.value }),
-    })
+
+    if (seasonTeamsChanged()) {
+      await authorizedApiRequest(`/api/seasons/${editingSeasonId.value}/teams`, {
+        method: 'PUT',
+        body: JSON.stringify({ teamIds: seasonTeamIds.value }),
+      })
+    }
+
     await loadSeasonRegistry()
     await loadSeasons()
     if (String(tourSeasonId.value || '') === String(editingSeasonId.value)) {
@@ -954,7 +1237,7 @@ async function saveEditSeason() {
     cancelEditSeason()
     messageOk.value = 'Сезон обновлен.'
   } catch (error) {
-    messageError.value = error.message || 'Не удалось обновить сезон.'
+    showSeasonOperationError(error.message || 'Не удалось обновить сезон.')
   }
 }
 
@@ -1017,8 +1300,33 @@ function resetSeasonForm() {
   seasonForm.roundsCount = '1'
   seasonForm.playoffEnabled = false
   seasonForm.playoffTeamCount = ''
+  seasonForm.yellowCardsForSuspension = '0'
+  seasonForm.redCardsForSuspension = '0'
   seasonTeamIds.value = []
+  originalSeasonTeamIds.value = []
   seasonTeamToAddId.value = ''
+}
+
+function seasonTeamsChanged() {
+  return !haveSameTeamIds(originalSeasonTeamIds.value, seasonTeamIds.value)
+}
+
+function haveSameTeamIds(left, right) {
+  const normalizedLeft = [...new Set((left || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))].sort((a, b) => a - b)
+  const normalizedRight = [...new Set((right || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))].sort((a, b) => a - b)
+
+  if (normalizedLeft.length !== normalizedRight.length) {
+    return false
+  }
+
+  return normalizedLeft.every((teamId, index) => teamId === normalizedRight[index])
+}
+
+function showSeasonOperationError(message) {
+  messageError.value = message
+  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert(message)
+  }
 }
 
 async function createTeam() {
@@ -1053,12 +1361,14 @@ function startEditTeam(item) {
   teamForm.shortName = item.shortName
   teamForm.city = item.city
   teamForm.logoDataUrl = item.logoDataUrl || ''
+  isTeamRosterVisible.value = false
   resetMessages()
 }
 
 function cancelEditTeam() {
   editingTeamId.value = null
   resetTeamForm()
+  resetAdminTeamContext()
   resetMessages()
 }
 
@@ -1088,13 +1398,16 @@ async function saveEditTeam() {
   }
 }
 
-function onTeamSelectChange() {
+async function onTeamSelectChange() {
   if (!teamEditSelectId.value) {
     cancelEditTeam()
     return
   }
   const item = teamsList.value.find((t) => String(t.id) === teamEditSelectId.value)
-  if (item) startEditTeam(item)
+  if (item) {
+    startEditTeam(item)
+    await refreshAdminTeamContext(item.id)
+  }
 }
 
 async function deactivateTeam(teamId) {
@@ -1131,6 +1444,181 @@ function resetTeamForm() {
   teamForm.shortName = ''
   teamForm.city = ''
   teamForm.logoDataUrl = ''
+}
+
+function resetAdminTeamContext() {
+  teamRoster.value = []
+  teamSeasonOptions.value = []
+  teamSeasonPlayers.value = []
+  teamRosterToAddId.value = ''
+  selectedTeamSeasonId.value = ''
+  teamRosterBusy.value = false
+  teamSeasonBusy.value = false
+  isTeamRosterVisible.value = false
+}
+
+function toggleTeamRosterVisibility() {
+  isTeamRosterVisible.value = !isTeamRosterVisible.value
+}
+
+async function refreshAdminTeamContext(teamId = editingTeamId.value) {
+  const normalizedTeamId = Number(teamId)
+  if (!Number.isFinite(normalizedTeamId) || normalizedTeamId <= 0) {
+    resetAdminTeamContext()
+    return
+  }
+
+  await loadEditingTeamRoster(normalizedTeamId)
+  await loadEditingTeamSeasonOptions(normalizedTeamId)
+
+  if (selectedTeamSeasonId.value && !teamSeasonOptions.value.some((season) => String(season.id) === String(selectedTeamSeasonId.value))) {
+    selectedTeamSeasonId.value = ''
+    teamSeasonPlayers.value = []
+  }
+
+  if (selectedTeamSeasonId.value) {
+    await loadEditingTeamSeasonPlayers(normalizedTeamId, selectedTeamSeasonId.value)
+  }
+}
+
+async function loadEditingTeamRoster(teamId) {
+  teamRosterBusy.value = true
+  try {
+    const payload = await authorizedApiRequest(`/api/teams/${encodeURIComponent(teamId)}/players`, {
+      method: 'GET',
+    })
+    teamRoster.value = Array.isArray(payload) ? payload : []
+  } catch (error) {
+    teamRoster.value = []
+    messageError.value = error.message || 'Не удалось загрузить состав команды.'
+  } finally {
+    teamRosterBusy.value = false
+  }
+}
+
+async function loadEditingTeamSeasonOptions(teamId) {
+  teamSeasonBusy.value = true
+  try {
+    const payload = await authorizedApiRequest(`/api/teams/${encodeURIComponent(teamId)}/seasons`, {
+      method: 'GET',
+    })
+    teamSeasonOptions.value = Array.isArray(payload) ? payload : []
+  } catch (error) {
+    teamSeasonOptions.value = []
+    messageError.value = error.message || 'Не удалось определить сезоны команды.'
+  } finally {
+    teamSeasonBusy.value = false
+  }
+}
+
+async function onAdminTeamSeasonChange() {
+  resetMessages()
+
+  if (!editingTeamId.value || !selectedTeamSeasonId.value) {
+    teamSeasonPlayers.value = []
+    return
+  }
+
+  await loadEditingTeamSeasonPlayers(editingTeamId.value, selectedTeamSeasonId.value)
+}
+
+async function loadEditingTeamSeasonPlayers(teamId, seasonId) {
+  teamSeasonBusy.value = true
+  try {
+    const payload = await authorizedApiRequest(
+      `/api/seasons/${encodeURIComponent(seasonId)}/teams/${encodeURIComponent(teamId)}/players`,
+      { method: 'GET' }
+    )
+    teamSeasonPlayers.value = Array.isArray(payload) ? payload : []
+  } catch (error) {
+    teamSeasonPlayers.value = []
+    messageError.value = error.message || 'Не удалось загрузить заявку команды на сезон.'
+  } finally {
+    teamSeasonBusy.value = false
+  }
+}
+
+async function addPlayerToEditingTeam() {
+  resetMessages()
+
+  if (!editingTeamId.value) {
+    messageError.value = 'Сначала выберите команду.'
+    return
+  }
+
+  if (!teamRosterToAddId.value) {
+    messageError.value = 'Выберите игрока для добавления в состав.'
+    return
+  }
+
+  teamRosterBusy.value = true
+  try {
+    await authorizedApiRequest(
+      `/api/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(teamRosterToAddId.value)}`,
+      { method: 'POST' }
+    )
+    teamRosterToAddId.value = ''
+    await loadPlayerRegistry()
+    await refreshAdminTeamContext()
+    messageOk.value = 'Игрок добавлен в состав команды.'
+  } catch (error) {
+    messageError.value = error.message || 'Не удалось добавить игрока в состав команды.'
+  } finally {
+    teamRosterBusy.value = false
+  }
+}
+
+async function removePlayerFromEditingTeam(playerId) {
+  resetMessages()
+
+  if (!editingTeamId.value) {
+    messageError.value = 'Сначала выберите команду.'
+    return
+  }
+
+  if (!window.confirm('Убрать игрока из состава команды?')) {
+    return
+  }
+
+  teamRosterBusy.value = true
+  try {
+    await authorizedApiRequest(
+      `/api/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(playerId)}`,
+      { method: 'DELETE' }
+    )
+    await loadPlayerRegistry()
+    await refreshAdminTeamContext()
+    messageOk.value = 'Игрок убран из состава команды.'
+  } catch (error) {
+    messageError.value = error.message || 'Не удалось убрать игрока из состава команды.'
+  } finally {
+    teamRosterBusy.value = false
+  }
+}
+
+async function toggleEditingTeamSeasonPlayer(player) {
+  resetMessages()
+
+  if (!editingTeamId.value || !selectedTeamSeasonId.value) {
+    messageError.value = 'Сначала выберите команду и сезон.'
+    return
+  }
+
+  const method = player.selectedForSeason ? 'DELETE' : 'POST'
+  teamSeasonBusy.value = true
+
+  try {
+    const payload = await authorizedApiRequest(
+      `/api/seasons/${encodeURIComponent(selectedTeamSeasonId.value)}/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(player.id)}`,
+      { method }
+    )
+    teamSeasonPlayers.value = Array.isArray(payload) ? payload : []
+    messageOk.value = player.selectedForSeason ? 'Игрок убран из заявки сезона.' : 'Игрок добавлен в заявку сезона.'
+  } catch (error) {
+    messageError.value = error.message || 'Не удалось изменить заявку сезона.'
+  } finally {
+    teamSeasonBusy.value = false
+  }
 }
 
 async function loadTeamRegistry() {
@@ -1285,6 +1773,11 @@ async function deleteTourMatch(matchId) {
     messageError.value = 'Сначала выберите тур.'
     return
   }
+  const match = tourMatchesList.value.find((item) => Number(item.id) === Number(matchId))
+  if (match && !canDeleteTourMatch(match)) {
+    messageError.value = tourMatchDeleteTitle(match)
+    return
+  }
   if (!window.confirm('Удалить матч из тура без возможности восстановления?')) {
     return
   }
@@ -1306,6 +1799,42 @@ function resetMatchForm() {
   matchForm.kickoffAt = ''
 }
 
+function canDeleteTourMatch(match) {
+  return String(match?.protocolStatus || 'SCHEDULED') === 'SCHEDULED'
+}
+
+function tourMatchDeleteTitle(match) {
+  if (canDeleteTourMatch(match)) {
+    return 'Удалить матч из тура'
+  }
+  return 'Нельзя удалить матч, если по нему уже поданы составы или подтвержден протокол.'
+}
+
+function matchProtocolStatusLabel(status) {
+  switch (String(status || 'SCHEDULED')) {
+    case 'LINEUPS_SUBMITTED':
+      return 'Составы поданы'
+    case 'LIVE':
+      return 'Идет матч'
+    case 'FINISHED':
+      return 'Матч сыгран'
+    case 'VERIFIED':
+      return 'Протокол подтвержден'
+    default:
+      return 'Не сыгран'
+  }
+}
+
+function protocolStatusBadgeClass(status) {
+  return {
+    'is-scheduled': String(status || 'SCHEDULED') === 'SCHEDULED',
+    'is-lineups': String(status || '') === 'LINEUPS_SUBMITTED',
+    'is-live': String(status || '') === 'LIVE',
+    'is-finished': String(status || '') === 'FINISHED',
+    'is-verified': String(status || '') === 'VERIFIED',
+  }
+}
+
 function buildSeasonPayload() {
   const roundsCount = Number(seasonForm.roundsCount || 1)
   const playoffEnabled = Boolean(seasonForm.playoffEnabled)
@@ -1318,6 +1847,8 @@ function buildSeasonPayload() {
     roundsCount,
     playoffEnabled,
     playoffTeamCount,
+    yellowCardsForSuspension: Number(seasonForm.yellowCardsForSuspension || 0),
+    redCardsForSuspension: Number(seasonForm.redCardsForSuspension || 0),
   }
 }
 
@@ -1346,6 +1877,7 @@ async function createPlayer() {
         fullName: playerForm.fullName,
         birthDate: playerForm.birthDate,
         residence: playerForm.residence,
+        isGoalkeeper: Boolean(playerForm.isGoalkeeper),
         photoDataUrl: playerForm.photoDataUrl,
       }),
     })
@@ -1362,6 +1894,7 @@ function startEditPlayer(item) {
   playerForm.fullName = item.fullName
   playerForm.birthDate = item.birthDate
   playerForm.residence = item.residence
+  playerForm.isGoalkeeper = Boolean(item.isGoalkeeper)
   playerForm.photoDataUrl = item.photoDataUrl || ''
   resetMessages()
 }
@@ -1387,6 +1920,7 @@ async function saveEditPlayer() {
         fullName: playerForm.fullName,
         birthDate: playerForm.birthDate,
         residence: playerForm.residence,
+        isGoalkeeper: Boolean(playerForm.isGoalkeeper),
         photoDataUrl: playerForm.photoDataUrl,
       }),
     })
@@ -1452,7 +1986,18 @@ function resetPlayerForm() {
   playerForm.fullName = ''
   playerForm.birthDate = ''
   playerForm.residence = ''
+  playerForm.isGoalkeeper = false
   playerForm.photoDataUrl = ''
+}
+
+function formatPlayerOptionLabel(player) {
+  if (!player) return ''
+  return `${player.fullName || ''}`
+}
+
+function formatAdminRosterPlayerOption(player) {
+  if (!player) return ''
+  return formatPlayerOptionLabel(player)
 }
 
 function assignRole() {
@@ -1613,6 +2158,39 @@ async function assignRoleToFound() {
     messageOk.value = 'Роль добавлена.'
   } catch (error) {
     messageError.value = error.message || 'Не удалось добавить роль.'
+  }
+}
+
+async function resetPasswordForFoundUser() {
+  resetMessages()
+  const user = rolesFoundUser.value
+  if (!user) return
+
+  try {
+    const payload = await authorizedApiRequest(`/api/admin/access/users/${user.id}/reset-password`, {
+      method: 'POST',
+    })
+    passwordResetResult.value = payload
+    await refreshFoundUserAccess()
+    messageOk.value = 'Одноразовая ссылка для установки нового пароля создана.'
+  } catch (error) {
+    messageError.value = error.message || 'Не удалось сбросить пароль пользователя.'
+  }
+}
+
+async function copyPasswordResetLink() {
+  resetMessages()
+  const link = absolutePasswordResetLink.value
+  if (!link) {
+    messageError.value = 'Ссылка для сброса пароля недоступна.'
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(link)
+    messageOk.value = 'Ссылка скопирована в буфер обмена.'
+  } catch {
+    messageError.value = 'Не удалось скопировать ссылку. Скопируйте ее вручную.'
   }
 }
 
@@ -1825,6 +2403,7 @@ async function refreshFoundUserAccess() {
       email: payload.email,
       name: payload.name,
       roles: Array.isArray(payload.roles) ? payload.roles : [],
+      mustChangePassword: Boolean(payload.mustChangePassword),
     }
   }
 }
@@ -1884,6 +2463,43 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.admin-temporal-input {
+  min-height: 44px;
+  border-radius: 12px;
+  border-color: rgba(124, 163, 255, 0.34);
+  background:
+    linear-gradient(180deg, rgba(31, 43, 86, 0.96), rgba(16, 24, 53, 0.98)),
+    rgba(19, 26, 52, 0.98);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 22px rgba(3, 8, 24, 0.24);
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.admin-temporal-input:hover {
+  border-color: rgba(97, 232, 162, 0.52);
+}
+
+.admin-temporal-input:focus-visible {
+  outline: none;
+  border-color: rgba(97, 232, 162, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 3px rgba(97, 232, 162, 0.16),
+    0 10px 26px rgba(3, 8, 24, 0.28);
+}
+
+.admin-temporal-input-wide {
+  font-weight: 600;
+}
+
+.admin-temporal-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(88%) sepia(17%) saturate(1186%) hue-rotate(88deg) brightness(103%) contrast(88%);
+  opacity: 0.9;
+}
+
 .admin-checkbox-row {
   display: flex;
   align-items: center;
@@ -1896,6 +2512,105 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 16px;
   width: 100%;
+}
+
+.admin-team-logo-preview {
+  width: 84px;
+  height: 84px;
+  padding: 6px;
+  object-fit: contain;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.admin-team-management-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-team-management-card {
+  gap: 14px;
+}
+
+.admin-team-management-head {
+  align-items: start;
+}
+
+.admin-team-head-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.admin-team-picker-row {
+  align-items: stretch;
+}
+
+.admin-player-manage-item {
+  align-items: center;
+  gap: 16px;
+}
+
+.admin-player-manage-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-season-player-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.admin-season-player-badge.is-selected {
+  background: rgba(97, 232, 162, 0.18);
+  color: #8ff0bb;
+}
+
+.admin-season-player-badge.is-not-selected {
+  background: rgba(124, 163, 255, 0.16);
+  color: #b5c7ff;
+}
+
+.admin-sticky-actions-spacer {
+  height: 0;
+}
+
+.admin-sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 12;
+  margin-top: 8px;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-radius: 16px;
+  border: 1px solid rgba(124, 163, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(16, 24, 53, 0.96), rgba(10, 16, 38, 0.98)),
+    rgba(10, 16, 38, 0.98);
+  box-shadow: 0 -12px 30px rgba(3, 8, 24, 0.28);
+  backdrop-filter: blur(10px);
+}
+
+@media (max-width: 960px) {
+  .admin-team-management-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sticky-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-team-logo-preview {
+    width: 72px;
+    height: 72px;
+  }
 }
 
 .admin-inline-check input[type='checkbox'] {
@@ -1926,6 +2641,48 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.tour-match-status-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tour-match-status-badge.is-scheduled {
+  color: #bfd0ff;
+  border-color: rgba(124, 163, 255, 0.34);
+  background: rgba(86, 122, 214, 0.16);
+}
+
+.tour-match-status-badge.is-lineups {
+  color: #ffe2a3;
+  border-color: rgba(255, 196, 84, 0.34);
+  background: rgba(255, 196, 84, 0.14);
+}
+
+.tour-match-status-badge.is-live {
+  color: #ffcfbf;
+  border-color: rgba(255, 124, 84, 0.34);
+  background: rgba(255, 124, 84, 0.14);
+}
+
+.tour-match-status-badge.is-finished {
+  color: #d9dff8;
+  border-color: rgba(188, 196, 230, 0.3);
+  background: rgba(188, 196, 230, 0.12);
+}
+
+.tour-match-status-badge.is-verified {
+  color: #bff8d8;
+  border-color: rgba(97, 232, 162, 0.38);
+  background: rgba(97, 232, 162, 0.14);
 }
 
 .tour-publish-note {

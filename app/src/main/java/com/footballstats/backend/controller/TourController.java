@@ -1,5 +1,6 @@
 package com.footballstats.backend.controller;
 
+import com.footballstats.backend.domain.MatchProtocolStatus;
 import com.footballstats.backend.domain.Tour;
 import com.footballstats.backend.domain.TourMatch;
 import com.footballstats.backend.security.AppUserPrincipal;
@@ -123,6 +124,9 @@ public class TourController {
     }
 
     private TourMatchResponse toMatchResponse(TourMatch match) {
+        MatchProtocolStatus protocolStatus = match.getProtocol() == null || match.getProtocol().getStatus() == null
+            ? MatchProtocolStatus.SCHEDULED
+            : match.getProtocol().getStatus();
         return new TourMatchResponse(
             match.getId(),
             match.getTour().getId(),
@@ -131,7 +135,8 @@ public class TourController {
             match.getAwayTeam().getId(),
             match.getAwayTeam().getName(),
             match.getKickoffAt(),
-            match.isActive()
+            match.isActive(),
+            protocolStatus
         );
     }
 
@@ -157,7 +162,8 @@ public class TourController {
         Long awayTeamId,
         String awayTeamName,
         OffsetDateTime kickoffAt,
-        boolean active
+        boolean active,
+        MatchProtocolStatus protocolStatus
     ) {}
 
     public record TourCreateRequest(

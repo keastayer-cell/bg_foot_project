@@ -47,50 +47,60 @@
     </main>
 
     <div v-if="authModalOpen" class="modal-backdrop" @click.self="closeAuthModal">
-      <article class="card auth-modal">
+      <article class="card auth-modal auth-dialog">
         <div class="toolbar auth-modal-head">
-          <h3 class="section-title">Авторизация</h3>
-          <button class="btn-ghost" type="button" @click="closeAuthModal">Закрыть</button>
+          <div class="auth-modal-title-block">
+            <span class="auth-modal-kicker">Личный кабинет</span>
+            <h3 class="section-title">Авторизация</h3>
+          </div>
+          <button class="btn-ghost auth-modal-close" type="button" @click="closeAuthModal">Закрыть</button>
         </div>
 
-        <div class="auth-tabs">
-          <button
-            class="btn-ghost"
-            :class="{ 'auth-tab-active': authMode === 'login' }"
-            type="button"
-            @click="authMode = 'login'"
-          >
-            Вход
-          </button>
-          <button
-            class="btn-ghost"
-            :class="{ 'auth-tab-active': authMode === 'register' }"
-            type="button"
-            @click="authMode = 'register'"
-          >
-            Регистрация
-          </button>
+        <div class="auth-tabs-shell">
+          <div class="auth-tabs" role="tablist" aria-label="Режим авторизации">
+            <button
+              class="btn-ghost auth-tab-btn"
+              :class="{ 'auth-tab-active': authMode === 'login' }"
+              type="button"
+              role="tab"
+              :aria-selected="authMode === 'login'"
+              @click="authMode = 'login'"
+            >
+              Вход
+            </button>
+            <button
+              class="btn-ghost auth-tab-btn"
+              :class="{ 'auth-tab-active': authMode === 'register' }"
+              type="button"
+              role="tab"
+              :aria-selected="authMode === 'register'"
+              @click="authMode = 'register'"
+            >
+              Регистрация
+            </button>
+          </div>
         </div>
 
         <form class="auth-form" @submit.prevent="submitAuth">
-          <label>
-            Email
-            <input v-model.trim="authForm.email" type="email" required />
+          <label class="auth-field">
+            <span class="auth-field-label">Email</span>
+            <input v-model.trim="authForm.email" type="email" autocomplete="email" required />
           </label>
 
-          <label v-if="authMode === 'register'">
-            Имя
-            <input v-model.trim="authForm.name" type="text" minlength="2" maxlength="120" required />
+          <label v-if="authMode === 'register'" class="auth-field">
+            <span class="auth-field-label">Имя</span>
+            <input v-model.trim="authForm.name" type="text" minlength="2" maxlength="120" autocomplete="name" required />
           </label>
 
-          <label>
-            Пароль
+          <label class="auth-field">
+            <span class="auth-field-label">Пароль</span>
             <div class="password-input-wrap">
               <input
                 v-model="authForm.password"
                 :type="showPassword ? 'text' : 'password'"
                 minlength="6"
                 maxlength="120"
+                autocomplete="current-password"
                 required
               />
               <button
@@ -107,9 +117,51 @@
           <p class="error-text" v-if="authError">{{ authError }}</p>
           <p class="success-text" v-if="authOk">{{ authOk }}</p>
 
-          <div class="actions-row">
-            <button class="btn-primary" type="submit" :disabled="authSubmitting">
+          <div class="actions-row auth-actions-row">
+            <p class="auth-actions-note">
+              {{ authMode === 'register' ? 'После регистрации вход выполнится автоматически.' : 'Данные сохраняются в защищенной сессии.' }}
+            </p>
+            <button class="btn-primary auth-submit-btn" type="submit" :disabled="authSubmitting">
               {{ authSubmitting ? 'Подождите...' : authMode === 'register' ? 'Зарегистрироваться' : 'Войти' }}
+            </button>
+          </div>
+        </form>
+      </article>
+    </div>
+
+    <div v-if="passwordChangeModalOpen" class="modal-backdrop password-change-backdrop">
+      <article class="card auth-modal password-change-modal">
+        <div class="toolbar auth-modal-head">
+          <h3 class="section-title">Смена пароля обязательна</h3>
+          <button v-if="!passwordChangeSubmitting" class="btn-ghost" type="button" @click="handleLogout">Выйти</button>
+        </div>
+
+        <form class="auth-form" @submit.prevent="submitPasswordChange">
+          <p class="muted-text">
+            Администратор сбросил ваш пароль на временный. Для продолжения работы задайте новый личный пароль.
+          </p>
+
+          <label>
+            Текущий временный пароль
+            <input v-model="passwordChangeForm.currentPassword" type="password" minlength="6" maxlength="120" required />
+          </label>
+
+          <label>
+            Новый пароль
+            <input v-model="passwordChangeForm.newPassword" type="password" minlength="6" maxlength="120" required />
+          </label>
+
+          <label>
+            Повторите новый пароль
+            <input v-model="passwordChangeForm.confirmPassword" type="password" minlength="6" maxlength="120" required />
+          </label>
+
+          <p class="error-text" v-if="passwordChangeError">{{ passwordChangeError }}</p>
+          <p class="success-text" v-if="passwordChangeOk">{{ passwordChangeOk }}</p>
+
+          <div class="actions-row">
+            <button class="btn-primary" type="submit" :disabled="passwordChangeSubmitting">
+              {{ passwordChangeSubmitting ? 'Подождите...' : 'Сменить пароль' }}
             </button>
           </div>
         </form>
@@ -119,12 +171,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from './store/auth'
 import bogorodskCoat from './assets/bogorodsk-coat.png'
 
-const { user, isAuthenticated, register, login, logout, loadCurrentUser, hasRole } = useAuth()
+const { user, isAuthenticated, register, login, logout, changePassword, ensureSession, hasRole } = useAuth()
 const router = useRouter()
 
 const authModalOpen = ref(false)
@@ -133,11 +185,21 @@ const authSubmitting = ref(false)
 const authError = ref('')
 const authOk = ref('')
 const showPassword = ref(false)
+const passwordChangeModalOpen = ref(false)
+const passwordChangeSubmitting = ref(false)
+const passwordChangeError = ref('')
+const passwordChangeOk = ref('')
 
 const authForm = reactive({
   email: '',
   name: '',
   password: '',
+})
+
+const passwordChangeForm = reactive({
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
 })
 
 const isTeamRep = computed(() => isAuthenticated.value && hasRole('TEAM_REP'))
@@ -164,6 +226,23 @@ function closeAuthModal() {
   resetMessages()
 }
 
+function resetPasswordChangeMessages() {
+  passwordChangeError.value = ''
+  passwordChangeOk.value = ''
+}
+
+function syncPasswordChangeModal() {
+  const required = Boolean(isAuthenticated.value && user.value?.mustChangePassword)
+  passwordChangeModalOpen.value = required
+  if (!required) {
+    passwordChangeSubmitting.value = false
+    passwordChangeForm.currentPassword = ''
+    passwordChangeForm.newPassword = ''
+    passwordChangeForm.confirmPassword = ''
+    resetPasswordChangeMessages()
+  }
+}
+
 async function submitAuth() {
   authSubmitting.value = true
   resetMessages()
@@ -174,13 +253,16 @@ async function submitAuth() {
       authOk.value = 'Регистрация успешна. Вы вошли в систему.'
     } else {
       await login(authForm)
-      authOk.value = 'Вход выполнен.'
+      authOk.value = user.value?.mustChangePassword
+        ? 'Вход выполнен. Требуется сменить временный пароль.'
+        : 'Вход выполнен.'
     }
 
     authForm.password = ''
     setTimeout(() => {
       closeAuthModal()
-    }, 500)
+      syncPasswordChangeModal()
+    }, 300)
   } catch (error) {
     authError.value = error.message || 'Не удалось выполнить запрос.'
   } finally {
@@ -188,8 +270,34 @@ async function submitAuth() {
   }
 }
 
-function handleLogout() {
-  logout()
+async function submitPasswordChange() {
+  resetPasswordChangeMessages()
+
+  if (passwordChangeForm.newPassword !== passwordChangeForm.confirmPassword) {
+    passwordChangeError.value = 'Новый пароль и его повтор должны совпадать.'
+    return
+  }
+
+  passwordChangeSubmitting.value = true
+  try {
+    await changePassword({
+      currentPassword: passwordChangeForm.currentPassword,
+      newPassword: passwordChangeForm.newPassword,
+    })
+    passwordChangeOk.value = 'Пароль успешно обновлен.'
+    passwordChangeForm.currentPassword = ''
+    passwordChangeForm.newPassword = ''
+    passwordChangeForm.confirmPassword = ''
+    syncPasswordChangeModal()
+  } catch (error) {
+    passwordChangeError.value = error.message || 'Не удалось сменить пароль.'
+  } finally {
+    passwordChangeSubmitting.value = false
+  }
+}
+
+async function handleLogout() {
+  await logout({ remote: true, suppressErrors: true })
   router.replace('/')
 }
 
@@ -202,12 +310,18 @@ function canSeeAdmin() {
 }
 
 onMounted(async () => {
-  if (!isAuthenticated.value) return
-
   try {
-    await loadCurrentUser()
+    await ensureSession({ forceRefresh: isAuthenticated.value })
+    syncPasswordChangeModal()
   } catch {
-    logout()
+    await logout({ remote: true, suppressErrors: true })
   }
 })
+
+watch(
+  () => user.value?.mustChangePassword,
+  () => {
+    syncPasswordChangeModal()
+  }
+)
 </script>

@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 
-const STORAGE_KEY = 'football_stats_auth'
+const PERSISTENT_SESSION_KEY = 'football_stats_persistent_session'
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 const isDev = import.meta.env.DEV
 const TEAM_POOL = [
@@ -20,6 +20,7 @@ const TEAM_POOL = [
 
 const token = ref('')
 const user = ref(null)
+let refreshPromise = null
 
 function hashString(value) {
   const source = String(value || '')
@@ -65,27 +66,33 @@ function resolveTeamName(rawUser) {
   return TEAM_POOL[hashString(seed) % TEAM_POOL.length]
 }
 
-function restoreAuth() {
-  const raw = sessionStorage.getItem(STORAGE_KEY)
-  if (!raw) return
-
-  try {
-    const parsed = JSON.parse(raw)
-    token.value = parsed.token || ''
-    user.value = parsed.user || null
-  } catch {
-    sessionStorage.removeItem(STORAGE_KEY)
+function setPersistentSession(enabled) {
+  if (enabled) {
+    localStorage.setItem(PERSISTENT_SESSION_KEY, '1')
+  } else {
+    localStorage.removeItem(PERSISTENT_SESSION_KEY)
   }
 }
 
-function persistAuth() {
-  sessionStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      token: token.value,
-      user: user.value,
-    })
-  )
+function hasPersistentSessionHint() {
+  return localStorage.getItem(PERSISTENT_SESSION_KEY) === '1'
+}
+
+function clearLocalAuthState() {
+  token.value = ''
+  user.value = null
+  setPersistentSession(false)
+}
+
+function createHttpError(message, status, body) {
+  const error = new Error(message)
+  error.status = status
+  error.body = body
+  return error
+}
+
+function isUnauthorizedError(error) {
+  return Number(error?.status) === 401
 }
 
 function maskSensitive(value) {
@@ -118,6 +125,7 @@ async function apiRequest(path, options = {}) {
   const startedAt = performance.now()
   const requestOptions = {
     ...options,
+    credentials: options.credentials || 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
@@ -158,7 +166,7 @@ async function apiRequest(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(body.error || 'Не удалось выполнить запрос.')
+    throw createHttpError(body.error || 'Не удалось выполнить запрос.', response.status, body)
   }
 
   return body
@@ -171,9 +179,9 @@ function applyAuthResponse(payload) {
     email: payload.email,
     name: payload.name,
     roles: payload.roles || [],
+    mustChangePassword: Boolean(payload.mustChangePassword),
     teamName: resolveTeamName(payload),
   }
-  persistAuth()
 }
 
 async function register({ email, name, password }) {
@@ -183,6 +191,7 @@ async function register({ email, name, password }) {
   })
 
   applyAuthResponse(payload)
+  setPersistentSession(true)
   await loadCurrentUser().catch(() => null)
   return user.value
 }
@@ -194,6 +203,7 @@ async function login({ email, password }) {
   })
 
   applyAuthResponse(payload)
+  setPersistentSession(true)
   await loadCurrentUser().catch(() => null)
   return user.value
 }
@@ -205,6 +215,7 @@ async function guestLogin() {
   })
 
   applyAuthResponse(payload)
+  setPersistentSession(false)
   return user.value
 }
 
@@ -222,6 +233,7 @@ async function loadCurrentUser() {
   if (!Array.isArray(user.value.roles)) {
     user.value.roles = []
   }
+  user.value.mustChangePassword = Boolean(user.value.mustChangePassword)
 
   const accessProfile = await apiRequest('/api/admin/access/me', {
     method: 'GET',
@@ -241,25 +253,110 @@ async function loadCurrentUser() {
   } else {
     user.value.teamName = resolveTeamName(user.value)
   }
-
-  persistAuth()
   return user.value
 }
 
+async function refreshSession({ suppressErrors = false } = {}) {
+  if (refreshPromise) {
+    return refreshPromise
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const payload = await apiRequest('/api/auth/refresh', {
+        method: 'POST',
+      })
+
+      applyAuthResponse(payload)
+      setPersistentSession(true)
+      return payload
+    } catch (error) {
+      await logout({ remote: true, suppressErrors: true })
+      if (!suppressErrors) {
+        throw error
+      }
+      return null
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
+async function ensureSession({ forceRefresh = false } = {}) {
+  if (token.value) {
+    try {
+      await loadCurrentUser()
+      return user.value
+    } catch (error) {
+      if (!isUnauthorizedError(error)) {
+        throw error
+      }
+    }
+  }
+
+  if (!forceRefresh && !hasPersistentSessionHint()) {
+    return null
+  }
+
+  const refreshed = await refreshSession({ suppressErrors: true })
+  if (!refreshed || !token.value) {
+    return null
+  }
+
+  try {
+    await loadCurrentUser()
+    return user.value
+  } catch {
+    clearLocalAuthState()
+    return null
+  }
+}
+
 async function authorizedApiRequest(path, options = {}) {
+  const { __retriedAfterRefresh, ...requestOptions } = options
+
+  if (!token.value) {
+    await ensureSession({ forceRefresh: true })
+  }
+
   if (!token.value) {
     throw new Error('Требуется авторизация.')
   }
 
   const headers = {
-    ...(options.headers || {}),
+    ...(requestOptions.headers || {}),
     Authorization: `Bearer ${token.value}`,
   }
 
-  return apiRequest(path, {
-    ...options,
-    headers,
+  try {
+    return await apiRequest(path, {
+      ...requestOptions,
+      headers,
+    })
+  } catch (error) {
+    if (!__retriedAfterRefresh && isUnauthorizedError(error)) {
+      await refreshSession()
+      return authorizedApiRequest(path, {
+        ...requestOptions,
+        __retriedAfterRefresh: true,
+      })
+    }
+    throw error
+  }
+}
+
+async function changePassword({ currentPassword, newPassword }) {
+  const payload = await authorizedApiRequest('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
   })
+
+  applyAuthResponse(payload)
+  setPersistentSession(true)
+  await loadCurrentUser().catch(() => null)
+  return user.value
 }
 
 // Запрос с опциональной авторизацией (для гостей)
@@ -276,13 +373,21 @@ async function optionalAuthApiRequest(path, options = {}) {
   })
 }
 
-function logout() {
-  token.value = ''
-  user.value = null
-  sessionStorage.removeItem(STORAGE_KEY)
+async function logout({ remote = true, suppressErrors = false } = {}) {
+  try {
+    if (remote) {
+      await apiRequest('/api/auth/logout', {
+        method: 'POST',
+      })
+    }
+  } catch (error) {
+    if (!suppressErrors) {
+      throw error
+    }
+  } finally {
+    clearLocalAuthState()
+  }
 }
-
-restoreAuth()
 
 const isAuthenticated = computed(() => Boolean(token.value))
 
@@ -304,7 +409,10 @@ export function useAuth() {
     login,
     guestLogin,
     logout,
+    changePassword,
     loadCurrentUser,
+    ensureSession,
+    refreshSession,
     authorizedApiRequest,
     optionalAuthApiRequest,
     hasRole,

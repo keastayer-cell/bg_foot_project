@@ -10,16 +10,18 @@ public class AuthResponse {
     private String email;
     private String name;
     private List<String> roles;
+    private boolean mustChangePassword;
 
     public AuthResponse() {
     }
 
-    public AuthResponse(String token, Long userId, String email, String name, List<String> roles) {
+    public AuthResponse(String token, Long userId, String email, String name, List<String> roles, boolean mustChangePassword) {
         this.token = token;
         this.userId = userId;
         this.email = email;
         this.name = name;
         this.roles = roles;
+        this.mustChangePassword = mustChangePassword;
     }
 
     public String getToken() {
@@ -44,5 +46,9 @@ public class AuthResponse {
 
     public List<String> getRoles() {
         return roles;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
     }
 }

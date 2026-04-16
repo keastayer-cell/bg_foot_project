@@ -35,6 +35,21 @@ public interface TourMatchRepository extends JpaRepository<TourMatch, Long> {
         SELECT tm
         FROM TourMatch tm
         JOIN FETCH tm.tour tour
+        JOIN FETCH tour.season season
+        JOIN FETCH tm.homeTeam homeTeam
+        JOIN FETCH tm.awayTeam awayTeam
+        LEFT JOIN FETCH tm.protocol protocol
+        WHERE tour.season.id = :seasonId
+          AND tour.active = TRUE
+          AND tm.active = TRUE
+        ORDER BY tour.sortOrder ASC, tm.kickoffAt ASC, tm.id ASC
+        """)
+    List<TourMatch> findAllActiveDetailedBySeasonId(@Param("seasonId") Long seasonId);
+
+    @Query("""
+        SELECT tm
+        FROM TourMatch tm
+        JOIN FETCH tm.tour tour
         JOIN FETCH tm.homeTeam homeTeam
         JOIN FETCH tm.awayTeam awayTeam
       LEFT JOIN FETCH tm.protocol protocol

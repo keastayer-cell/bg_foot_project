@@ -48,7 +48,7 @@ public class TeamRepController {
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(teamRepService.createPlayer(
             currentUserId(authentication),
-            new TeamRepService.TeamRepPlayerDraft(request.fullName(), request.birthDate(), request.residence(), request.photoDataUrl())
+            new TeamRepService.TeamRepPlayerDraft(request.fullName(), request.birthDate(), request.residence(), request.isGoalkeeper(), request.photoDataUrl())
         ));
     }
 
@@ -61,7 +61,7 @@ public class TeamRepController {
         return ResponseEntity.ok(teamRepService.updatePlayer(
             currentUserId(authentication),
             playerId,
-            new TeamRepService.TeamRepPlayerDraft(request.fullName(), request.birthDate(), request.residence(), request.photoDataUrl())
+            new TeamRepService.TeamRepPlayerDraft(request.fullName(), request.birthDate(), request.residence(), request.isGoalkeeper(), request.photoDataUrl())
         ));
     }
 
@@ -80,6 +80,15 @@ public class TeamRepController {
         Authentication authentication
     ) {
         return ResponseEntity.ok(teamRepService.replaceSeasonPlayers(currentUserId(authentication), seasonId, request.playerIds()));
+    }
+
+    @PostMapping("/seasons/{seasonId}/players")
+    public ResponseEntity<TeamRepService.TeamRepSeasonPlayersData> addSeasonPlayers(
+        @PathVariable Long seasonId,
+        @Valid @RequestBody TeamRepSeasonPlayersUpsertRequest request,
+        Authentication authentication
+    ) {
+        return ResponseEntity.ok(teamRepService.addSeasonPlayers(currentUserId(authentication), seasonId, request.playerIds()));
     }
 
     @PostMapping("/seasons/{seasonId}/players/{playerId}")
@@ -112,6 +121,7 @@ public class TeamRepController {
         @NotBlank(message = "ФИО игрока обязательно.") String fullName,
         LocalDate birthDate,
         String residence,
+        boolean isGoalkeeper,
         String photoDataUrl
     ) {}
 

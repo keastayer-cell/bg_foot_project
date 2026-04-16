@@ -2,8 +2,11 @@ package com.footballstats.backend.config;
 
 import com.footballstats.backend.security.JsonAccessDeniedHandler;
 import com.footballstats.backend.security.JsonAuthEntryPoint;
+import com.footballstats.backend.security.PasswordChangeRequiredFilter;
 import com.footballstats.backend.security.JwtAuthenticationFilter;
 import com.footballstats.backend.security.ApiAccessRuleFilter;
+import com.footballstats.backend.security.AuthRateLimitFilter;
+import com.footballstats.backend.security.SecurityHeadersFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -37,7 +40,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
         HttpSecurity http,
+        SecurityHeadersFilter securityHeadersFilter,
         JwtAuthenticationFilter jwtAuthenticationFilter,
+        AuthRateLimitFilter authRateLimitFilter,
+        PasswordChangeRequiredFilter passwordChangeRequiredFilter,
         ApiAccessRuleFilter apiAccessRuleFilter,
         JsonAuthEntryPoint jsonAuthEntryPoint,
         JsonAccessDeniedHandler jsonAccessDeniedHandler
@@ -53,7 +59,8 @@ public class SecurityConfig {
                 .accessDeniedHandler(jsonAccessDeniedHandler)
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/guest").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/guest", "/api/auth/refresh", "/api/auth/logout", "/api/auth/password-reset/complete").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/change-password").authenticated()
                 .requestMatchers("/api/health", "/api/health/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/**").hasAnyRole("TEAM_REP", "SUPER_ADMIN")
@@ -62,7 +69,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/**").hasAnyRole("TEAM_REP", "SUPER_ADMIN")
                 .anyRequest().permitAll()
             )
+            .addFilterBefore(securityHeadersFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(passwordChangeRequiredFilter, JwtAuthenticationFilter.class)
             .addFilterAfter(apiAccessRuleFilter, JwtAuthenticationFilter.class);
 
         return http.build();

@@ -86,12 +86,7 @@
       <div v-else class="team-rep-player-list">
         <article class="team-rep-player-item" v-for="player in displayedTeamPlayers" :key="player.id">
           <div class="team-rep-player-main">
-            <strong>{{ player.fullName }}</strong>
-            <span class="muted-text" v-if="player.birthDate">ДР: {{ formatDateOnly(player.birthDate) }}</span>
-            <span class="muted-text" v-if="player.residence">Прописка: {{ player.residence }}</span>
-            <div class="team-rep-season-chip-row" v-if="player.seasons?.length">
-              <span class="team-rep-season-chip" v-for="season in player.seasons" :key="season.id">{{ season.name }}</span>
-            </div>
+            <strong>{{ player.fullName }}<span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></strong>
           </div>
           <img
             v-if="player.photoDataUrl"
@@ -115,31 +110,50 @@
       </div>
     </article>
 
-    <div v-if="addPlayerModalOpen && seasonView" class="modal-backdrop" @click.self="closeSeasonModals">
+    <div v-if="addPlayerModalOpen" class="modal-backdrop" @click.self="closeSeasonModals">
       <article class="card auth-modal team-rep-modal team-rep-season-modal">
         <div class="toolbar auth-modal-head">
           <div>
             <h3 class="section-title">Добавить игрока в заявку</h3>
-            <p class="muted-text">{{ seasonView.seasonName }} · {{ seasonView.teamName }}</p>
+            <p v-if="seasonView" class="muted-text">{{ seasonView.seasonName }} · {{ seasonView.teamName }}</p>
           </div>
-          <button class="btn-ghost" type="button" @click="closeSeasonModals">Закрыть</button>
+          <div class="actions-row team-rep-season-modal-head-actions">
+            <button
+              class="btn-primary"
+              type="button"
+              @click="addAvailablePlayersToSeason"
+              :disabled="seasonLoading || !seasonView || !selectedAvailablePlayerIds.length"
+            >
+              Добавить выбранных
+            </button>
+            <button class="btn-ghost" type="button" @click="closeSeasonModals">Закрыть</button>
+          </div>
         </div>
 
-        <div class="team-rep-inline-picker compact">
-          <select v-model="selectedAvailablePlayerId">
-            <option value="">Выберите игрока</option>
-            <option v-for="player in seasonSelectablePlayers" :key="player.id" :value="String(player.id)">
-              {{ player.fullName }}
-            </option>
-          </select>
-          <div class="actions-row team-rep-season-modal-actions">
-            <button class="btn-primary" type="button" @click="addAvailablePlayerToSeason" :disabled="seasonLoading || !selectedAvailablePlayerId">
-              Добавить
-            </button>
+        <p v-if="seasonLoading && !seasonView" class="muted-text">Загрузка списка игроков...</p>
+
+        <div v-else-if="seasonView" class="team-rep-inline-picker compact">
+          <SearchableSelect
+            :key="`team-rep-season-picker-${seasonView.seasonId}-${seasonSelectablePlayerOptions.length}`"
+            v-model="selectedAvailablePlayerIds"
+            :options="seasonSelectablePlayerOptions"
+            multiple
+            multiple-summary-text="Выбрано игроков"
+            placeholder="Выберите игроков"
+            search-placeholder="Начните вводить ФИО игрока"
+            empty-text="Игрок по такому ФИО не найден"
+          />
+          <div class="team-rep-season-picker-meta">
+            <span class="team-rep-selected-count">
+              Выбрано: {{ selectedAvailablePlayerIds.length }}
+            </span>
           </div>
         </div>
+
+        <p v-else class="muted-text">Не удалось загрузить доступных игроков.</p>
 
         <p class="error-text" v-if="seasonError">{{ seasonError }}</p>
+
       </article>
     </div>
 
@@ -166,6 +180,11 @@
             <input v-model.trim="playerForm.residence" type="text" placeholder="Например: Богородск" />
           </label>
 
+          <label class="team-rep-checkbox-row">
+            <input v-model="playerForm.isGoalkeeper" type="checkbox" />
+            <span>Вратарь</span>
+          </label>
+
           <label>
             Фото
             <input type="file" accept="image/*" @change="onPhotoSelected" />
@@ -188,6 +207,7 @@
 import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const { user, isAuthenticated, hasRole, loadCurrentUser, authorizedApiRequest } = useAuth()
 const router = useRouter()
@@ -204,7 +224,7 @@ const teamSeasons = ref([])
 const teamPlayers = ref([])
 const seasonView = ref(null)
 const selectedSeasonId = ref('')
-const selectedAvailablePlayerId = ref('')
+const selectedAvailablePlayerIds = ref([])
 const addPlayerModalOpen = ref(false)
 const showSelectedSeasonPlayersOnly = ref(false)
 
@@ -215,6 +235,7 @@ const playerForm = reactive({
   fullName: '',
   birthDate: '',
   residence: '',
+  isGoalkeeper: false,
   photoDataUrl: '',
 })
 
@@ -258,6 +279,14 @@ const seasonSelectablePlayers = computed(() => {
   return Array.from(combined.values()).sort((left, right) =>
     String(left.fullName || '').localeCompare(String(right.fullName || ''), 'ru', { sensitivity: 'base' })
   )
+})
+
+const seasonSelectablePlayerOptions = computed(() => {
+  return seasonSelectablePlayers.value.map((player) => ({
+    value: String(player.id),
+    label: formatPlayerOptionLabel(player),
+    keywords: `${player.fullName || ''}`,
+  }))
 })
 
 watchEffect(() => {
@@ -318,7 +347,7 @@ async function loadSeasonView(seasonId) {
   seasonLoading.value = true
   seasonError.value = ''
   seasonSuccess.value = ''
-  selectedAvailablePlayerId.value = ''
+  selectedAvailablePlayerIds.value = []
 
   try {
     seasonView.value = await authorizedApiRequest(`/api/team-rep/seasons/${encodeURIComponent(seasonId)}/players`, {
@@ -332,16 +361,20 @@ async function loadSeasonView(seasonId) {
 }
 
 async function openAddPlayerModal(seasonId) {
-  await loadSeasonView(seasonId)
-  if (!seasonView.value) {
+  seasonError.value = ''
+  seasonSuccess.value = ''
+  addPlayerModalOpen.value = true
+
+  if (String(seasonView.value?.seasonId || '') === String(seasonId)) {
     return
   }
-  addPlayerModalOpen.value = true
+
+  await loadSeasonView(seasonId)
 }
 
 function closeSeasonModals() {
   addPlayerModalOpen.value = false
-  selectedAvailablePlayerId.value = ''
+  selectedAvailablePlayerIds.value = []
   seasonError.value = ''
   seasonSuccess.value = ''
 }
@@ -360,12 +393,35 @@ async function removeFromSeason(playerId) {
   await mutateSeasonPlayer(playerId, 'DELETE', 'Игрок убран из заявки сезона.')
 }
 
-async function addAvailablePlayerToSeason() {
-  if (!seasonView.value || !selectedAvailablePlayerId.value) {
-    seasonError.value = 'Выберите игрока из списка.'
+async function addAvailablePlayersToSeason() {
+  if (!seasonView.value || !selectedAvailablePlayerIds.value.length) {
+    seasonError.value = 'Выберите хотя бы одного игрока из списка.'
     return
   }
-  await mutateSeasonPlayer(selectedAvailablePlayerId.value, 'POST', 'Игрок переведён в вашу команду и добавлен в заявку.')
+
+  seasonLoading.value = true
+  seasonError.value = ''
+  seasonSuccess.value = ''
+
+  try {
+    seasonView.value = await authorizedApiRequest(
+      `/api/team-rep/seasons/${encodeURIComponent(seasonView.value.seasonId)}/players`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          playerIds: selectedAvailablePlayerIds.value.map((id) => Number(id)),
+        }),
+      }
+    )
+    selectedAvailablePlayerIds.value = []
+    seasonSuccess.value = 'Выбранные игроки добавлены в заявку.'
+    addPlayerModalOpen.value = false
+    await loadDashboard()
+  } catch (error) {
+    seasonError.value = error.message || 'Не удалось изменить заявку сезона.'
+  } finally {
+    seasonLoading.value = false
+  }
 }
 
 async function mutateSeasonPlayer(playerId, method, successMessage) {
@@ -382,7 +438,7 @@ async function mutateSeasonPlayer(playerId, method, successMessage) {
       `/api/team-rep/seasons/${encodeURIComponent(seasonView.value.seasonId)}/players/${encodeURIComponent(playerId)}`,
       { method }
     )
-    selectedAvailablePlayerId.value = ''
+    selectedAvailablePlayerIds.value = []
     seasonSuccess.value = successMessage
     await loadDashboard()
     if (method === 'POST') {
@@ -439,6 +495,7 @@ function openCreatePlayerModal() {
   playerForm.fullName = ''
   playerForm.birthDate = ''
   playerForm.residence = ''
+  playerForm.isGoalkeeper = false
   playerForm.photoDataUrl = ''
   playerModalOpen.value = true
 }
@@ -449,6 +506,7 @@ function openEditPlayerModal(player) {
   playerForm.fullName = player.fullName || ''
   playerForm.birthDate = player.birthDate || ''
   playerForm.residence = player.residence || ''
+  playerForm.isGoalkeeper = Boolean(player.isGoalkeeper)
   playerForm.photoDataUrl = player.photoDataUrl || ''
   playerModalOpen.value = true
 }
@@ -475,6 +533,7 @@ async function savePlayer() {
         fullName: playerForm.fullName,
         birthDate: playerForm.birthDate || null,
         residence: playerForm.residence || null,
+        isGoalkeeper: Boolean(playerForm.isGoalkeeper),
         photoDataUrl: playerForm.photoDataUrl || null,
       }),
     })
@@ -516,9 +575,64 @@ function formatDateOnly(value) {
     year: 'numeric',
   }).format(date)
 }
+
+function formatPlayerOptionLabel(player) {
+  if (!player) return ''
+  return `${player.fullName || ''}`
+}
 </script>
 
 <style scoped>
+.team-rep-page {
+  display: grid;
+  gap: 16px;
+}
+
+.team-rep-card-head {
+  align-items: start;
+}
+
+.team-rep-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.team-rep-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.team-rep-value {
+  font-weight: 600;
+}
+
+.team-rep-form {
+  display: grid;
+  gap: 12px;
+}
+
+.team-rep-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.team-rep-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goalkeeper-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 0.9em;
+  line-height: 1;
+}
+
 .team-rep-season-actions {
   align-items: center;
 }
@@ -527,12 +641,149 @@ function formatDateOnly(value) {
   align-items: center;
 }
 
+.team-rep-badge-row,
+.team-rep-season-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.team-rep-season-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(97, 232, 162, 0.08);
+  border: 1px solid rgba(97, 232, 162, 0.18);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
 .team-rep-filter-hint {
   margin-top: 6px;
+}
+
+.team-rep-player-list {
+  display: grid;
+  gap: 10px;
+}
+
+.team-rep-player-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.team-rep-player-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.team-rep-player-row-actions {
+  justify-content: flex-start;
+  margin-top: 0;
+}
+
+.team-rep-player-photo,
+.team-rep-player-photo-preview {
+  width: 84px;
+  height: 84px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+}
+
+.team-rep-modal {
+  width: min(720px, calc(100vw - 24px));
+}
+
+.team-rep-season-modal {
+  width: min(560px, calc(100vw - 24px));
+}
+
+.team-rep-inline-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.team-rep-inline-picker.compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.team-rep-season-picker-meta {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.team-rep-selected-count {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.team-rep-season-modal-head-actions {
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .btn-compact {
   min-width: 0;
   padding-inline: 12px;
+}
+
+@media (max-width: 860px) {
+  .team-rep-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .team-rep-season-actions,
+  .team-rep-season-actions-row,
+  .team-rep-card-head {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .team-rep-player-item {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .team-rep-modal,
+  .team-rep-season-modal {
+    width: calc(100vw - 20px);
+  }
+
+  .team-rep-player-photo,
+  .team-rep-player-photo-preview {
+    width: 72px;
+    height: 72px;
+  }
+
+  .team-rep-card-head > .btn-primary,
+  .team-rep-card-head > .btn-ghost,
+  .team-rep-season-actions-row > *,
+  .team-rep-player-row-actions > *,
+  .team-rep-season-modal-head-actions > * {
+    width: 100%;
+  }
+
+  .team-rep-player-row-actions,
+  .team-rep-season-modal-head-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .team-rep-inline-picker select,
+  .team-rep-form input,
+  .team-rep-form select {
+    width: 100%;
+  }
 }
 </style>

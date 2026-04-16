@@ -1,7 +1,9 @@
 package com.footballstats.backend.controller;
 
 import com.footballstats.backend.domain.Team;
+import com.footballstats.backend.domain.Season;
 import com.footballstats.backend.security.AppUserPrincipal;
+import com.footballstats.backend.service.SeasonPlayerService;
 import com.footballstats.backend.service.TeamService;
 import com.footballstats.backend.service.TeamService.TeamUpsertData;
 import com.footballstats.backend.service.MediaAssetService;
@@ -30,10 +32,12 @@ public class TeamController {
 
     private final TeamService teamService;
     private final MediaAssetService mediaAssetService;
+    private final SeasonPlayerService seasonPlayerService;
 
-    public TeamController(TeamService teamService, MediaAssetService mediaAssetService) {
+    public TeamController(TeamService teamService, MediaAssetService mediaAssetService, SeasonPlayerService seasonPlayerService) {
         this.teamService = teamService;
         this.mediaAssetService = mediaAssetService;
+        this.seasonPlayerService = seasonPlayerService;
     }
 
     @GetMapping
@@ -46,6 +50,14 @@ public class TeamController {
             .map(this::toResponse)
             .toList();
         return ResponseEntity.ok(teams);
+    }
+
+    @GetMapping("/{teamId}/seasons")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<List<TeamSeasonResponse>> listTeamSeasons(@PathVariable Long teamId) {
+        return ResponseEntity.ok(seasonPlayerService.listAvailableSeasonsForTeam(teamId).stream()
+            .map(this::toSeasonResponse)
+            .toList());
     }
 
     @PostMapping
@@ -108,6 +120,15 @@ public class TeamController {
         );
     }
 
+    private TeamSeasonResponse toSeasonResponse(Season season) {
+        return new TeamSeasonResponse(
+            season.getId(),
+            season.getName(),
+            season.isActive(),
+            season.getCreatedAt()
+        );
+    }
+
     public record TeamResponse(
         Long id,
         String name,
@@ -126,5 +147,12 @@ public class TeamController {
         String shortName,
         String city,
         String logoDataUrl
+    ) {}
+
+    public record TeamSeasonResponse(
+        Long id,
+        String name,
+        boolean active,
+        OffsetDateTime createdAt
     ) {}
 }

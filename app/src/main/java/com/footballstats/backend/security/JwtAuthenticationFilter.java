@@ -1,5 +1,8 @@
 package com.footballstats.backend.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.footballstats.backend.domain.AppUser;
+import com.footballstats.backend.repository.AppUserRepository;
 import com.footballstats.backend.service.AccessControlService;
 import com.footballstats.backend.service.JwtService;
 import io.jsonwebtoken.Claims;
@@ -16,16 +19,26 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final AccessControlService accessControlService;
+    private final AppUserRepository appUserRepository;
+    private final ObjectMapper objectMapper;
 
-    public JwtAuthenticationFilter(JwtService jwtService, AccessControlService accessControlService) {
+    public JwtAuthenticationFilter(
+        JwtService jwtService,
+        AccessControlService accessControlService,
+        AppUserRepository appUserRepository,
+        ObjectMapper objectMapper
+    ) {
         this.jwtService = jwtService;
         this.accessControlService = accessControlService;
+        this.appUserRepository = appUserRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -45,16 +58,38 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Long userId = readUserId(claims.get("uid"));
             String email = claims.getSubject();
             String name = String.valueOf(claims.get("name"));
+            Integer tokenVersion = readTokenVersion(claims.get("ver"));
 
-            List<String> roleCodes = (userId != null && userId > 0)
-                ? accessControlService.getRoleCodes(userId)
-                : readRolesFromClaims(claims);
+            boolean mustChangePassword = false;
+
+            List<String> roleCodes;
+            if (userId != null && userId > 0) {
+                AppUser user = appUserRepository.findById(userId).orElse(null);
+                if (user == null) {
+                    writeUnauthorized(response, "Пользователь больше не найден. Войдите снова.");
+                    return;
+                }
+                if (!Integer.valueOf(user.getTokenVersion() == null ? 0 : user.getTokenVersion()).equals(tokenVersion)) {
+                    writeUnauthorized(response, "Сессия устарела. Войдите снова.");
+                    return;
+                }
+                mustChangePassword = user.isMustChangePassword();
+                roleCodes = accessControlService.getRoleCodes(userId);
+            } else {
+                roleCodes = readRolesFromClaims(claims);
+            }
 
             List<SimpleGrantedAuthority> authorities = roleCodes.stream()
                 .map(roleCode -> new SimpleGrantedAuthority("ROLE_" + roleCode))
                 .toList();
 
-            AppUserPrincipal principal = new AppUserPrincipal(userId == null ? 0L : userId, email, name, authorities);
+            AppUserPrincipal principal = new AppUserPrincipal(
+                userId == null ? 0L : userId,
+                email,
+                name,
+                mustChangePassword,
+                authorities
+            );
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 principal,
                 null,
@@ -66,6 +101,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private Integer readTokenVersion(Object versionClaim) {
+        if (versionClaim == null) {
+            return 0;
+        }
+        if (versionClaim instanceof Integer value) {
+            return value;
+        }
+        if (versionClaim instanceof Long value) {
+            return value.intValue();
+        }
+        if (versionClaim instanceof String value) {
+            try {
+                return Integer.parseInt(value);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private void writeUnauthorized(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json;charset=UTF-8");
+        objectMapper.writeValue(response.getWriter(), Map.of("error", message));
     }
 
     private Long readUserId(Object uidClaim) {
@@ -88,7 +149,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     private List<String> readRolesFromClaims(Claims claims) {
         Object rolesClaim = claims.get("roles");
         if (rolesClaim instanceof List<?> rawRoles) {

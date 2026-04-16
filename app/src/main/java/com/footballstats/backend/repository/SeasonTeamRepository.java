@@ -42,6 +42,6 @@ public interface SeasonTeamRepository extends JpaRepository<SeasonTeam, Long> {
     void deleteAllBySeason_Id(Long seasonId);
 
     interface TeamSeasonProjection {
-        Long teamId();
+        Long getTeamId();
     }
 }

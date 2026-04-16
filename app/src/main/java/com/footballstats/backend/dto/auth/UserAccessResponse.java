@@ -10,6 +10,7 @@ public class UserAccessResponse {
     private List<String> roles;
     private List<RoleAnnotationResponse> roleAnnotations;
     private List<TeamScopeResponse> teamScopes;
+    private boolean mustChangePassword;
 
     public UserAccessResponse(
         Long userId,
@@ -17,7 +18,8 @@ public class UserAccessResponse {
         String name,
         List<String> roles,
         List<RoleAnnotationResponse> roleAnnotations,
-        List<TeamScopeResponse> teamScopes
+        List<TeamScopeResponse> teamScopes,
+        boolean mustChangePassword
     ) {
         this.userId = userId;
         this.email = email;
@@ -25,6 +27,7 @@ public class UserAccessResponse {
         this.roles = roles;
         this.roleAnnotations = roleAnnotations;
         this.teamScopes = teamScopes;
+        this.mustChangePassword = mustChangePassword;
     }
 
     public Long getUserId() {
@@ -49,5 +52,9 @@ public class UserAccessResponse {
 
     public List<TeamScopeResponse> getTeamScopes() {
         return teamScopes;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
     }
 }

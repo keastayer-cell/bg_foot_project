@@ -99,6 +99,7 @@ public class TeamRepService {
                 player.getFullName(),
                 player.getBirthDate(),
                 player.getResidence(),
+                player.isGoalkeeper(),
                 mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
                 selectedPlayerIds.contains(player.getId()),
                 true
@@ -112,6 +113,7 @@ public class TeamRepService {
                 player.getFullName(),
                 player.getBirthDate(),
                 player.getResidence(),
+                player.isGoalkeeper(),
                 mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
                 true,
                 playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(player.getId(), context.teamId()).isPresent()
@@ -128,6 +130,7 @@ public class TeamRepService {
                 player.getFullName(),
                 player.getBirthDate(),
                 player.getResidence(),
+                player.isGoalkeeper(),
                 mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO)
             ))
             .toList();
@@ -149,6 +152,7 @@ public class TeamRepService {
         player.setFullName(normalizedName);
         player.setBirthDate(request.birthDate());
         player.setResidence(normalizeOptional(request.residence()));
+        player.setGoalkeeper(request.isGoalkeeper());
         player.setCreatedByUserId(userId);
         player.setUpdatedByUserId(userId);
         player.setUpdatedAt(now);
@@ -195,6 +199,7 @@ public class TeamRepService {
         player.setFullName(normalizedName);
         player.setBirthDate(request.birthDate());
         player.setResidence(normalizeOptional(request.residence()));
+        player.setGoalkeeper(request.isGoalkeeper());
         player.setUpdatedByUserId(userId);
         player.setUpdatedAt(OffsetDateTime.now());
         Player saved = playerRepository.save(player);
@@ -225,6 +230,21 @@ public class TeamRepService {
     }
 
     @Transactional
+    public TeamRepSeasonPlayersData addSeasonPlayers(Long userId, Long seasonId, List<Long> playerIds) {
+        TeamScopeContext context = requireApplicationScope(userId);
+        java.util.LinkedHashSet<Long> ids = new java.util.LinkedHashSet<>(playerIds == null ? List.of() : playerIds.stream().filter(java.util.Objects::nonNull).toList());
+        for (Long playerId : ids) {
+            boolean alreadyInRoster = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, context.teamId()).isPresent();
+            if (alreadyInRoster) {
+                seasonPlayerService.addSeasonPlayer(context.teamId(), seasonId, playerId, userId);
+            } else {
+                seasonPlayerService.attachAvailablePlayerToTeamAndSeason(context.teamId(), seasonId, playerId, userId);
+            }
+        }
+        return getSeasonPlayers(userId, seasonId);
+    }
+
+    @Transactional
     public TeamRepSeasonPlayersData addSeasonPlayer(Long userId, Long seasonId, Long playerId) {
         TeamScopeContext context = requireApplicationScope(userId);
         boolean alreadyInRoster = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, context.teamId()).isPresent();
@@ -249,6 +269,7 @@ public class TeamRepService {
             player.getFullName(),
             player.getBirthDate(),
             player.getResidence(),
+            player.isGoalkeeper(),
             mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
             seasons.stream().map(TeamRepPlayerSeasonData::id).toList(),
             seasons,
@@ -301,6 +322,7 @@ public class TeamRepService {
         String fullName,
         LocalDate birthDate,
         String residence,
+        boolean isGoalkeeper,
         String photoDataUrl,
         List<Long> seasonIds,
         List<TeamRepPlayerSeasonData> seasons,
@@ -323,6 +345,7 @@ public class TeamRepService {
         String fullName,
         LocalDate birthDate,
         String residence,
+        boolean isGoalkeeper,
         String photoDataUrl,
         boolean selectedForSeason,
         boolean inCurrentRoster
@@ -333,6 +356,7 @@ public class TeamRepService {
         String fullName,
         LocalDate birthDate,
         String residence,
+        boolean isGoalkeeper,
         String photoDataUrl
     ) {}
 
@@ -340,6 +364,7 @@ public class TeamRepService {
         String fullName,
         LocalDate birthDate,
         String residence,
+        boolean isGoalkeeper,
         String photoDataUrl
     ) {}
 }

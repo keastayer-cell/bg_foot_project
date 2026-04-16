@@ -9,13 +9,15 @@ public class UserResponse {
     private String email;
     private String name;
     private List<String> roles;
+    private boolean mustChangePassword;
 
-    public UserResponse(Long id, boolean guest, String email, String name, List<String> roles) {
+    public UserResponse(Long id, boolean guest, String email, String name, List<String> roles, boolean mustChangePassword) {
         this.id = id;
         this.guest = guest;
         this.email = email;
         this.name = name;
         this.roles = roles;
+        this.mustChangePassword = mustChangePassword;
     }
 
     public Long getId() {
@@ -36,5 +38,9 @@ public class UserResponse {
 
     public List<String> getRoles() {
         return roles;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
     }
 }

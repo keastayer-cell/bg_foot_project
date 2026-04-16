@@ -169,7 +169,7 @@ public class SeasonPlayerService {
     public void deactivateSeasonPlayersForRemovedTeams(Long seasonId, Set<Long> activeTeamIds, Long actorUserId) {
         OffsetDateTime now = OffsetDateTime.now();
         List<SeasonTeamRepository.TeamSeasonProjection> existingTeams = seasonTeamRepository.findTeamIdsBySeasonId(seasonId);
-        Set<Long> currentTeamIds = existingTeams.stream().map(SeasonTeamRepository.TeamSeasonProjection::teamId).collect(java.util.stream.Collectors.toSet());
+        Set<Long> currentTeamIds = existingTeams.stream().map(SeasonTeamRepository.TeamSeasonProjection::getTeamId).collect(java.util.stream.Collectors.toSet());
         currentTeamIds.removeAll(activeTeamIds);
         if (currentTeamIds.isEmpty()) {
             return;

@@ -40,7 +40,6 @@
           <div class="section-head match-section-head">
             <div>
               <h3 class="section-title">Состав: {{ lineup.teamName }}</h3>
-              <p class="muted-text">Публично показывается заявка матча и статистика игроков из протокола.</p>
             </div>
             <span class="muted-text">{{ lineupSubmittedLabel(lineup) }}</span>
           </div>
@@ -49,8 +48,10 @@
             <li class="lineup-item" v-for="player in lineup.players" :key="player.playerId">
               <div class="lineup-player-main">
                 <span class="lineup-order">{{ player.sortOrder }}</span>
-                <div class="lineup-player-text">
+                <div class="lineup-player-inline">
                   <span class="player-name-single-line">{{ player.playerName }}</span>
+                  <span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
+                  <span v-if="player.suspended" class="player-suspension-badge" :title="player.suspensionReason || 'Игрок дисквалифицирован'">Дискв.</span>
                   <div class="player-stat-icons" v-if="hasVisibleSavedStats(lineup.teamId, player.playerId)">
                     <div class="stat-icon-group" v-if="savedStatsFor(lineup.teamId, player.playerId).goals > 0" aria-label="Голы">
                       <span class="goal-ball" v-for="index in repeatCount(savedStatsFor(lineup.teamId, player.playerId).goals)" :key="`goal-${player.playerId}-${index}`">⚽</span>
@@ -85,7 +86,9 @@
             </div>
 
             <p class="muted-text" v-if="lineup.availablePlayers?.length">Доступно к добавлению: {{ lineup.availablePlayers.length }}</p>
+            <p class="muted-text" v-if="availableSelectableCount(lineup) !== lineup.availablePlayers?.length">Из них доступны для выбора: {{ availableSelectableCount(lineup) }}. Игроки с дисквалификацией заблокированы.</p>
             <p class="empty-text" v-else>Для этой команды сейчас нет доступных игроков для добавления в состав матча.</p>
+            <p class="muted-text" v-if="suspendedAvailablePlayers(lineup).length">Недоступны: {{ suspendedAvailablePlayers(lineup).map((player) => player.playerName).join(', ') }}</p>
 
             <p class="error-text" v-if="lineupErrors[lineup.teamId]">{{ lineupErrors[lineup.teamId] }}</p>
             <p class="muted-text" v-else-if="lineupNotices[lineup.teamId]">{{ lineupNotices[lineup.teamId] }}</p>
@@ -95,7 +98,7 @@
                 class="btn-primary"
                 type="button"
                 @click="openAddPlayerModal(lineup.teamId)"
-                :disabled="Boolean(lineupSaving[lineup.teamId]) || !lineup.availablePlayers?.length"
+                :disabled="Boolean(lineupSaving[lineup.teamId]) || !availableSelectableCount(lineup)"
               >
                 Добавить игрока
               </button>
@@ -107,7 +110,7 @@
         </article>
       </section>
 
-      <article class="match-section protocol-editor-card" v-if="canEditProtocol()">
+      <article class="match-section protocol-editor-card" v-if="showProtocolEditor">
         <div class="section-head match-section-head">
           <div>
             <h3 class="section-title">Протокол матча</h3>
@@ -175,6 +178,7 @@
                   <div class="protocol-player-name">
                     <span class="lineup-order">{{ player.sortOrder }}</span>
                     <span class="player-name-single-line">{{ player.playerName }}</span>
+                    <span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
                   </div>
 
                   <div class="player-stat-inputs">
@@ -208,6 +212,25 @@
         </template>
       </article>
 
+      <article class="match-section protocol-editor-card" v-else-if="canReopenVerifiedProtocol">
+        <div class="section-head match-section-head">
+          <div>
+            <h3 class="section-title">Протокол матча</h3>
+            <p class="muted-text">Протокол подтвержден и открыт только для просмотра. Чтобы снова менять счет, составы и статистику, сначала переведите его обратно в редактирование.</p>
+          </div>
+          <span class="muted-text">SUPER_ADMIN</span>
+        </div>
+
+        <p class="error-text" v-if="protocolError">{{ protocolError }}</p>
+        <p class="muted-text" v-else-if="protocolNotice">{{ protocolNotice }}</p>
+
+        <div class="protocol-editor-actions protocol-editor-actions-bottom">
+          <button class="btn-primary" type="button" @click="reopenVerifiedProtocol" :disabled="protocolSaving">
+            {{ protocolSaving ? 'Сохранение...' : 'Изменить протокол' }}
+          </button>
+        </div>
+      </article>
+
       <div v-if="activeLineupForModal" class="modal-backdrop" @click.self="closeAddPlayerModal">
         <article class="card auth-modal team-rep-modal lineup-modal">
           <div class="toolbar auth-modal-head">
@@ -219,12 +242,20 @@
           </div>
 
           <div class="lineup-modal-body">
-            <select v-model="selectedAvailablePlayerId">
-              <option value="">Выберите игрока</option>
-              <option v-for="player in activeLineupForModal.availablePlayers" :key="player.playerId" :value="String(player.playerId)">
-                {{ player.playerName }}
-              </option>
-            </select>
+            <SearchableSelect
+              v-model="selectedAvailablePlayerId"
+              :options="activeLineupPlayerOptions"
+              placeholder="Выберите игрока"
+              search-placeholder="Начните вводить ФИО игрока"
+              empty-text="Игрок по такому ФИО не найден"
+            />
+
+            <div v-if="suspendedAvailablePlayers(activeLineupForModal).length" class="lineup-suspension-list">
+              <p class="muted-text">Дисквалифицированы на этот матч:</p>
+              <p v-for="player in suspendedAvailablePlayers(activeLineupForModal)" :key="`susp-${player.playerId}`" class="muted-text">
+                {{ player.playerName }}: {{ player.suspensionReason || 'Игрок временно недоступен' }}
+              </p>
+            </div>
 
             <p class="error-text" v-if="lineupErrors[activeLineupForModal.teamId]">{{ lineupErrors[activeLineupForModal.teamId] }}</p>
 
@@ -249,6 +280,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '../store/auth'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const route = useRoute()
 const { optionalAuthApiRequest, authorizedApiRequest, user, hasRole } = useAuth()
@@ -275,10 +307,31 @@ const activeLineupForModal = computed(() => {
   return lineupCards.value.find((lineup) => String(lineup.teamId) === String(addPlayerModalTeamId.value)) || null
 })
 
+const activeLineupPlayerOptions = computed(() => {
+  return (activeLineupForModal.value?.availablePlayers || []).map((player) => ({
+    value: String(player.playerId),
+    label: formatPlayerOptionLabel(player),
+    keywords: `${player.playerName || ''}`,
+    disabled: Boolean(player.suspended),
+  }))
+})
+
 const savedStatsMap = computed(() => buildSavedStatsMap(match.value?.protocol?.events || []))
 
 const hasSubmittedLineups = computed(() => {
   return lineupCards.value.length === 2 && lineupCards.value.every((lineup) => Boolean(lineup.submittedAt))
+})
+
+const isVerifiedProtocol = computed(() => {
+  return match.value?.protocol?.status === 'VERIFIED'
+})
+
+const canReopenVerifiedProtocol = computed(() => {
+  return canEditProtocol() && isVerifiedProtocol.value
+})
+
+const showProtocolEditor = computed(() => {
+  return canEditProtocol() && !isVerifiedProtocol.value
 })
 
 const isTechnicalDefeatDraft = computed(() => {
@@ -331,6 +384,7 @@ function canEditProtocol() {
 
 function canEditLineup(teamId) {
   if (!user.value) return false
+  if (isVerifiedProtocol.value) return false
   if (hasRole('SUPER_ADMIN')) return true
   if (!hasRole('TEAM_REP')) return false
   return String(user.value.teamId || '') === String(teamId) && Boolean(user.value.teamScope?.canEditRoster)
@@ -356,10 +410,12 @@ async function openAddPlayerModal(teamId) {
   pageError.value = ''
   await refreshMatch()
   const lineup = lineupByTeamId(teamId)
-  if (!lineup?.availablePlayers?.length) {
+  if (!availableSelectableCount(lineup)) {
     lineupNotices.value = {
       ...lineupNotices.value,
-      [teamId]: 'Для этой команды сейчас нет доступных игроков для добавления.',
+      [teamId]: lineup?.availablePlayers?.length
+        ? 'Все оставшиеся игроки этой команды сейчас дисквалифицированы на матч.'
+        : 'Для этой команды сейчас нет доступных игроков для добавления.',
     }
     return
   }
@@ -546,6 +602,27 @@ async function saveProtocol(asVerified) {
   }
 }
 
+async function reopenVerifiedProtocol() {
+  if (!match.value?.id) return
+
+  protocolSaving.value = true
+  protocolError.value = ''
+  protocolNotice.value = ''
+
+  try {
+    const response = await authorizedApiRequest(`/api/matches/${encodeURIComponent(match.value.id)}/protocol/reopen`, {
+      method: 'POST',
+    })
+    match.value = response
+    syncProtocolDraft(response)
+    protocolNotice.value = 'Протокол выведен из подтвержденного статуса. Теперь его можно редактировать.'
+  } catch (error) {
+    protocolError.value = error.message || 'Не удалось перевести протокол обратно в редактирование.'
+  } finally {
+    protocolSaving.value = false
+  }
+}
+
 function buildProtocolPayload(asVerified) {
   const homeTechnicalDefeat = Boolean(protocolDraft.value.homeTechnicalDefeat)
   const awayTechnicalDefeat = Boolean(protocolDraft.value.awayTechnicalDefeat)
@@ -689,6 +766,21 @@ function repeatCount(count) {
   return Array.from({ length: Math.max(0, count) }, (_, index) => index + 1)
 }
 
+function formatPlayerOptionLabel(player) {
+  if (!player) return ''
+  return `${player.playerName || ''}`
+}
+
+function availableSelectableCount(lineup) {
+  if (!lineup?.availablePlayers?.length) return 0
+  return lineup.availablePlayers.filter((player) => !player.suspended).length
+}
+
+function suspendedAvailablePlayers(lineup) {
+  if (!lineup?.availablePlayers?.length) return []
+  return lineup.availablePlayers.filter((player) => player.suspended)
+}
+
 function formatDateTime(value) {
   if (!value) return '—'
   const date = new Date(value)
@@ -816,9 +908,10 @@ function lineupSubmittedLabel(lineup) {
 .match-team-logo {
   width: 68px;
   height: 68px;
+  padding: 6px;
   border-radius: 50%;
-  object-fit: cover;
-  background: #f5ede8;
+  object-fit: contain;
+  background: rgba(245, 237, 232, 0.92);
 }
 
 .match-score-card {
@@ -906,7 +999,7 @@ function lineupSubmittedLabel(lineup) {
 .lineup-list,
 .protocol-player-list {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -916,10 +1009,10 @@ function lineupSubmittedLabel(lineup) {
 .protocol-player-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 5px 8px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -927,24 +1020,26 @@ function lineupSubmittedLabel(lineup) {
 .lineup-player-main,
 .protocol-player-name {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
   align-items: center;
   min-width: 0;
 }
 
-.lineup-player-text {
-  display: grid;
-  gap: 6px;
+.lineup-player-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .lineup-order {
-  min-width: 28px;
-  height: 28px;
+  min-width: 24px;
+  height: 24px;
   background: rgba(97, 232, 162, 0.12);
   color: var(--brand);
-  font-size: 0.8rem;
+  font-size: 0.74rem;
 }
 
 .player-name-single-line {
@@ -954,16 +1049,38 @@ function lineupSubmittedLabel(lineup) {
   text-overflow: ellipsis;
 }
 
+.goalkeeper-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 0.9em;
+  line-height: 1;
+}
+
+.player-suspension-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 114, 114, 0.14);
+  border: 1px solid rgba(255, 114, 114, 0.28);
+  color: #ffb1b1;
+  font-size: 0.7rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .player-stat-icons,
 .player-stat-inputs {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .player-stat-icons {
-  min-height: 20px;
+  min-height: 16px;
+  flex-shrink: 0;
 }
 
 .stat-icon-group {
@@ -1007,17 +1124,17 @@ function lineupSubmittedLabel(lineup) {
 .tiny-field {
   display: grid;
   justify-items: center;
-  gap: 6px;
-  width: 42px;
-  font-size: 0.72rem;
+  gap: 3px;
+  width: 36px;
+  font-size: 0.68rem;
 }
 
 .micro-input {
-  width: 27px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .protocol-editor-actions-bottom {
@@ -1032,6 +1149,15 @@ function lineupSubmittedLabel(lineup) {
 .lineup-modal-body {
   display: grid;
   gap: 14px;
+}
+
+.lineup-suspension-list {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 114, 114, 0.08);
+  border: 1px solid rgba(255, 114, 114, 0.14);
 }
 
 .btn-compact {
@@ -1061,9 +1187,69 @@ function lineupSubmittedLabel(lineup) {
     flex-direction: column;
   }
 
+  .match-screen {
+    gap: 16px;
+  }
+
+  .match-team-card,
+  .match-score-card,
+  .match-section,
+  .protocol-side-card,
+  .protocol-score-center,
+  .protocol-team-card {
+    padding: 14px;
+  }
+
+  .match-score {
+    font-size: 1.9rem;
+  }
+
+  .match-team-logo {
+    width: 56px;
+    height: 56px;
+  }
+
+  .match-team-card h2 {
+    font-size: 1.15rem;
+  }
+
+  .protocol-score-center,
+  .match-score-card {
+    min-width: 0;
+  }
+
+  .score-square-input {
+    width: 58px;
+    height: 58px;
+    font-size: 1.4rem;
+  }
+
+  .protocol-score-separator {
+    font-size: 1.35rem;
+  }
+
   .lineup-item,
   .protocol-player-row {
     grid-template-columns: 1fr;
+  }
+
+  .lineup-player-main,
+  .protocol-player-name {
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .lineup-player-inline {
+    gap: 6px;
+  }
+
+  .lineup-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lineup-actions > * {
+    width: 100%;
   }
 
   .player-name-single-line {

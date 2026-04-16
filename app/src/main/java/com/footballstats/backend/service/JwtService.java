@@ -20,22 +20,26 @@ public class JwtService {
     private final long expiresMinutes;
 
     public JwtService(
-        @Value("${JWT_SECRET:football_stats_app_super_secret_key_change_me_1234567890}") String jwtSecret,
+        @Value("${JWT_SECRET:}") String jwtSecret,
         @Value("${JWT_EXPIRES_MINUTES:480}") long expiresMinutes
     ) {
-        this.secretKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        String normalizedSecret = String.valueOf(jwtSecret == null ? "" : jwtSecret).trim();
+        if (normalizedSecret.length() < 32) {
+            throw new IllegalStateException("JWT_SECRET должен быть задан через окружение и содержать не менее 32 символов.");
+        }
+        this.secretKey = Keys.hmacShaKeyFor(normalizedSecret.getBytes(StandardCharsets.UTF_8));
         this.expiresMinutes = expiresMinutes;
     }
 
-    public String generateToken(Long userId, String email, String name) {
-        return generateToken(userId, email, name, null);
+    public String generateToken(Long userId, String email, String name, Integer tokenVersion) {
+        return generateToken(userId, email, name, tokenVersion, null);
     }
 
     public String generateGuestToken(String name) {
-        return generateToken(0L, "guest@football.local", name, List.of("GUEST"));
+        return generateToken(0L, "guest@football.local", name, 0, List.of("GUEST"));
     }
 
-    private String generateToken(Long userId, String email, String name, List<String> roles) {
+    private String generateToken(Long userId, String email, String name, Integer tokenVersion, List<String> roles) {
         Instant now = Instant.now();
         Instant exp = now.plus(expiresMinutes, ChronoUnit.MINUTES);
 
@@ -43,6 +47,7 @@ public class JwtService {
             .subject(email)
             .claim("uid", userId)
             .claim("name", name)
+            .claim("ver", tokenVersion == null ? 0 : tokenVersion)
             .issuedAt(Date.from(now))
             .expiration(Date.from(exp))
             .signWith(secretKey);

@@ -33,6 +33,9 @@ public class Player {
     @Column(name = "season_id")
     private Long seasonId;
 
+    @Column(name = "is_goalkeeper", nullable = false)
+    private boolean goalkeeper;
+
     @Column(nullable = false)
     private int goals;
 
@@ -73,6 +76,9 @@ public class Player {
 
     public Long getSeasonId() { return seasonId; }
     public void setSeasonId(Long seasonId) { this.seasonId = seasonId; }
+
+    public boolean isGoalkeeper() { return goalkeeper; }
+    public void setGoalkeeper(boolean goalkeeper) { this.goalkeeper = goalkeeper; }
 
     public int getGoals() { return goals; }
     public void setGoals(int goals) { this.goals = goals; }

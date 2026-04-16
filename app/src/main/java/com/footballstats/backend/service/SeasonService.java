@@ -1,9 +1,11 @@
 package com.footballstats.backend.service;
 
 import com.footballstats.backend.domain.Season;
+import com.footballstats.backend.domain.SeasonStandingsConfig;
 import com.footballstats.backend.domain.SeasonTeam;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.repository.SeasonRepository;
+import com.footballstats.backend.repository.SeasonStandingsConfigRepository;
 import com.footballstats.backend.repository.SeasonTeamRepository;
 import com.footballstats.backend.repository.TeamRepository;
 import org.springframework.http.HttpStatus;
@@ -22,6 +24,7 @@ public class SeasonService {
     private final SeasonRepository seasonRepository;
     private final SeasonTeamRepository seasonTeamRepository;
     private final TeamRepository teamRepository;
+    private final SeasonStandingsConfigRepository seasonStandingsConfigRepository;
     private final SeasonStructureService seasonStructureService;
     private final SeasonPlayerService seasonPlayerService;
     private final SeasonStandingsService seasonStandingsService;
@@ -30,6 +33,7 @@ public class SeasonService {
         SeasonRepository seasonRepository,
         SeasonTeamRepository seasonTeamRepository,
         TeamRepository teamRepository,
+        SeasonStandingsConfigRepository seasonStandingsConfigRepository,
         SeasonStructureService seasonStructureService,
         SeasonPlayerService seasonPlayerService,
         SeasonStandingsService seasonStandingsService
@@ -37,6 +41,7 @@ public class SeasonService {
         this.seasonRepository = seasonRepository;
         this.seasonTeamRepository = seasonTeamRepository;
         this.teamRepository = teamRepository;
+        this.seasonStandingsConfigRepository = seasonStandingsConfigRepository;
         this.seasonStructureService = seasonStructureService;
         this.seasonPlayerService = seasonPlayerService;
         this.seasonStandingsService = seasonStandingsService;
@@ -53,7 +58,15 @@ public class SeasonService {
     }
 
     @Transactional
-    public Season createSeason(String rawName, Integer roundsCount, Boolean playoffEnabled, Integer playoffTeamCount, Long actorUserId) {
+    public Season createSeason(
+        String rawName,
+        Integer roundsCount,
+        Boolean playoffEnabled,
+        Integer playoffTeamCount,
+        Integer yellowCardsForSuspension,
+        Integer redCardsForSuspension,
+        Long actorUserId
+    ) {
         String normalizedName = normalizeName(rawName);
         validateUniqueName(normalizedName, null);
 
@@ -66,11 +79,21 @@ public class SeasonService {
         season.setUpdatedAt(OffsetDateTime.now());
         Season savedSeason = seasonRepository.save(season);
         seasonStandingsService.initializeSeasonStandings(savedSeason.getId(), actorUserId);
+        updateStandingsConfig(savedSeason.getId(), yellowCardsForSuspension, redCardsForSuspension, actorUserId);
         return savedSeason;
     }
 
     @Transactional
-    public Season updateSeason(Long seasonId, String rawName, Integer roundsCount, Boolean playoffEnabled, Integer playoffTeamCount, Long actorUserId) {
+    public Season updateSeason(
+        Long seasonId,
+        String rawName,
+        Integer roundsCount,
+        Boolean playoffEnabled,
+        Integer playoffTeamCount,
+        Integer yellowCardsForSuspension,
+        Integer redCardsForSuspension,
+        Long actorUserId
+    ) {
         Season season = getExistingSeason(seasonId);
         String normalizedName = normalizeName(rawName);
         validateUniqueName(normalizedName, seasonId);
@@ -89,10 +112,18 @@ public class SeasonService {
         season.setUpdatedByUserId(actorUserId);
         season.setUpdatedAt(OffsetDateTime.now());
         Season savedSeason = seasonRepository.save(season);
+        updateStandingsConfig(seasonId, yellowCardsForSuspension, redCardsForSuspension, actorUserId);
         if (!hasRegularMatches) {
             seasonStructureService.syncRegularToursForSeason(savedSeason, actorUserId);
         }
         return savedSeason;
+    }
+
+    @Transactional(readOnly = true)
+    public SeasonStandingsConfig getStandingsConfig(Long seasonId) {
+        getExistingSeason(seasonId);
+        return seasonStandingsConfigRepository.findBySeason_Id(seasonId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Конфигурация сезона не найдена."));
     }
 
     @Transactional
@@ -196,6 +227,15 @@ public class SeasonService {
         season.setPlayoffTeamCount(normalizedPlayoffTeamCount);
     }
 
+    private void updateStandingsConfig(Long seasonId, Integer yellowCardsForSuspension, Integer redCardsForSuspension, Long actorUserId) {
+        SeasonStandingsConfig config = getStandingsConfig(seasonId);
+        config.setYellowCardsForSuspension(normalizeSuspensionThreshold(yellowCardsForSuspension, "ЖК"));
+        config.setRedCardsForSuspension(normalizeSuspensionThreshold(redCardsForSuspension, "КК"));
+        config.setUpdatedByUserId(actorUserId);
+        config.setUpdatedAt(OffsetDateTime.now());
+        seasonStandingsConfigRepository.save(config);
+    }
+
     private int normalizeRoundsCount(Integer roundsCount) {
         int normalized = roundsCount == null ? 1 : roundsCount;
         if (normalized < 1) {
@@ -215,6 +255,14 @@ public class SeasonService {
             throw new IllegalArgumentException("Количество команд плей-офф должно быть степенью двойки.");
         }
         return playoffTeamCount;
+    }
+
+    private int normalizeSuspensionThreshold(Integer value, String label) {
+        int normalized = value == null ? 0 : value;
+        if (normalized < 0) {
+            throw new IllegalArgumentException("Порог пропуска по " + label + " не может быть отрицательным.");
+        }
+        return normalized;
     }
 
     private void validatePlayoffConfigForTeamCount(boolean playoffEnabled, Integer playoffTeamCount, long teamCount) {
