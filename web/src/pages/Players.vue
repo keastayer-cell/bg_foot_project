@@ -36,6 +36,7 @@
           <button class="players-name-btn" type="button" @click="openPlayerModal(player)">
             {{ player.name }}<span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
           </button>
+          <span v-if="player.birthDate" class="players-birth-meta">{{ formatBirthDateWithAge(player.birthDate) }}</span>
         </article>
       </div>
     </div>
@@ -58,12 +59,21 @@
 
     <div v-if="showPlayerModal" class="modal-backdrop" @click.self="closePlayerModal">
       <article class="card player-modal">
-        <div class="player-modal-header">
-          <div>
-            <h3>{{ modalTitle }}</h3>
+        <div class="player-modal-header" :class="{ 'is-compact': !playerDetails }">
+          <div class="player-modal-title-wrap">
+            <div class="player-modal-title-row">
+              <span class="player-modal-title-icon">👤</span>
+              <h3>{{ modalTitle }}</h3>
+              <span v-if="playerDetails?.isGoalkeeper" class="player-modal-role-badge">🧤 Вратарь</span>
+            </div>
             <p v-if="playerDetails?.currentTeamName" class="muted player-team-copy">
               Текущая команда: {{ playerDetails.currentTeamName }}
             </p>
+            <div v-if="playerDetails" class="player-modal-facts-row">
+              <span class="player-modal-fact-chip" v-if="playerDetails.birthDate">🎂 {{ formatBirthDateWithAge(playerDetails.birthDate) }}</span>
+              <span class="player-modal-fact-chip">🏟 {{ playerDetails.currentTeamName || 'Без команды' }}</span>
+              <span class="player-modal-fact-chip">📍 {{ playerDetails.residence || 'Город не указан' }}</span>
+            </div>
           </div>
           <button class="btn-ghost" type="button" @click="closePlayerModal">✕</button>
         </div>
@@ -84,50 +94,34 @@
           <div class="player-modal-content">
             <div class="player-avatar-wrap">
               <img v-if="playerDetails.photoDataUrl" :src="playerDetails.photoDataUrl" :alt="playerDetails.fullName" class="player-avatar" />
-              <div v-else class="avatar-placeholder">Нет фото</div>
-            </div>
-
-            <div class="player-info-grid">
-              <div class="info-section">
-                <label>ФИО</label>
-                <p>{{ playerDetails.fullName }}<span v-if="playerDetails.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></p>
-              </div>
-
-              <div class="info-section">
-                <label>Дата рождения</label>
-                <p>{{ formatDate(playerDetails.birthDate) }}</p>
-              </div>
-
-              <div class="info-section">
-                <label>Текущая команда</label>
-                <p>{{ playerDetails.currentTeamName || 'Не указана' }}</p>
-              </div>
-
-              <div class="info-section">
-                <label>Город проживания</label>
-                <p>{{ playerDetails.residence || 'Не указан' }}</p>
+              <div v-else class="avatar-placeholder">
+                <span class="avatar-placeholder-icon">👤</span>
+                <span>Нет фото</span>
               </div>
             </div>
           </div>
 
           <div class="player-stats-grid">
             <div class="stat-item">
-              <span class="stat-label">Голы</span>
+              <span class="stat-label">⚽ Голы</span>
               <span class="stat-value">{{ playerDetails.goals }}</span>
             </div>
             <div class="stat-item">
-              <span class="stat-label">ЖК</span>
+              <span class="stat-label">🟨 ЖК</span>
               <span class="stat-value yellow">{{ playerDetails.yellowCards }}</span>
             </div>
             <div class="stat-item">
-              <span class="stat-label">КК</span>
+              <span class="stat-label">🟥 КК</span>
               <span class="stat-value red">{{ playerDetails.redCards }}</span>
             </div>
           </div>
 
           <div class="history-section">
             <div class="section-head history-head">
-              <h4>История команд</h4>
+              <div>
+                <h4>История команд</h4>
+                <p class="muted history-copy">Все актуальные и архивные привязки игрока к командам.</p>
+              </div>
             </div>
 
             <div v-if="playerHistory.length" class="teams-history">
@@ -139,7 +133,7 @@
                 <div class="history-period">
                   <span>{{ formatDate(entry.validFrom) }}</span>
                   <span>—</span>
-                  <span>{{ formatDate(entry.validTo) }}</span>
+                  <span>{{ formatHistoryEndDate(entry.validTo, entry.active) }}</span>
                 </div>
               </div>
             </div>
@@ -203,6 +197,7 @@ async function loadPlayers(nameQuery = '', requestedPage = 0) {
     players.value = content.map((item) => ({
       id: item.id,
       name: item.fullName,
+      birthDate: item.birthDate || '',
       isGoalkeeper: Boolean(item.isGoalkeeper),
     }))
     pageNum.value = Number.isInteger(payload?.number) ? payload.number : requestedPage
@@ -295,6 +290,47 @@ function formatDate(value) {
   }).format(date)
 }
 
+function formatHistoryEndDate(value, isActive) {
+  if (isActive && !value) {
+    return 'по настоящее время'
+  }
+  return formatDate(value)
+}
+
+function formatBirthDateWithAge(value) {
+  if (!value) return ''
+
+  const birthDate = new Date(value)
+  if (Number.isNaN(birthDate.getTime())) return ''
+
+  const now = new Date()
+  let age = now.getFullYear() - birthDate.getFullYear()
+  const monthDiff = now.getMonth() - birthDate.getMonth()
+  const dayDiff = now.getDate() - birthDate.getDate()
+
+  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+    age -= 1
+  }
+
+  return `${formatDate(value)} (${age} ${formatYears(age)})`
+}
+
+function formatYears(value) {
+  const remainder100 = Math.abs(value) % 100
+  const remainder10 = remainder100 % 10
+
+  if (remainder100 >= 11 && remainder100 <= 14) {
+    return 'лет'
+  }
+  if (remainder10 === 1) {
+    return 'год'
+  }
+  if (remainder10 >= 2 && remainder10 <= 4) {
+    return 'года'
+  }
+  return 'лет'
+}
+
 function historyKey(entry) {
   return `${entry.teamId}-${entry.validFrom || 'none'}-${entry.validTo || 'active'}`
 }
@@ -345,6 +381,10 @@ onMounted(async () => {
 }
 
 .players-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 8px;
 }
@@ -366,6 +406,13 @@ onMounted(async () => {
 
 .players-name-btn:hover {
   color: var(--brand);
+}
+
+.players-birth-meta {
+  color: var(--muted);
+  font-size: 0.98rem;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .goalkeeper-icon {
@@ -392,12 +439,12 @@ onMounted(async () => {
 }
 
 .player-modal {
-  width: min(980px, calc(100vw - 32px));
+  width: min(920px, calc(100vw - 28px));
   max-height: min(88vh, 920px);
   overflow: auto;
   display: grid;
-  gap: 22px;
-  padding: 26px;
+  gap: 20px;
+  padding: 22px;
 }
 
 .player-modal-header {
@@ -407,13 +454,69 @@ onMounted(async () => {
   gap: 16px;
 }
 
+.player-modal-title-wrap {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.player-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 .player-modal-header h3 {
   margin: 0;
-  font-size: 1.6rem;
+  min-width: 0;
+  font-size: clamp(1.55rem, 2vw, 2.1rem);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.player-modal-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(97, 232, 162, 0.12);
+  border: 1px solid rgba(97, 232, 162, 0.22);
+  font-size: 1.15rem;
+}
+
+.player-modal-role-badge,
+.player-modal-fact-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 0.84rem;
+  line-height: 1.1;
+  max-width: 100%;
+}
+
+.player-modal-role-badge {
+  background: rgba(97, 232, 162, 0.14);
+  border-color: rgba(97, 232, 162, 0.28);
+}
+
+.player-modal-facts-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .player-team-copy {
-  margin: 8px 0 0;
+  margin: 0;
+  font-size: 1rem;
 }
 
 .player-modal-state {
@@ -422,10 +525,8 @@ onMounted(async () => {
 }
 
 .player-modal-content {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 24px;
-  align-items: start;
+  display: flex;
+  justify-content: center;
 }
 
 .player-avatar-wrap {
@@ -435,20 +536,21 @@ onMounted(async () => {
 }
 
 .player-avatar {
-  width: 220px;
-  height: 260px;
-  border-radius: 20px;
+  width: 180px;
+  height: 220px;
+  border-radius: 18px;
   object-fit: cover;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--line);
 }
 
 .avatar-placeholder {
-  width: 220px;
-  height: 260px;
-  border-radius: 20px;
+  width: 180px;
+  height: 220px;
+  border-radius: 18px;
   display: grid;
   place-items: center;
+  gap: 10px;
   text-align: center;
   padding: 16px;
   background: rgba(255, 255, 255, 0.04);
@@ -456,39 +558,19 @@ onMounted(async () => {
   color: var(--muted);
 }
 
-.player-info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.info-section {
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid var(--line);
-}
-
-.info-section label {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--muted);
-  font-size: 0.84rem;
-}
-
-.info-section p {
-  margin: 0;
-  font-weight: 600;
+.avatar-placeholder-icon {
+  font-size: 2rem;
+  line-height: 1;
 }
 
 .player-stats-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .stat-item {
-  padding: 16px;
+  padding: 14px 16px;
   border-radius: 16px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.035);
@@ -502,7 +584,7 @@ onMounted(async () => {
 }
 
 .stat-value {
-  font-size: 2rem;
+  font-size: 1.85rem;
   font-weight: 800;
   line-height: 1;
 }
@@ -521,12 +603,20 @@ onMounted(async () => {
 }
 
 .history-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 0;
 }
 
 .history-head h4 {
   margin: 0;
   font-size: 1.05rem;
+}
+
+.history-copy {
+  margin: 6px 0 0;
 }
 
 .teams-history {
@@ -573,18 +663,19 @@ onMounted(async () => {
 @media (max-width: 860px) {
   .player-modal {
     width: min(100vw - 20px, 760px);
-    padding: 20px;
+    padding: 18px;
   }
 
-  .player-modal-content {
-    grid-template-columns: 1fr;
+  .player-modal-header,
+  .history-head {
+    align-items: start;
+    flex-direction: column;
   }
 
   .player-avatar-wrap {
-    justify-content: start;
+    justify-content: center;
   }
 
-  .player-info-grid,
   .player-stats-grid {
     grid-template-columns: 1fr;
   }
@@ -594,6 +685,16 @@ onMounted(async () => {
   .player-filters {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .players-row {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .players-birth-meta {
+    text-align: left;
+    white-space: normal;
   }
 
   .player-filters > * {
@@ -617,9 +718,21 @@ onMounted(async () => {
     max-height: 92vh;
   }
 
+  .player-avatar,
+  .avatar-placeholder {
+    width: 150px;
+    height: 188px;
+  }
+
   .player-modal-header,
   .players-meta,
   .modal-actions {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .player-modal-title-row,
+  .player-modal-facts-row {
     align-items: start;
     flex-direction: column;
   }

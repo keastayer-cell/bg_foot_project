@@ -2,26 +2,37 @@
   <section class="section-wrap admin-hub">
     <article class="card admin-hub-header">
       <h2 class="section-title">Админ-панель</h2>
-      <p class="muted-text">Структурированные разделы администрирования.</p>
+      <p class="muted-text">Управление турниром, участниками и правами доступа из одного экрана.</p>
     </article>
 
     <article class="card admin-tabs-wrap">
-      <div class="admin-tabs">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          class="btn-ghost admin-tab-btn"
-          :class="{ 'admin-tab-active': activeTab === tab.id }"
-          type="button"
-          @click="activeTab = tab.id"
-        >
-          {{ tab.label }}
-        </button>
+      <div class="admin-tab-groups">
+        <section v-for="group in tabGroups" :key="group.id" class="admin-tab-group">
+          <div class="admin-tab-group-head">
+            <span class="admin-tab-group-kicker">{{ group.kicker }}</span>
+            <h3 class="admin-tab-group-title">{{ group.title }}</h3>
+          </div>
+          <div class="admin-tabs admin-tabs-grid">
+            <button
+              v-for="tab in group.items"
+              :key="tab.id"
+              class="btn-ghost admin-tab-btn"
+              :class="{ 'admin-tab-active': activeTab === tab.id }"
+              type="button"
+              @click="activeTab = tab.id"
+            >
+              <span class="admin-tab-label">{{ tab.label }}</span>
+            </button>
+          </div>
+        </section>
       </div>
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'seasons'">
-      <h3 class="section-title">Управление сезонами</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Сезоны и регламент</h3>
+        <p class="muted-text">Создание сезона, настройка регламента и состава участников.</p>
+      </div>
       <div class="admin-inline-message" v-if="messageError || messageOk">
         <p class="error-text" v-if="messageError">{{ messageError }}</p>
         <p class="success-text" v-if="messageOk">{{ messageOk }}</p>
@@ -41,7 +52,7 @@
         >Редактировать</button>
       </div>
 
-      <div class="admin-form">
+      <div class="admin-form admin-surface">
         <form v-if="seasonSubMode === 'create'" class="admin-form" @submit.prevent="createSeason">
           <label>
             Название сезона
@@ -176,7 +187,10 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'teams'">
-      <h3 class="section-title">Управление командами</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Команды и составы</h3>
+        <p class="muted-text">Карточка команды, текущий состав и сезонная заявка игроков.</p>
+      </div>
       <div class="admin-subnav">
         <button
           class="btn-ghost admin-subnav-btn"
@@ -192,7 +206,7 @@
         >Редактировать</button>
       </div>
 
-      <form v-if="teamSubMode === 'create'" class="admin-form" @submit.prevent="createTeam">
+      <form v-if="teamSubMode === 'create'" class="admin-form admin-surface" @submit.prevent="createTeam">
         <label>
           Название команды
           <input v-model.trim="teamForm.name" type="text" required />
@@ -215,7 +229,7 @@
         </div>
       </form>
 
-      <div v-else class="admin-form">
+      <div v-else class="admin-form admin-surface">
         <label>
           Выберите команду
           <select v-model="teamEditSelectId" @change="onTeamSelectChange">
@@ -341,9 +355,12 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'tours'">
-      <h3 class="section-title">Управление турами</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Туры и матчи</h3>
+        <p class="muted-text">Управление календарём сезона, публикацией туров и матчами внутри тура.</p>
+      </div>
 
-      <div class="admin-form">
+      <div class="admin-form admin-surface">
         <label>
           Сезон
           <select v-model="tourSeasonId" @change="onTourSeasonChange">
@@ -359,7 +376,7 @@
         </p>
       </div>
 
-      <div class="admin-form" v-if="tourSeasonId">
+      <div class="admin-form admin-surface" v-if="tourSeasonId">
         <label>
           Выберите тур
           <select v-model="selectedTourId" @change="onTourSelectChange">
@@ -371,7 +388,7 @@
       </div>
 
       <div v-if="selectedTour" class="admin-grid">
-        <form class="admin-form" @submit.prevent="createTourMatch">
+        <form class="admin-form admin-surface" @submit.prevent="createTourMatch">
           <h4 class="admin-list-title">Добавить матч в тур {{ selectedTour.name }}</h4>
           <label>
             Команда 1
@@ -397,7 +414,7 @@
           <p class="muted-text">Публично на сайт попадут только опубликованные туры.</p>
         </form>
 
-        <div class="admin-list">
+        <div class="admin-list admin-surface">
           <div class="tour-matches-header">
             <h4 class="admin-list-title">Матчи тура</h4>
             <button class="btn-ghost tour-publish-button" type="button" :disabled="!canPublishSelectedTour" @click="publishSelectedTour">
@@ -431,7 +448,10 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'players'">
-      <h3 class="section-title">Управление игроками</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Игроки</h3>
+        <p class="muted-text">Единый реестр игроков с быстрым созданием и редактированием карточек.</p>
+      </div>
       <div class="admin-subnav">
         <button
           class="btn-ghost admin-subnav-btn"
@@ -448,7 +468,7 @@
       </div>
 
       <div class="admin-grid">
-        <form v-if="playerSubMode === 'create'" class="admin-form" @submit.prevent="createPlayer">
+        <form v-if="playerSubMode === 'create'" class="admin-form admin-surface" @submit.prevent="createPlayer">
           <label>
             ФИО
             <input v-model.trim="playerForm.fullName" type="text" required />
@@ -475,7 +495,7 @@
           </div>
         </form>
 
-        <div v-else class="admin-form">
+        <div v-else class="admin-form admin-surface">
           <label>
             Выберите игрока
             <SearchableSelect
@@ -520,9 +540,12 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'roles'">
-      <h3 class="section-title">Управление ролями</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Роли и доступ</h3>
+        <p class="muted-text">Поиск пользователя, управление ролями и сброс временного пароля.</p>
+      </div>
 
-      <div class="admin-form">
+      <div class="admin-form admin-surface">
         <label>
           Поиск по email
           <input v-model.trim="rolesSearch" type="text" placeholder="Начните вводить email..." />
@@ -588,9 +611,12 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'representatives'">
-      <h3 class="section-title">Управление Представителями</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Представители команд</h3>
+        <p class="muted-text">Привязка пользователей к командам и управление доступом представителя.</p>
+      </div>
 
-      <div class="admin-form">
+      <div class="admin-form admin-surface">
         <label>
           Поиск по email
           <input v-model.trim="repSearch" type="text" placeholder="Начните вводить email представителя..." />
@@ -630,9 +656,12 @@
     </article>
 
     <article class="card admin-panel" v-if="activeTab === 'ban'">
-      <h3 class="section-title">Забанить пользователя</h3>
+      <div class="admin-panel-head">
+        <h3 class="section-title">Блокировки пользователей</h3>
+        <p class="muted-text">Локальный реестр блокировок и ручное управление статусом пользователя.</p>
+      </div>
       <div class="admin-grid">
-        <form class="admin-form" @submit.prevent="banUser">
+        <form class="admin-form admin-surface" @submit.prevent="banUser">
           <label>
             Email пользователя
             <input v-model.trim="banForm.email" type="email" required />
@@ -646,7 +675,7 @@
           </div>
         </form>
 
-        <div class="admin-list">
+        <div class="admin-list admin-surface">
           <h4 class="admin-list-title">Статус пользователей</h4>
           <p v-if="!usersRegistry.length" class="muted-text">Пока пусто.</p>
           <div class="admin-list-items" v-else>
@@ -678,15 +707,52 @@ import SearchableSelect from '../components/SearchableSelect.vue'
 
 const USERS_KEY = 'football_stats_admin_users_registry'
 
-const tabs = [
-  { id: 'seasons', label: 'Управление сезонами' },
-  { id: 'teams', label: 'Управление командами' },
-  { id: 'tours', label: 'Управление турами' },
-  { id: 'players', label: 'Управление игроками' },
-  { id: 'roles', label: 'Управление ролями' },
-  { id: 'representatives', label: 'Управление Представителями' },
-  { id: 'ban', label: 'Бан пользователя' },
+const tabGroups = [
+  {
+    id: 'competition',
+    kicker: 'Турнир',
+    title: 'Соревнование и участники',
+    items: [
+      {
+        id: 'seasons',
+        label: 'Сезоны',
+      },
+      {
+        id: 'teams',
+        label: 'Команды',
+      },
+      {
+        id: 'players',
+        label: 'Игроки',
+      },
+      {
+        id: 'tours',
+        label: 'Туры и матчи',
+      },
+    ],
+  },
+  {
+    id: 'access',
+    kicker: 'Доступ',
+    title: 'Права и модерация',
+    items: [
+      {
+        id: 'roles',
+        label: 'Роли и доступ',
+      },
+      {
+        id: 'representatives',
+        label: 'Представители',
+      },
+      {
+        id: 'ban',
+        label: 'Блокировки',
+      },
+    ],
+  },
 ]
+
+const tabs = tabGroups.flatMap((group) => group.items)
 
 const activeTab = ref('seasons')
 
@@ -874,8 +940,7 @@ const teamRosterAddOptions = computed(() => {
   return teamPlayersAvailableForRoster.value.map((player) => ({
     value: String(player.id),
     label: formatAdminRosterPlayerOption(player),
-    caption: player.residence || '',
-    keywords: `${player.fullName || ''} ${player.currentTeamName || ''} ${player.residence || ''}`,
+    keywords: `${player.fullName || ''}`,
   }))
 })
 
@@ -883,8 +948,7 @@ const playerEditOptions = computed(() => {
   return playersList.value.map((player) => ({
     value: String(player.id),
     label: formatPlayerOptionLabel(player),
-    caption: player.currentTeamName || player.residence || '',
-    keywords: `${player.fullName || ''} ${player.currentTeamName || ''} ${player.residence || ''}`,
+    keywords: `${player.fullName || ''}`,
   }))
 })
 
@@ -1913,17 +1977,12 @@ function resetPlayerForm() {
 
 function formatPlayerOptionLabel(player) {
   if (!player) return ''
-  return `${player.fullName || ''}${player.isGoalkeeper ? ' 🧤' : ''}`
+  return `${player.fullName || ''}`
 }
 
 function formatAdminRosterPlayerOption(player) {
   if (!player) return ''
-
-  let label = formatPlayerOptionLabel(player)
-  if (player.currentTeamName) {
-    label += ` · сейчас: ${player.currentTeamName}`
-  }
-  return label
+  return formatPlayerOptionLabel(player)
 }
 
 function assignRole() {

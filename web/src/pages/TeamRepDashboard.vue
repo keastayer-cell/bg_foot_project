@@ -87,11 +87,6 @@
         <article class="team-rep-player-item" v-for="player in displayedTeamPlayers" :key="player.id">
           <div class="team-rep-player-main">
             <strong>{{ player.fullName }}<span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></strong>
-            <span class="muted-text" v-if="player.birthDate">ДР: {{ formatDateOnly(player.birthDate) }}</span>
-            <span class="muted-text" v-if="player.residence">Прописка: {{ player.residence }}</span>
-            <div class="team-rep-season-chip-row" v-if="player.seasons?.length">
-              <span class="team-rep-season-chip" v-for="season in player.seasons" :key="season.id">{{ season.name }}</span>
-            </div>
           </div>
           <img
             v-if="player.photoDataUrl"
@@ -115,32 +110,50 @@
       </div>
     </article>
 
-    <div v-if="addPlayerModalOpen && seasonView" class="modal-backdrop" @click.self="closeSeasonModals">
+    <div v-if="addPlayerModalOpen" class="modal-backdrop" @click.self="closeSeasonModals">
       <article class="card auth-modal team-rep-modal team-rep-season-modal">
         <div class="toolbar auth-modal-head">
           <div>
             <h3 class="section-title">Добавить игрока в заявку</h3>
-            <p class="muted-text">{{ seasonView.seasonName }} · {{ seasonView.teamName }}</p>
+            <p v-if="seasonView" class="muted-text">{{ seasonView.seasonName }} · {{ seasonView.teamName }}</p>
           </div>
-          <button class="btn-ghost" type="button" @click="closeSeasonModals">Закрыть</button>
+          <div class="actions-row team-rep-season-modal-head-actions">
+            <button
+              class="btn-primary"
+              type="button"
+              @click="addAvailablePlayersToSeason"
+              :disabled="seasonLoading || !seasonView || !selectedAvailablePlayerIds.length"
+            >
+              Добавить выбранных
+            </button>
+            <button class="btn-ghost" type="button" @click="closeSeasonModals">Закрыть</button>
+          </div>
         </div>
 
-        <div class="team-rep-inline-picker compact">
+        <p v-if="seasonLoading && !seasonView" class="muted-text">Загрузка списка игроков...</p>
+
+        <div v-else-if="seasonView" class="team-rep-inline-picker compact">
           <SearchableSelect
-            v-model="selectedAvailablePlayerId"
+            :key="`team-rep-season-picker-${seasonView.seasonId}-${seasonSelectablePlayerOptions.length}`"
+            v-model="selectedAvailablePlayerIds"
             :options="seasonSelectablePlayerOptions"
-            placeholder="Выберите игрока"
+            multiple
+            multiple-summary-text="Выбрано игроков"
+            placeholder="Выберите игроков"
             search-placeholder="Начните вводить ФИО игрока"
             empty-text="Игрок по такому ФИО не найден"
           />
-          <div class="actions-row team-rep-season-modal-actions">
-            <button class="btn-primary" type="button" @click="addAvailablePlayerToSeason" :disabled="seasonLoading || !selectedAvailablePlayerId">
-              Добавить
-            </button>
+          <div class="team-rep-season-picker-meta">
+            <span class="team-rep-selected-count">
+              Выбрано: {{ selectedAvailablePlayerIds.length }}
+            </span>
           </div>
         </div>
 
+        <p v-else class="muted-text">Не удалось загрузить доступных игроков.</p>
+
         <p class="error-text" v-if="seasonError">{{ seasonError }}</p>
+
       </article>
     </div>
 
@@ -211,7 +224,7 @@ const teamSeasons = ref([])
 const teamPlayers = ref([])
 const seasonView = ref(null)
 const selectedSeasonId = ref('')
-const selectedAvailablePlayerId = ref('')
+const selectedAvailablePlayerIds = ref([])
 const addPlayerModalOpen = ref(false)
 const showSelectedSeasonPlayersOnly = ref(false)
 
@@ -272,8 +285,7 @@ const seasonSelectablePlayerOptions = computed(() => {
   return seasonSelectablePlayers.value.map((player) => ({
     value: String(player.id),
     label: formatPlayerOptionLabel(player),
-    caption: player.residence || '',
-    keywords: `${player.fullName || ''} ${player.residence || ''}`,
+    keywords: `${player.fullName || ''}`,
   }))
 })
 
@@ -335,7 +347,7 @@ async function loadSeasonView(seasonId) {
   seasonLoading.value = true
   seasonError.value = ''
   seasonSuccess.value = ''
-  selectedAvailablePlayerId.value = ''
+  selectedAvailablePlayerIds.value = []
 
   try {
     seasonView.value = await authorizedApiRequest(`/api/team-rep/seasons/${encodeURIComponent(seasonId)}/players`, {
@@ -349,16 +361,20 @@ async function loadSeasonView(seasonId) {
 }
 
 async function openAddPlayerModal(seasonId) {
-  await loadSeasonView(seasonId)
-  if (!seasonView.value) {
+  seasonError.value = ''
+  seasonSuccess.value = ''
+  addPlayerModalOpen.value = true
+
+  if (String(seasonView.value?.seasonId || '') === String(seasonId)) {
     return
   }
-  addPlayerModalOpen.value = true
+
+  await loadSeasonView(seasonId)
 }
 
 function closeSeasonModals() {
   addPlayerModalOpen.value = false
-  selectedAvailablePlayerId.value = ''
+  selectedAvailablePlayerIds.value = []
   seasonError.value = ''
   seasonSuccess.value = ''
 }
@@ -377,12 +393,35 @@ async function removeFromSeason(playerId) {
   await mutateSeasonPlayer(playerId, 'DELETE', 'Игрок убран из заявки сезона.')
 }
 
-async function addAvailablePlayerToSeason() {
-  if (!seasonView.value || !selectedAvailablePlayerId.value) {
-    seasonError.value = 'Выберите игрока из списка.'
+async function addAvailablePlayersToSeason() {
+  if (!seasonView.value || !selectedAvailablePlayerIds.value.length) {
+    seasonError.value = 'Выберите хотя бы одного игрока из списка.'
     return
   }
-  await mutateSeasonPlayer(selectedAvailablePlayerId.value, 'POST', 'Игрок переведён в вашу команду и добавлен в заявку.')
+
+  seasonLoading.value = true
+  seasonError.value = ''
+  seasonSuccess.value = ''
+
+  try {
+    seasonView.value = await authorizedApiRequest(
+      `/api/team-rep/seasons/${encodeURIComponent(seasonView.value.seasonId)}/players`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          playerIds: selectedAvailablePlayerIds.value.map((id) => Number(id)),
+        }),
+      }
+    )
+    selectedAvailablePlayerIds.value = []
+    seasonSuccess.value = 'Выбранные игроки добавлены в заявку.'
+    addPlayerModalOpen.value = false
+    await loadDashboard()
+  } catch (error) {
+    seasonError.value = error.message || 'Не удалось изменить заявку сезона.'
+  } finally {
+    seasonLoading.value = false
+  }
 }
 
 async function mutateSeasonPlayer(playerId, method, successMessage) {
@@ -399,7 +438,7 @@ async function mutateSeasonPlayer(playerId, method, successMessage) {
       `/api/team-rep/seasons/${encodeURIComponent(seasonView.value.seasonId)}/players/${encodeURIComponent(playerId)}`,
       { method }
     )
-    selectedAvailablePlayerId.value = ''
+    selectedAvailablePlayerIds.value = []
     seasonSuccess.value = successMessage
     await loadDashboard()
     if (method === 'POST') {
@@ -539,7 +578,7 @@ function formatDateOnly(value) {
 
 function formatPlayerOptionLabel(player) {
   if (!player) return ''
-  return `${player.fullName || ''}${player.isGoalkeeper ? ' 🧤' : ''}`
+  return `${player.fullName || ''}`
 }
 </script>
 
@@ -678,8 +717,19 @@ function formatPlayerOptionLabel(player) {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.team-rep-season-modal-actions {
+.team-rep-season-picker-meta {
+  display: flex;
   justify-content: flex-end;
+}
+
+.team-rep-selected-count {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.team-rep-season-modal-head-actions {
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .btn-compact {
@@ -720,12 +770,12 @@ function formatPlayerOptionLabel(player) {
   .team-rep-card-head > .btn-ghost,
   .team-rep-season-actions-row > *,
   .team-rep-player-row-actions > *,
-  .team-rep-season-modal-actions > * {
+  .team-rep-season-modal-head-actions > * {
     width: 100%;
   }
 
   .team-rep-player-row-actions,
-  .team-rep-season-modal-actions {
+  .team-rep-season-modal-head-actions {
     align-items: stretch;
     flex-direction: column;
   }

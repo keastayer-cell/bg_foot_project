@@ -311,8 +311,7 @@ const activeLineupPlayerOptions = computed(() => {
   return (activeLineupForModal.value?.availablePlayers || []).map((player) => ({
     value: String(player.playerId),
     label: formatPlayerOptionLabel(player),
-    caption: player.suspensionReason || '',
-    keywords: `${player.playerName || ''} ${player.suspensionReason || ''}`,
+    keywords: `${player.playerName || ''}`,
     disabled: Boolean(player.suspended),
   }))
 })
@@ -769,7 +768,7 @@ function repeatCount(count) {
 
 function formatPlayerOptionLabel(player) {
   if (!player) return ''
-  return `${player.playerName || ''}${player.isGoalkeeper ? ' 🧤' : ''}${player.suspended ? ' [дисквалифицирован]' : ''}`
+  return `${player.playerName || ''}`
 }
 
 function availableSelectableCount(lineup) {

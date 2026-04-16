@@ -187,6 +187,18 @@ export const endpointGroups = [
         ],
       },
       {
+        key: 'season-player-stats',
+        title: 'Статистика игроков сезона',
+        method: 'GET',
+        path: '/api/seasons/{seasonId}/player-stats',
+        description: 'Возвращает агрегированную статистику игроков по выбранному сезону. Учитываются только подтвержденные протоколы опубликованных туров.',
+        access: 'Публичный endpoint',
+        auth: false,
+        pathParams: [
+          { name: 'seasonId', placeholder: 'например 1' },
+        ],
+      },
+      {
         key: 'season-teams-replace',
         title: 'Обновить команды сезона',
         method: 'PUT',

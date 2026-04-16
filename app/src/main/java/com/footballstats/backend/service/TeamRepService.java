@@ -230,6 +230,21 @@ public class TeamRepService {
     }
 
     @Transactional
+    public TeamRepSeasonPlayersData addSeasonPlayers(Long userId, Long seasonId, List<Long> playerIds) {
+        TeamScopeContext context = requireApplicationScope(userId);
+        java.util.LinkedHashSet<Long> ids = new java.util.LinkedHashSet<>(playerIds == null ? List.of() : playerIds.stream().filter(java.util.Objects::nonNull).toList());
+        for (Long playerId : ids) {
+            boolean alreadyInRoster = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, context.teamId()).isPresent();
+            if (alreadyInRoster) {
+                seasonPlayerService.addSeasonPlayer(context.teamId(), seasonId, playerId, userId);
+            } else {
+                seasonPlayerService.attachAvailablePlayerToTeamAndSeason(context.teamId(), seasonId, playerId, userId);
+            }
+        }
+        return getSeasonPlayers(userId, seasonId);
+    }
+
+    @Transactional
     public TeamRepSeasonPlayersData addSeasonPlayer(Long userId, Long seasonId, Long playerId) {
         TeamScopeContext context = requireApplicationScope(userId);
         boolean alreadyInRoster = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, context.teamId()).isPresent();

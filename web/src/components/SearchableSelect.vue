@@ -1,10 +1,10 @@
 <template>
-  <div ref="rootRef" class="searchable-select" :class="{ 'is-open': isOpen, 'is-disabled': disabled }">
+  <div ref="rootRef" class="searchable-select" :class="{ 'is-open': isOpen, 'is-disabled': disabled, 'is-multiple': multiple }">
     <div class="searchable-select-control">
       <input
         class="searchable-select-input"
         :value="inputValue"
-        :placeholder="selectedOption && !isOpen ? selectedOption.label : placeholder"
+        :placeholder="resolvedPlaceholder"
         :disabled="disabled"
         autocomplete="off"
         @focus="openDropdown"
@@ -29,11 +29,12 @@
           v-for="option in filteredOptions"
           :key="option.value"
           class="searchable-select-option"
-          :class="{ 'is-selected': option.value === modelValue, 'is-disabled': option.disabled }"
+          :class="{ 'is-selected': isOptionSelected(option.value), 'is-disabled': option.disabled }"
           type="button"
           :disabled="option.disabled"
           @click="selectOption(option)"
         >
+          <span v-if="multiple" class="searchable-select-option-check">{{ isOptionSelected(option.value) ? '✓' : '' }}</span>
           <span class="searchable-select-option-label">{{ option.label }}</span>
           <span v-if="option.caption" class="searchable-select-option-caption">{{ option.caption }}</span>
         </button>
@@ -48,7 +49,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   modelValue: {
-    type: String,
+    type: [String, Array],
     default: '',
   },
   options: {
@@ -71,6 +72,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  multiple: {
+    type: Boolean,
+    default: false,
+  },
+  multipleSummaryText: {
+    type: String,
+    default: 'Выбрано',
+  },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -89,8 +98,22 @@ const normalizedOptions = computed(() => {
   }))
 })
 
+const selectedValues = computed(() => {
+  if (!props.multiple) {
+    return [String(props.modelValue || '')].filter(Boolean)
+  }
+  return Array.isArray(props.modelValue)
+    ? props.modelValue.map((value) => String(value || '')).filter(Boolean)
+    : []
+})
+
 const selectedOption = computed(() => {
   return normalizedOptions.value.find((option) => option.value === String(props.modelValue || '')) || null
+})
+
+const selectedOptions = computed(() => {
+  const values = new Set(selectedValues.value)
+  return normalizedOptions.value.filter((option) => values.has(option.value))
 })
 
 const filteredOptions = computed(() => {
@@ -110,7 +133,23 @@ const inputValue = computed(() => {
   if (isOpen.value) {
     return query.value
   }
+  if (props.multiple) {
+    if (!selectedOptions.value.length) {
+      return ''
+    }
+    if (selectedOptions.value.length === 1) {
+      return selectedOptions.value[0].label
+    }
+    return `${props.multipleSummaryText}: ${selectedOptions.value.length}`
+  }
   return selectedOption.value?.label || ''
+})
+
+const resolvedPlaceholder = computed(() => {
+  if (props.multiple) {
+    return props.placeholder
+  }
+  return selectedOption.value && !isOpen.value ? selectedOption.value.label : props.placeholder
 })
 
 watch(
@@ -158,8 +197,26 @@ function selectOption(option) {
   if (option.disabled) {
     return
   }
+  if (props.multiple) {
+    const nextValues = new Set(selectedValues.value)
+    if (nextValues.has(option.value)) {
+      nextValues.delete(option.value)
+    } else {
+      nextValues.add(option.value)
+    }
+    emit('update:modelValue', Array.from(nextValues))
+    query.value = ''
+    return
+  }
   emit('update:modelValue', option.value)
   closeDropdown()
+}
+
+function isOptionSelected(value) {
+  if (props.multiple) {
+    return selectedValues.value.includes(String(value || ''))
+  }
+  return String(props.modelValue || '') === String(value || '')
 }
 
 function handleDocumentPointer(event) {
@@ -196,12 +253,13 @@ onBeforeUnmount(() => {
 
 .searchable-select-input {
   width: 100%;
-  min-height: 44px;
+  min-height: 48px;
   padding: 0 14px;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--field-border, rgba(124, 163, 255, 0.28));
   border-radius: 12px 0 0 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--field-bg, linear-gradient(180deg, rgba(22, 31, 67, 0.96), rgba(14, 21, 47, 0.98)));
   color: var(--text);
+  box-shadow: var(--field-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 18px rgba(5, 10, 28, 0.16));
 }
 
 .searchable-select-input:focus-visible {
@@ -210,12 +268,13 @@ onBeforeUnmount(() => {
 }
 
 .searchable-select-toggle {
-  min-width: 44px;
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  min-width: 48px;
+  border: 1px solid var(--field-border, rgba(124, 163, 255, 0.28));
   border-left: none;
   border-radius: 0 12px 12px 0;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--field-bg, linear-gradient(180deg, rgba(22, 31, 67, 0.96), rgba(14, 21, 47, 0.98)));
   color: var(--text);
+  box-shadow: var(--field-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 18px rgba(5, 10, 28, 0.16));
 }
 
 .searchable-select-chevron {
@@ -229,10 +288,11 @@ onBeforeUnmount(() => {
   right: 0;
   z-index: 30;
   padding: 10px;
-  border: 1px solid rgba(124, 163, 255, 0.2);
-  border-radius: 14px;
-  background: rgba(11, 18, 39, 0.98);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(124, 163, 255, 0.24);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(16, 24, 53, 0.98), rgba(10, 16, 37, 1));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(12px);
 }
 
 .searchable-select-hint,
@@ -252,12 +312,13 @@ onBeforeUnmount(() => {
 
 .searchable-select-option {
   display: grid;
-  gap: 2px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 11px 12px;
+  border: 1px solid rgba(124, 163, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
   color: var(--text);
   text-align: left;
 }
@@ -273,8 +334,19 @@ onBeforeUnmount(() => {
 }
 
 .searchable-select-option-caption {
+  grid-column: 2;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.searchable-select-option-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  min-width: 18px;
+  color: rgba(97, 232, 162, 0.92);
+  font-weight: 700;
 }
 
 .searchable-select.is-disabled {

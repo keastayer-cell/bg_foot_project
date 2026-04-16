@@ -13,6 +13,7 @@ public interface MatchEventRepository extends JpaRepository<MatchEvent, Long> {
         SELECT me
         FROM MatchEvent me
         JOIN FETCH me.match match
+        LEFT JOIN FETCH match.protocol protocol
         LEFT JOIN FETCH me.team team
         LEFT JOIN FETCH me.player player
         LEFT JOIN FETCH me.relatedPlayer relatedPlayer
@@ -26,6 +27,7 @@ public interface MatchEventRepository extends JpaRepository<MatchEvent, Long> {
                 FROM MatchEvent me
                 JOIN FETCH me.match match
                 JOIN FETCH match.tour tour
+                LEFT JOIN FETCH match.protocol protocol
                 LEFT JOIN FETCH me.team team
                 LEFT JOIN FETCH me.player player
                 LEFT JOIN FETCH me.relatedPlayer relatedPlayer

@@ -82,6 +82,15 @@ public class TeamRepController {
         return ResponseEntity.ok(teamRepService.replaceSeasonPlayers(currentUserId(authentication), seasonId, request.playerIds()));
     }
 
+    @PostMapping("/seasons/{seasonId}/players")
+    public ResponseEntity<TeamRepService.TeamRepSeasonPlayersData> addSeasonPlayers(
+        @PathVariable Long seasonId,
+        @Valid @RequestBody TeamRepSeasonPlayersUpsertRequest request,
+        Authentication authentication
+    ) {
+        return ResponseEntity.ok(teamRepService.addSeasonPlayers(currentUserId(authentication), seasonId, request.playerIds()));
+    }
+
     @PostMapping("/seasons/{seasonId}/players/{playerId}")
     public ResponseEntity<TeamRepService.TeamRepSeasonPlayersData> addSeasonPlayer(
         @PathVariable Long seasonId,

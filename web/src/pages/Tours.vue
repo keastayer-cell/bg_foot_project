@@ -48,23 +48,33 @@
             <h2 class="section-title">Таблица сезона</h2>
           </div>
           <div class="standings-toolbar">
-            <div class="view-switcher" v-if="selectedSeason">
+            <div class="standings-toolbar-actions" v-if="selectedSeason">
               <button
-                class="btn-ghost"
+                class="btn-ghost toolbar-stats-button"
                 type="button"
-                :class="{ 'is-active': seasonViewMode === 'table' }"
-                @click="seasonViewMode = 'table'"
+                :class="{ 'is-active': sidePanelMode === 'stats' && seasonViewMode !== 'matrix' }"
+                @click="openStatsPanel"
               >
-                Таблица
+                {{ sidePanelMode === 'stats' && seasonViewMode !== 'matrix' ? 'Туры' : 'Статистика' }}
               </button>
-              <button
-                class="btn-ghost"
-                type="button"
-                :class="{ 'is-active': seasonViewMode === 'matrix' }"
-                @click="seasonViewMode = 'matrix'"
-              >
-                Шахматка
-              </button>
+              <div class="view-switcher">
+                <button
+                  class="btn-ghost"
+                  type="button"
+                  :class="{ 'is-active': seasonViewMode === 'table' }"
+                  @click="seasonViewMode = 'table'"
+                >
+                  Таблица
+                </button>
+                <button
+                  class="btn-ghost"
+                  type="button"
+                  :class="{ 'is-active': seasonViewMode === 'matrix' }"
+                  @click="seasonViewMode = 'matrix'"
+                >
+                  Шахматка
+                </button>
+              </div>
             </div>
             <span class="muted-text" v-if="loadingSeasonData">Загрузка...</span>
             <span class="muted-text" v-else-if="standingsConfig?.lastCalculatedAt">Обновлено: {{ formatMatchDateTime(standingsConfig.lastCalculatedAt) }}</span>
@@ -244,7 +254,7 @@
         <p class="empty-text" v-else>Выберите сезон, чтобы посмотреть таблицу.</p>
       </article>
 
-      <article class="card tours-card" v-if="seasonViewMode !== 'matrix'">
+      <article class="card tours-card" v-if="seasonViewMode !== 'matrix' && sidePanelMode === 'tours'">
         <div class="section-head">
           <h2 class="section-title">Туры сезона</h2>
           <span class="muted-text" v-if="loadingSeasonData">Загрузка...</span>
@@ -285,6 +295,80 @@
         <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData">Для выбранного сезона пока нет туров с назначенными матчами.</p>
         <p class="empty-text" v-else>Выберите сезон, чтобы посмотреть туры.</p>
       </article>
+
+      <article class="card player-stats-card" v-else-if="sidePanelMode === 'stats'">
+        <div class="section-head player-stats-head">
+          <div>
+            <h2 class="section-title">Статистика игроков сезона</h2>
+            <p class="muted-text player-stats-subtitle">Учитываются только подтвержденные протоколы опубликованных туров.</p>
+          </div>
+          <span class="muted-text" v-if="loadingSeasonData">Загрузка...</span>
+        </div>
+
+        <div class="player-stats-tabs" v-if="selectedSeason">
+          <button
+            class="btn-ghost player-stats-tab"
+            type="button"
+            :class="{ 'is-active': statsMode === 'scorers' }"
+            @click="statsMode = 'scorers'"
+          >
+            Бомбардиры
+          </button>
+          <button
+            class="btn-ghost player-stats-tab"
+            type="button"
+            :class="{ 'is-active': statsMode === 'discipline' }"
+            @click="statsMode = 'discipline'"
+          >
+            Дисциплина
+          </button>
+        </div>
+
+        <div class="player-stats-table-wrap" v-if="topStatsRows.length">
+          <table class="stats-table player-stats-table player-stats-table-scorers" v-if="statsMode === 'scorers'">
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Игрок</th>
+                <th>Команда</th>
+                <th>Голы</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, index) in topStatsRows" :key="`scorers-${row.playerId}`">
+                <td class="player-stats-rank">{{ index + 1 }}</td>
+                <td><strong class="player-stats-name">{{ row.fullName }}</strong></td>
+                <td><span class="player-stats-team">{{ row.teamName || '—' }}</span></td>
+                <td><strong>{{ row.goals }}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table class="stats-table player-stats-table player-stats-table-discipline" v-else>
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Игрок</th>
+                <th>Команда</th>
+                <th>ЖК</th>
+                <th>КК</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, index) in topStatsRows" :key="`discipline-${row.playerId}`">
+                <td class="player-stats-rank">{{ index + 1 }}</td>
+                <td><strong class="player-stats-name">{{ row.fullName }}</strong></td>
+                <td><span class="player-stats-team">{{ row.teamName || '—' }}</span></td>
+                <td class="player-stats-yellow">{{ row.yellowCards }}</td>
+                <td class="player-stats-red">{{ row.redCards }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData">{{ statsEmptyText }}</p>
+        <p class="empty-text" v-else>Выберите сезон, чтобы посмотреть статистику игроков.</p>
+      </article>
     </div>
   </section>
 </template>
@@ -300,9 +384,12 @@ const selectedSeasonId = ref('')
 const seasonTeams = ref([])
 const seasonTours = ref([])
 const seasonStandings = ref([])
+const seasonPlayerStats = ref([])
 const standingsConfig = ref(null)
 const expandedTourId = ref('')
 const seasonViewMode = ref('table')
+const sidePanelMode = ref('tours')
+const statsMode = ref('scorers')
 const loadingSeasons = ref(false)
 const loadingSeasonData = ref(false)
 const pageError = ref('')
@@ -314,6 +401,43 @@ const selectedSeason = computed(() => {
 const playoffLabel = computed(() => {
   if (!selectedSeason.value?.playoffEnabled) return 'Нет'
   return `${selectedSeason.value.playoffTeamCount || '—'} команд`
+})
+
+const scorersStats = computed(() => {
+  return [...seasonPlayerStats.value]
+    .filter((item) => Number(item?.goals || 0) > 0)
+    .sort((left, right) => {
+      const goalsDiff = Number(right?.goals || 0) - Number(left?.goals || 0)
+      if (goalsDiff !== 0) return goalsDiff
+      return String(left?.fullName || '').localeCompare(String(right?.fullName || ''), 'ru', { sensitivity: 'base' })
+    })
+})
+
+const disciplineStats = computed(() => {
+  return [...seasonPlayerStats.value]
+    .filter((item) => Number(item?.yellowCards || 0) > 0 || Number(item?.redCards || 0) > 0)
+    .sort((left, right) => {
+      const redDiff = Number(right?.redCards || 0) - Number(left?.redCards || 0)
+      if (redDiff !== 0) return redDiff
+      const yellowDiff = Number(right?.yellowCards || 0) - Number(left?.yellowCards || 0)
+      if (yellowDiff !== 0) return yellowDiff
+      return String(left?.fullName || '').localeCompare(String(right?.fullName || ''), 'ru', { sensitivity: 'base' })
+    })
+})
+
+const activeStatsRows = computed(() => {
+  return statsMode.value === 'discipline' ? disciplineStats.value : scorersStats.value
+})
+
+const topStatsRows = computed(() => {
+  return activeStatsRows.value.slice(0, 10)
+})
+
+const statsEmptyText = computed(() => {
+  if (statsMode.value === 'discipline') {
+    return 'В подтвержденных матчах выбранного сезона пока нет желтых или красных карточек.'
+  }
+  return 'В подтвержденных матчах выбранного сезона пока нет голов.'
 })
 
 const formattedTours = computed(() => {
@@ -510,10 +634,13 @@ const matrixRows = computed(() => {
 
 watch(selectedSeasonId, async (seasonId) => {
   expandedTourId.value = ''
+  sidePanelMode.value = 'tours'
+  statsMode.value = 'scorers'
   if (!seasonId) {
     seasonTeams.value = []
     seasonTours.value = []
     seasonStandings.value = []
+    seasonPlayerStats.value = []
     standingsConfig.value = null
     return
   }
@@ -527,6 +654,13 @@ function resetError() {
 
 function toggleTour(tourId) {
   expandedTourId.value = String(expandedTourId.value) === String(tourId) ? '' : String(tourId)
+}
+
+function openStatsPanel() {
+  if (seasonViewMode.value === 'matrix') {
+    seasonViewMode.value = 'table'
+  }
+  sidePanelMode.value = sidePanelMode.value === 'stats' ? 'tours' : 'stats'
 }
 
 async function loadSeasons() {
@@ -552,15 +686,21 @@ async function loadSeasonData(seasonId) {
   resetError()
 
   try {
-    const payload = await optionalAuthApiRequest(`/api/seasons/${encodeURIComponent(seasonId)}/overview`, { method: 'GET' })
-    seasonTeams.value = Array.isArray(payload?.teams) ? payload.teams : []
-    seasonTours.value = Array.isArray(payload?.tours) ? payload.tours : []
-    seasonStandings.value = Array.isArray(payload?.standings) ? payload.standings : []
-    standingsConfig.value = payload?.standingsConfig || null
+    const [overviewPayload, playerStatsPayload] = await Promise.all([
+      optionalAuthApiRequest(`/api/seasons/${encodeURIComponent(seasonId)}/overview`, { method: 'GET' }),
+      optionalAuthApiRequest(`/api/seasons/${encodeURIComponent(seasonId)}/player-stats`, { method: 'GET' }),
+    ])
+
+    seasonTeams.value = Array.isArray(overviewPayload?.teams) ? overviewPayload.teams : []
+    seasonTours.value = Array.isArray(overviewPayload?.tours) ? overviewPayload.tours : []
+    seasonStandings.value = Array.isArray(overviewPayload?.standings) ? overviewPayload.standings : []
+    seasonPlayerStats.value = Array.isArray(playerStatsPayload) ? playerStatsPayload : []
+    standingsConfig.value = overviewPayload?.standingsConfig || null
   } catch (error) {
     seasonTeams.value = []
     seasonTours.value = []
     seasonStandings.value = []
+    seasonPlayerStats.value = []
     standingsConfig.value = null
     pageError.value = error.message || 'Не удалось загрузить данные выбранного сезона.'
   } finally {
@@ -705,14 +845,111 @@ onMounted(async () => {
   gap: 14px;
 }
 
+.player-stats-card {
+  display: grid;
+  gap: 14px;
+}
+
+.player-stats-head {
+  margin-bottom: 0;
+}
+
+.player-stats-tabs {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.player-stats-tab {
+  min-width: 132px;
+}
+
+.player-stats-subtitle {
+  margin: 6px 0 0;
+}
+
+.player-stats-table-wrap {
+  width: 100%;
+}
+
+.player-stats-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.player-stats-rank {
+  width: 44px;
+  text-align: center;
+}
+
+.player-stats-name,
+.player-stats-team {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-stats-table-scorers th:nth-child(1),
+.player-stats-table-scorers td:nth-child(1) {
+  width: 44px;
+}
+
+.player-stats-table-scorers th:nth-child(3),
+.player-stats-table-scorers td:nth-child(3) {
+  width: 28%;
+}
+
+.player-stats-table-scorers th:nth-child(4),
+.player-stats-table-scorers td:nth-child(4) {
+  width: 64px;
+  text-align: center;
+}
+
+.player-stats-table-discipline th:nth-child(1),
+.player-stats-table-discipline td:nth-child(1) {
+  width: 44px;
+}
+
+.player-stats-table-discipline th:nth-child(3),
+.player-stats-table-discipline td:nth-child(3) {
+  width: 24%;
+}
+
+.player-stats-table-discipline th:nth-child(4),
+.player-stats-table-discipline td:nth-child(4),
+.player-stats-table-discipline th:nth-child(5),
+.player-stats-table-discipline td:nth-child(5) {
+  width: 56px;
+  text-align: center;
+}
+
+.player-stats-yellow {
+  color: #f3c34d;
+  font-weight: 700;
+}
+
+.player-stats-red {
+  color: #ff7d7d;
+  font-weight: 700;
+}
+
 .standings-head {
   align-items: start;
 }
 
 .standings-toolbar {
-  display: flex;
+  display: grid;
+  gap: 10px;
+  justify-items: end;
+}
+
+.standings-toolbar-actions {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -724,6 +961,13 @@ onMounted(async () => {
 }
 
 .view-switcher .btn-ghost.is-active {
+  border-color: rgba(97, 232, 162, 0.28);
+  background: rgba(97, 232, 162, 0.12);
+  color: var(--text);
+}
+
+.toolbar-stats-button.is-active,
+.player-stats-tab.is-active {
   border-color: rgba(97, 232, 162, 0.28);
   background: rgba(97, 232, 162, 0.12);
   color: var(--text);
@@ -1089,6 +1333,10 @@ onMounted(async () => {
 
   .standings-toolbar {
     width: 100%;
+    justify-items: start;
+  }
+
+  .standings-toolbar-actions {
     justify-content: flex-start;
   }
 
@@ -1125,6 +1373,7 @@ onMounted(async () => {
   .tours-card {
     flex: 1 1 auto;
   }
+
   .standings-table-mobile td:nth-child(5),
   .standings-table-mobile th:nth-child(6),
   .standings-table-mobile td:nth-child(6),
@@ -1200,13 +1449,32 @@ onMounted(async () => {
   }
 
   .standings-toolbar {
-    justify-content: flex-start;
+    justify-items: start;
   }
 
   .standings-table-mobile th,
   .standings-table-mobile td {
     padding: 9px 6px;
     font-size: 0.86rem;
+  }
+
+  .player-stats-table {
+    font-size: 0.88rem;
+  }
+
+  .player-stats-table th,
+  .player-stats-table td {
+    padding: 9px 6px;
+  }
+
+  .player-stats-table-scorers th:nth-child(3),
+  .player-stats-table-scorers td:nth-child(3) {
+    width: 30%;
+  }
+
+  .player-stats-table-discipline th:nth-child(3),
+  .player-stats-table-discipline td:nth-child(3) {
+    width: 22%;
   }
 
   .tour-card,

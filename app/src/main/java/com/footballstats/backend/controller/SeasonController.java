@@ -14,6 +14,7 @@ import com.footballstats.backend.repository.PlayerTeamRepository;
 import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.service.MediaAssetService;
 import com.footballstats.backend.service.SeasonPlayerService;
+import com.footballstats.backend.service.SeasonPlayerStatsService;
 import com.footballstats.backend.service.SeasonService;
 import com.footballstats.backend.service.SeasonStandingsService;
 import com.footballstats.backend.service.TourService;
@@ -44,6 +45,7 @@ public class SeasonController {
     private final TourService tourService;
     private final SeasonStandingsService seasonStandingsService;
     private final SeasonPlayerService seasonPlayerService;
+    private final SeasonPlayerStatsService seasonPlayerStatsService;
     private final PlayerTeamRepository playerTeamRepository;
     private final MediaAssetService mediaAssetService;
 
@@ -52,6 +54,7 @@ public class SeasonController {
         TourService tourService,
         SeasonStandingsService seasonStandingsService,
         SeasonPlayerService seasonPlayerService,
+        SeasonPlayerStatsService seasonPlayerStatsService,
         PlayerTeamRepository playerTeamRepository,
         MediaAssetService mediaAssetService
     ) {
@@ -59,6 +62,7 @@ public class SeasonController {
         this.tourService = tourService;
         this.seasonStandingsService = seasonStandingsService;
         this.seasonPlayerService = seasonPlayerService;
+        this.seasonPlayerStatsService = seasonPlayerStatsService;
         this.playerTeamRepository = playerTeamRepository;
         this.mediaAssetService = mediaAssetService;
     }
@@ -136,6 +140,20 @@ public class SeasonController {
             toStandingsConfigResponse(standings.config()),
             standings.rows().stream().map(this::toStandingsRowResponse).toList()
         ));
+    }
+
+    @GetMapping("/api/seasons/{seasonId}/player-stats")
+    public ResponseEntity<List<SeasonPlayerStatsResponse>> getSeasonPlayerStats(@PathVariable Long seasonId) {
+        return ResponseEntity.ok(seasonPlayerStatsService.getSeasonPlayerStats(seasonId).stream()
+            .map(item -> new SeasonPlayerStatsResponse(
+                item.playerId(),
+                item.fullName(),
+                item.teamName(),
+                item.goals(),
+                item.yellowCards(),
+                item.redCards()
+            ))
+            .toList());
     }
 
     @PutMapping("/api/seasons/{seasonId}/teams")
@@ -369,6 +387,15 @@ public class SeasonController {
         Integer goalsAgainst,
         Integer goalDifference,
         Integer points
+    ) {}
+
+    public record SeasonPlayerStatsResponse(
+        Long playerId,
+        String fullName,
+        String teamName,
+        Integer goals,
+        Integer yellowCards,
+        Integer redCards
     ) {}
 
     public record TourOverviewResponse(
