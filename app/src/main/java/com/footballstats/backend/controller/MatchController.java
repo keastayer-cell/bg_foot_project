@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -66,6 +67,15 @@ public class MatchController {
                 .toList(),
             currentUserId(authentication)
         )));
+    }
+
+    @PostMapping("/{matchId}/protocol/reopen")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<MatchDetailsResponse> reopenVerifiedProtocol(
+        @PathVariable Long matchId,
+        Authentication authentication
+    ) {
+        return ResponseEntity.ok(toResponse(matchProtocolService.reopenVerifiedProtocol(matchId, currentUserId(authentication))));
     }
 
     @PutMapping("/{matchId}/lineups/{teamId}")
@@ -121,10 +131,25 @@ public class MatchController {
             data.submittedAt(),
             data.submittedByUserId(),
             data.players().stream()
-                .map(player -> new MatchLineupPlayerResponse(player.playerId(), player.playerName(), player.isGoalkeeper(), player.sortOrder(), player.seasonId()))
+                .map(player -> new MatchLineupPlayerResponse(
+                    player.playerId(),
+                    player.playerName(),
+                    player.isGoalkeeper(),
+                    player.sortOrder(),
+                    player.seasonId(),
+                    player.suspended(),
+                    player.suspensionReason()
+                ))
                 .toList(),
             data.availablePlayers().stream()
-                .map(player -> new AvailableRosterPlayerResponse(player.playerId(), player.playerName(), player.isGoalkeeper(), player.seasonId()))
+                .map(player -> new AvailableRosterPlayerResponse(
+                    player.playerId(),
+                    player.playerName(),
+                    player.isGoalkeeper(),
+                    player.seasonId(),
+                    player.suspended(),
+                    player.suspensionReason()
+                ))
                 .toList()
         );
     }
@@ -222,14 +247,18 @@ public class MatchController {
         String playerName,
         boolean isGoalkeeper,
         int sortOrder,
-        Long seasonId
+        Long seasonId,
+        boolean suspended,
+        String suspensionReason
     ) {}
 
     public record AvailableRosterPlayerResponse(
         Long playerId,
         String playerName,
         boolean isGoalkeeper,
-        Long seasonId
+        Long seasonId,
+        boolean suspended,
+        String suspensionReason
     ) {}
 
     public record MatchProtocolUpsertRequest(

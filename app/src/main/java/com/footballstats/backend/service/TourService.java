@@ -1,6 +1,8 @@
 package com.footballstats.backend.service;
 
 import com.footballstats.backend.domain.Season;
+import com.footballstats.backend.domain.MatchProtocol;
+import com.footballstats.backend.domain.MatchProtocolStatus;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.Tour;
 import com.footballstats.backend.domain.TourMatch;
@@ -166,6 +168,16 @@ public class TourService {
         TourMatch match = tourMatchRepository.findByIdAndTour_Id(matchId, tourId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Матч тура не найден."));
         Long seasonId = tour.getSeason().getId();
+
+        MatchProtocol protocol = matchProtocolRepository.findByMatch_Id(matchId).orElse(null);
+        MatchProtocolStatus protocolStatus = protocol == null || protocol.getStatus() == null
+            ? MatchProtocolStatus.SCHEDULED
+            : protocol.getStatus();
+        if (protocolStatus != MatchProtocolStatus.SCHEDULED) {
+            throw new IllegalArgumentException(
+                "Нельзя удалить матч, если по нему уже поданы составы или заполнен протокол. Сначала верните матч в исходное состояние."
+            );
+        }
 
         tourMatchRepository.delete(match);
 

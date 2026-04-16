@@ -126,12 +126,13 @@
         </div>
 
         <div class="team-rep-inline-picker compact">
-          <select v-model="selectedAvailablePlayerId">
-            <option value="">Выберите игрока</option>
-            <option v-for="player in seasonSelectablePlayers" :key="player.id" :value="String(player.id)">
-              {{ formatPlayerOptionLabel(player) }}
-            </option>
-          </select>
+          <SearchableSelect
+            v-model="selectedAvailablePlayerId"
+            :options="seasonSelectablePlayerOptions"
+            placeholder="Выберите игрока"
+            search-placeholder="Начните вводить ФИО игрока"
+            empty-text="Игрок по такому ФИО не найден"
+          />
           <div class="actions-row team-rep-season-modal-actions">
             <button class="btn-primary" type="button" @click="addAvailablePlayerToSeason" :disabled="seasonLoading || !selectedAvailablePlayerId">
               Добавить
@@ -193,6 +194,7 @@
 import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const { user, isAuthenticated, hasRole, loadCurrentUser, authorizedApiRequest } = useAuth()
 const router = useRouter()
@@ -264,6 +266,15 @@ const seasonSelectablePlayers = computed(() => {
   return Array.from(combined.values()).sort((left, right) =>
     String(left.fullName || '').localeCompare(String(right.fullName || ''), 'ru', { sensitivity: 'base' })
   )
+})
+
+const seasonSelectablePlayerOptions = computed(() => {
+  return seasonSelectablePlayers.value.map((player) => ({
+    value: String(player.id),
+    label: formatPlayerOptionLabel(player),
+    caption: player.residence || '',
+    keywords: `${player.fullName || ''} ${player.residence || ''}`,
+  }))
 })
 
 watchEffect(() => {

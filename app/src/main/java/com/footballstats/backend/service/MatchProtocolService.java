@@ -43,6 +43,7 @@ public class MatchProtocolService {
     private final AccessControlService accessControlService;
     private final SeasonPlayerService seasonPlayerService;
     private final SeasonStandingsService seasonStandingsService;
+    private final SeasonDisciplineService seasonDisciplineService;
 
     public MatchProtocolService(
         TourMatchRepository tourMatchRepository,
@@ -53,7 +54,8 @@ public class MatchProtocolService {
         PlayerRepository playerRepository,
         AccessControlService accessControlService,
         SeasonPlayerService seasonPlayerService,
-        SeasonStandingsService seasonStandingsService
+        SeasonStandingsService seasonStandingsService,
+        SeasonDisciplineService seasonDisciplineService
     ) {
         this.tourMatchRepository = tourMatchRepository;
         this.matchProtocolRepository = matchProtocolRepository;
@@ -64,6 +66,7 @@ public class MatchProtocolService {
         this.accessControlService = accessControlService;
         this.seasonPlayerService = seasonPlayerService;
         this.seasonStandingsService = seasonStandingsService;
+        this.seasonDisciplineService = seasonDisciplineService;
     }
 
     @Transactional(readOnly = true)
@@ -98,6 +101,9 @@ public class MatchProtocolService {
         TourMatch match = getExistingDetailedMatch(matchId);
         MatchProtocol protocol = getOrCreateProtocol(match, actorUserId);
         MatchProtocolStatus previousStatus = protocol.getStatus();
+        MatchProtocolStatus nextStatus = status == null ? MatchProtocolStatus.SCHEDULED : status;
+
+        validateRequiredLineupsForProtocolStatus(match, nextStatus);
 
         boolean homeTech = Boolean.TRUE.equals(homeTechnicalDefeat);
         boolean awayTech = Boolean.TRUE.equals(awayTechnicalDefeat);
@@ -129,7 +135,7 @@ public class MatchProtocolService {
 
         List<MatchEvent> persistedEvents = matchEventRepository.findAllDetailedByMatchId(matchId);
 
-        protocol.setStatus(status == null ? MatchProtocolStatus.SCHEDULED : status);
+        protocol.setStatus(nextStatus);
         protocol.setHomeScore(scoreData.homeScore());
         protocol.setAwayScore(scoreData.awayScore());
         protocol.setHomeTechnicalDefeat(homeTech);
@@ -152,6 +158,25 @@ public class MatchProtocolService {
     }
 
     @Transactional
+    public MatchDetailsData reopenVerifiedProtocol(Long matchId, Long actorUserId) {
+        TourMatch match = getExistingDetailedMatch(matchId);
+        MatchProtocol protocol = match.getProtocol();
+
+        if (protocol == null || protocol.getStatus() != MatchProtocolStatus.VERIFIED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Повторно открыть можно только подтвержденный протокол.");
+        }
+
+        protocol.setStatus(MatchProtocolStatus.FINISHED);
+        protocol.setUpdatedByUserId(actorUserId);
+        protocol.setUpdatedAt(OffsetDateTime.now());
+        matchProtocolRepository.save(protocol);
+
+        seasonStandingsService.recalculateSeasonStandings(match.getTour().getSeason().getId(), actorUserId);
+
+        return getMatchDetails(matchId);
+    }
+
+    @Transactional
     public MatchDetailsData upsertLineup(
         Long matchId,
         Long teamId,
@@ -167,6 +192,7 @@ public class MatchProtocolService {
         }
 
         Long seasonId = match.getTour().getSeason().getId();
+        Map<Long, SeasonDisciplineService.PlayerMatchDiscipline> suspendedPlayers = seasonDisciplineService.getSuspendedPlayersForMatch(seasonId, matchId);
         List<PlayerTeam> eligibleRoster = seasonPlayerService.listEligibleRosterMemberships(lineupTeam.getId(), seasonId);
         Map<Long, Player> eligiblePlayers = new LinkedHashMap<>();
         for (PlayerTeam playerTeam : eligibleRoster) {
@@ -186,6 +212,9 @@ public class MatchProtocolService {
                     HttpStatus.BAD_REQUEST,
                     "В заявку можно добавлять только игроков команды, заявленных на сезон матча."
                 );
+            }
+            if (suspendedPlayers.containsKey(playerId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, suspendedPlayers.get(playerId).reason());
             }
         }
 
@@ -292,6 +321,7 @@ public class MatchProtocolService {
     private MatchLineupsData loadLineups(TourMatch match) {
         Long matchId = match.getId();
         Long seasonId = match.getTour().getSeason().getId();
+        Map<Long, SeasonDisciplineService.PlayerMatchDiscipline> suspendedPlayers = seasonDisciplineService.getSuspendedPlayersForMatch(seasonId, matchId);
 
         Map<Long, List<MatchLineupPlayer>> playersByTeamId = new LinkedHashMap<>();
         for (MatchLineupPlayer lineupPlayer : matchLineupPlayerRepository.findAllDetailedByMatchId(matchId)) {
@@ -304,8 +334,8 @@ public class MatchProtocolService {
             lineupsByTeamId.put(lineup.getTeam().getId(), lineup);
         }
 
-        TeamLineupData homeLineup = buildLineupData(match, match.getHomeTeam(), seasonId, lineupsByTeamId, playersByTeamId);
-        TeamLineupData awayLineup = buildLineupData(match, match.getAwayTeam(), seasonId, lineupsByTeamId, playersByTeamId);
+        TeamLineupData homeLineup = buildLineupData(match, match.getHomeTeam(), seasonId, lineupsByTeamId, playersByTeamId, suspendedPlayers);
+        TeamLineupData awayLineup = buildLineupData(match, match.getAwayTeam(), seasonId, lineupsByTeamId, playersByTeamId, suspendedPlayers);
         return new MatchLineupsData(homeLineup, awayLineup);
     }
 
@@ -314,7 +344,8 @@ public class MatchProtocolService {
         Team team,
         Long seasonId,
         Map<Long, MatchLineup> lineupsByTeamId,
-        Map<Long, List<MatchLineupPlayer>> playersByTeamId
+        Map<Long, List<MatchLineupPlayer>> playersByTeamId,
+        Map<Long, SeasonDisciplineService.PlayerMatchDiscipline> suspendedPlayers
     ) {
         MatchLineup lineup = lineupsByTeamId.get(team.getId());
         List<LineupPlayerData> players = playersByTeamId.getOrDefault(team.getId(), List.of()).stream()
@@ -323,7 +354,9 @@ public class MatchProtocolService {
                 item.getPlayer().getFullName(),
                 item.getPlayer().isGoalkeeper(),
                 item.getSortOrder(),
-                seasonId
+                seasonId,
+                suspendedPlayers.containsKey(item.getPlayer().getId()),
+                suspendedPlayers.containsKey(item.getPlayer().getId()) ? suspendedPlayers.get(item.getPlayer().getId()).reason() : null
             ))
             .toList();
         Set<Long> selectedPlayerIds = players.stream()
@@ -335,7 +368,9 @@ public class MatchProtocolService {
                 item.getPlayer().getId(),
                 item.getPlayer().getFullName(),
                 item.getPlayer().isGoalkeeper(),
-                seasonId
+                seasonId,
+                suspendedPlayers.containsKey(item.getPlayer().getId()),
+                suspendedPlayers.containsKey(item.getPlayer().getId()) ? suspendedPlayers.get(item.getPlayer().getId()).reason() : null
             ))
             .toList();
 
@@ -362,6 +397,21 @@ public class MatchProtocolService {
         protocol.setUpdatedByUserId(actorUserId);
         protocol.setUpdatedAt(OffsetDateTime.now());
         matchProtocolRepository.save(protocol);
+    }
+
+    private void validateRequiredLineupsForProtocolStatus(TourMatch match, MatchProtocolStatus status) {
+        if (status != MatchProtocolStatus.FINISHED && status != MatchProtocolStatus.VERIFIED) {
+            return;
+        }
+
+        boolean homeSubmitted = matchLineupRepository.existsByMatch_IdAndTeam_Id(match.getId(), match.getHomeTeam().getId());
+        boolean awaySubmitted = matchLineupRepository.existsByMatch_IdAndTeam_Id(match.getId(), match.getAwayTeam().getId());
+        if (!homeSubmitted || !awaySubmitted) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Нельзя завершить или подтвердить протокол, пока не поданы обе заявки на матч."
+            );
+        }
     }
 
     private void validateTechnicalDefeat(boolean homeTechnicalDefeat, boolean awayTechnicalDefeat) {
@@ -542,14 +592,18 @@ public class MatchProtocolService {
         String playerName,
         boolean isGoalkeeper,
         int sortOrder,
-        Long seasonId
+        Long seasonId,
+        boolean suspended,
+        String suspensionReason
     ) {}
 
     public record AvailablePlayerData(
         Long playerId,
         String playerName,
         boolean isGoalkeeper,
-        Long seasonId
+        Long seasonId,
+        boolean suspended,
+        String suspensionReason
     ) {}
 
     private record MatchLineupsData(

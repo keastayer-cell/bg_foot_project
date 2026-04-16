@@ -51,6 +51,7 @@
                 <div class="lineup-player-inline">
                   <span class="player-name-single-line">{{ player.playerName }}</span>
                   <span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
+                  <span v-if="player.suspended" class="player-suspension-badge" :title="player.suspensionReason || 'Игрок дисквалифицирован'">Дискв.</span>
                   <div class="player-stat-icons" v-if="hasVisibleSavedStats(lineup.teamId, player.playerId)">
                     <div class="stat-icon-group" v-if="savedStatsFor(lineup.teamId, player.playerId).goals > 0" aria-label="Голы">
                       <span class="goal-ball" v-for="index in repeatCount(savedStatsFor(lineup.teamId, player.playerId).goals)" :key="`goal-${player.playerId}-${index}`">⚽</span>
@@ -85,7 +86,9 @@
             </div>
 
             <p class="muted-text" v-if="lineup.availablePlayers?.length">Доступно к добавлению: {{ lineup.availablePlayers.length }}</p>
+            <p class="muted-text" v-if="availableSelectableCount(lineup) !== lineup.availablePlayers?.length">Из них доступны для выбора: {{ availableSelectableCount(lineup) }}. Игроки с дисквалификацией заблокированы.</p>
             <p class="empty-text" v-else>Для этой команды сейчас нет доступных игроков для добавления в состав матча.</p>
+            <p class="muted-text" v-if="suspendedAvailablePlayers(lineup).length">Недоступны: {{ suspendedAvailablePlayers(lineup).map((player) => player.playerName).join(', ') }}</p>
 
             <p class="error-text" v-if="lineupErrors[lineup.teamId]">{{ lineupErrors[lineup.teamId] }}</p>
             <p class="muted-text" v-else-if="lineupNotices[lineup.teamId]">{{ lineupNotices[lineup.teamId] }}</p>
@@ -95,7 +98,7 @@
                 class="btn-primary"
                 type="button"
                 @click="openAddPlayerModal(lineup.teamId)"
-                :disabled="Boolean(lineupSaving[lineup.teamId]) || !lineup.availablePlayers?.length"
+                :disabled="Boolean(lineupSaving[lineup.teamId]) || !availableSelectableCount(lineup)"
               >
                 Добавить игрока
               </button>
@@ -107,7 +110,7 @@
         </article>
       </section>
 
-      <article class="match-section protocol-editor-card" v-if="canEditProtocol()">
+      <article class="match-section protocol-editor-card" v-if="showProtocolEditor">
         <div class="section-head match-section-head">
           <div>
             <h3 class="section-title">Протокол матча</h3>
@@ -209,6 +212,25 @@
         </template>
       </article>
 
+      <article class="match-section protocol-editor-card" v-else-if="canReopenVerifiedProtocol">
+        <div class="section-head match-section-head">
+          <div>
+            <h3 class="section-title">Протокол матча</h3>
+            <p class="muted-text">Протокол подтвержден и открыт только для просмотра. Чтобы снова менять счет, составы и статистику, сначала переведите его обратно в редактирование.</p>
+          </div>
+          <span class="muted-text">SUPER_ADMIN</span>
+        </div>
+
+        <p class="error-text" v-if="protocolError">{{ protocolError }}</p>
+        <p class="muted-text" v-else-if="protocolNotice">{{ protocolNotice }}</p>
+
+        <div class="protocol-editor-actions protocol-editor-actions-bottom">
+          <button class="btn-primary" type="button" @click="reopenVerifiedProtocol" :disabled="protocolSaving">
+            {{ protocolSaving ? 'Сохранение...' : 'Изменить протокол' }}
+          </button>
+        </div>
+      </article>
+
       <div v-if="activeLineupForModal" class="modal-backdrop" @click.self="closeAddPlayerModal">
         <article class="card auth-modal team-rep-modal lineup-modal">
           <div class="toolbar auth-modal-head">
@@ -220,12 +242,20 @@
           </div>
 
           <div class="lineup-modal-body">
-            <select v-model="selectedAvailablePlayerId">
-              <option value="">Выберите игрока</option>
-              <option v-for="player in activeLineupForModal.availablePlayers" :key="player.playerId" :value="String(player.playerId)">
-                {{ formatPlayerOptionLabel(player) }}
-              </option>
-            </select>
+            <SearchableSelect
+              v-model="selectedAvailablePlayerId"
+              :options="activeLineupPlayerOptions"
+              placeholder="Выберите игрока"
+              search-placeholder="Начните вводить ФИО игрока"
+              empty-text="Игрок по такому ФИО не найден"
+            />
+
+            <div v-if="suspendedAvailablePlayers(activeLineupForModal).length" class="lineup-suspension-list">
+              <p class="muted-text">Дисквалифицированы на этот матч:</p>
+              <p v-for="player in suspendedAvailablePlayers(activeLineupForModal)" :key="`susp-${player.playerId}`" class="muted-text">
+                {{ player.playerName }}: {{ player.suspensionReason || 'Игрок временно недоступен' }}
+              </p>
+            </div>
 
             <p class="error-text" v-if="lineupErrors[activeLineupForModal.teamId]">{{ lineupErrors[activeLineupForModal.teamId] }}</p>
 
@@ -250,6 +280,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '../store/auth'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const route = useRoute()
 const { optionalAuthApiRequest, authorizedApiRequest, user, hasRole } = useAuth()
@@ -276,10 +307,32 @@ const activeLineupForModal = computed(() => {
   return lineupCards.value.find((lineup) => String(lineup.teamId) === String(addPlayerModalTeamId.value)) || null
 })
 
+const activeLineupPlayerOptions = computed(() => {
+  return (activeLineupForModal.value?.availablePlayers || []).map((player) => ({
+    value: String(player.playerId),
+    label: formatPlayerOptionLabel(player),
+    caption: player.suspensionReason || '',
+    keywords: `${player.playerName || ''} ${player.suspensionReason || ''}`,
+    disabled: Boolean(player.suspended),
+  }))
+})
+
 const savedStatsMap = computed(() => buildSavedStatsMap(match.value?.protocol?.events || []))
 
 const hasSubmittedLineups = computed(() => {
   return lineupCards.value.length === 2 && lineupCards.value.every((lineup) => Boolean(lineup.submittedAt))
+})
+
+const isVerifiedProtocol = computed(() => {
+  return match.value?.protocol?.status === 'VERIFIED'
+})
+
+const canReopenVerifiedProtocol = computed(() => {
+  return canEditProtocol() && isVerifiedProtocol.value
+})
+
+const showProtocolEditor = computed(() => {
+  return canEditProtocol() && !isVerifiedProtocol.value
 })
 
 const isTechnicalDefeatDraft = computed(() => {
@@ -332,6 +385,7 @@ function canEditProtocol() {
 
 function canEditLineup(teamId) {
   if (!user.value) return false
+  if (isVerifiedProtocol.value) return false
   if (hasRole('SUPER_ADMIN')) return true
   if (!hasRole('TEAM_REP')) return false
   return String(user.value.teamId || '') === String(teamId) && Boolean(user.value.teamScope?.canEditRoster)
@@ -357,10 +411,12 @@ async function openAddPlayerModal(teamId) {
   pageError.value = ''
   await refreshMatch()
   const lineup = lineupByTeamId(teamId)
-  if (!lineup?.availablePlayers?.length) {
+  if (!availableSelectableCount(lineup)) {
     lineupNotices.value = {
       ...lineupNotices.value,
-      [teamId]: 'Для этой команды сейчас нет доступных игроков для добавления.',
+      [teamId]: lineup?.availablePlayers?.length
+        ? 'Все оставшиеся игроки этой команды сейчас дисквалифицированы на матч.'
+        : 'Для этой команды сейчас нет доступных игроков для добавления.',
     }
     return
   }
@@ -547,6 +603,27 @@ async function saveProtocol(asVerified) {
   }
 }
 
+async function reopenVerifiedProtocol() {
+  if (!match.value?.id) return
+
+  protocolSaving.value = true
+  protocolError.value = ''
+  protocolNotice.value = ''
+
+  try {
+    const response = await authorizedApiRequest(`/api/matches/${encodeURIComponent(match.value.id)}/protocol/reopen`, {
+      method: 'POST',
+    })
+    match.value = response
+    syncProtocolDraft(response)
+    protocolNotice.value = 'Протокол выведен из подтвержденного статуса. Теперь его можно редактировать.'
+  } catch (error) {
+    protocolError.value = error.message || 'Не удалось перевести протокол обратно в редактирование.'
+  } finally {
+    protocolSaving.value = false
+  }
+}
+
 function buildProtocolPayload(asVerified) {
   const homeTechnicalDefeat = Boolean(protocolDraft.value.homeTechnicalDefeat)
   const awayTechnicalDefeat = Boolean(protocolDraft.value.awayTechnicalDefeat)
@@ -692,7 +769,17 @@ function repeatCount(count) {
 
 function formatPlayerOptionLabel(player) {
   if (!player) return ''
-  return `${player.playerName || ''}${player.isGoalkeeper ? ' 🧤' : ''}`
+  return `${player.playerName || ''}${player.isGoalkeeper ? ' 🧤' : ''}${player.suspended ? ' [дисквалифицирован]' : ''}`
+}
+
+function availableSelectableCount(lineup) {
+  if (!lineup?.availablePlayers?.length) return 0
+  return lineup.availablePlayers.filter((player) => !player.suspended).length
+}
+
+function suspendedAvailablePlayers(lineup) {
+  if (!lineup?.availablePlayers?.length) return []
+  return lineup.availablePlayers.filter((player) => player.suspended)
 }
 
 function formatDateTime(value) {
@@ -822,9 +909,10 @@ function lineupSubmittedLabel(lineup) {
 .match-team-logo {
   width: 68px;
   height: 68px;
+  padding: 6px;
   border-radius: 50%;
-  object-fit: cover;
-  background: #f5ede8;
+  object-fit: contain;
+  background: rgba(245, 237, 232, 0.92);
 }
 
 .match-score-card {
@@ -970,6 +1058,19 @@ function lineupSubmittedLabel(lineup) {
   line-height: 1;
 }
 
+.player-suspension-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 114, 114, 0.14);
+  border: 1px solid rgba(255, 114, 114, 0.28);
+  color: #ffb1b1;
+  font-size: 0.7rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .player-stat-icons,
 .player-stat-inputs {
   display: flex;
@@ -1049,6 +1150,15 @@ function lineupSubmittedLabel(lineup) {
 .lineup-modal-body {
   display: grid;
   gap: 14px;
+}
+
+.lineup-suspension-list {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 114, 114, 0.08);
+  border: 1px solid rgba(255, 114, 114, 0.14);
 }
 
 .btn-compact {

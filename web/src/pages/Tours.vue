@@ -774,11 +774,13 @@ onMounted(async () => {
 }
 
 .team-logo {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
+  padding: 3px;
   border-radius: 50%;
-  object-fit: cover;
-  background: #f5ede8;
+  object-fit: contain;
+  background: rgba(245, 237, 232, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .tour-list {
@@ -1251,8 +1253,9 @@ onMounted(async () => {
   }
 
   .team-cell-mobile .team-logo {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
+    padding: 2px;
   }
 }
 </style>
