@@ -20,10 +20,14 @@ public class JwtService {
     private final long expiresMinutes;
 
     public JwtService(
-        @Value("${JWT_SECRET:football_stats_app_super_secret_key_change_me_1234567890}") String jwtSecret,
+        @Value("${JWT_SECRET:}") String jwtSecret,
         @Value("${JWT_EXPIRES_MINUTES:480}") long expiresMinutes
     ) {
-        this.secretKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        String normalizedSecret = String.valueOf(jwtSecret == null ? "" : jwtSecret).trim();
+        if (normalizedSecret.length() < 32) {
+            throw new IllegalStateException("JWT_SECRET должен быть задан через окружение и содержать не менее 32 символов.");
+        }
+        this.secretKey = Keys.hmacShaKeyFor(normalizedSecret.getBytes(StandardCharsets.UTF_8));
         this.expiresMinutes = expiresMinutes;
     }
 

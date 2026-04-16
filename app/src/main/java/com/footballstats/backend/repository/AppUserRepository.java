@@ -15,6 +15,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     Optional<AppUser> findByEmailIgnoreCase(String email);
 
+    Optional<AppUser> findByPasswordResetTokenHash(String passwordResetTokenHash);
+
     @Query("""
         SELECT u
         FROM AppUser u

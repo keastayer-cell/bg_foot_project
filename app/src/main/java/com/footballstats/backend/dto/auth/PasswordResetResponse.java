@@ -1,17 +1,19 @@
 package com.footballstats.backend.dto.auth;
 
+import java.time.OffsetDateTime;
+
 public class PasswordResetResponse {
 
     private Long userId;
     private String email;
-    private boolean mustChangePassword;
-    private String temporaryPassword;
+    private String resetPath;
+    private OffsetDateTime expiresAt;
 
-    public PasswordResetResponse(Long userId, String email, boolean mustChangePassword, String temporaryPassword) {
+    public PasswordResetResponse(Long userId, String email, String resetPath, OffsetDateTime expiresAt) {
         this.userId = userId;
         this.email = email;
-        this.mustChangePassword = mustChangePassword;
-        this.temporaryPassword = temporaryPassword;
+        this.resetPath = resetPath;
+        this.expiresAt = expiresAt;
     }
 
     public Long getUserId() {
@@ -22,11 +24,11 @@ public class PasswordResetResponse {
         return email;
     }
 
-    public boolean isMustChangePassword() {
-        return mustChangePassword;
+    public String getResetPath() {
+        return resetPath;
     }
 
-    public String getTemporaryPassword() {
-        return temporaryPassword;
+    public OffsetDateTime getExpiresAt() {
+        return expiresAt;
     }
 }

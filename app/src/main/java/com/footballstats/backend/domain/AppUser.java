@@ -35,6 +35,12 @@ public class AppUser {
     @Column(name = "password_changed_at")
     private OffsetDateTime passwordChangedAt;
 
+    @Column(name = "password_reset_token_hash", length = 128)
+    private String passwordResetTokenHash;
+
+    @Column(name = "password_reset_expires_at")
+    private OffsetDateTime passwordResetExpiresAt;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -88,6 +94,22 @@ public class AppUser {
 
     public void setPasswordChangedAt(OffsetDateTime passwordChangedAt) {
         this.passwordChangedAt = passwordChangedAt;
+    }
+
+    public String getPasswordResetTokenHash() {
+        return passwordResetTokenHash;
+    }
+
+    public void setPasswordResetTokenHash(String passwordResetTokenHash) {
+        this.passwordResetTokenHash = passwordResetTokenHash;
+    }
+
+    public OffsetDateTime getPasswordResetExpiresAt() {
+        return passwordResetExpiresAt;
+    }
+
+    public void setPasswordResetExpiresAt(OffsetDateTime passwordResetExpiresAt) {
+        this.passwordResetExpiresAt = passwordResetExpiresAt;
     }
 
     public OffsetDateTime getCreatedAt() {

@@ -17,8 +17,8 @@ public class AuthCookieService {
 
     public AuthCookieService(
         @Value("${JWT_REFRESH_EXPIRES_DAYS:30}") long refreshExpiresDays,
-        @Value("${AUTH_REFRESH_COOKIE_SECURE:false}") boolean secureCookie,
-        @Value("${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}") String sameSite
+        @Value("${AUTH_REFRESH_COOKIE_SECURE:true}") boolean secureCookie,
+        @Value("${AUTH_REFRESH_COOKIE_SAME_SITE:Strict}") String sameSite
     ) {
         this.refreshExpiresDays = refreshExpiresDays;
         this.secureCookie = secureCookie;

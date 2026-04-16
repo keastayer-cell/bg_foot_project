@@ -576,9 +576,13 @@
         </div>
 
         <article v-if="passwordResetResult" class="card admin-reset-password-card">
-          <p><strong>Временный пароль:</strong> {{ passwordResetResult.temporaryPassword }}</p>
+          <p><strong>Одноразовая ссылка:</strong></p>
+          <p class="admin-reset-password-link">{{ absolutePasswordResetLink }}</p>
+          <div class="actions-row">
+            <button class="btn-ghost btn-sm" type="button" @click="copyPasswordResetLink">Скопировать ссылку</button>
+          </div>
           <p class="muted-text">
-            Передайте этот пароль пользователю вручную. После входа система сразу потребует задать новый пароль.
+            Ссылка действует до {{ formatDateTime(passwordResetResult.expiresAt) }}. Передайте ее пользователю по безопасному каналу. После установки нового пароля ссылка станет недействительной.
           </p>
         </article>
 
@@ -913,6 +917,17 @@ const repHasMultipleTeamScopes = computed(() => repTeamScopes.value.length > 1)
 
 const repPrimaryActionLabel = computed(() => {
   return repCurrentTeamScope.value ? 'Изменить команду' : 'Назначить команду'
+})
+
+const absolutePasswordResetLink = computed(() => {
+  const resetPath = String(passwordResetResult.value?.resetPath || '').trim()
+  if (!resetPath) {
+    return ''
+  }
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return resetPath
+  }
+  return `${window.location.origin}${resetPath}`
 })
 
 const seasonSelectedTeams = computed(() => {
@@ -2157,9 +2172,25 @@ async function resetPasswordForFoundUser() {
     })
     passwordResetResult.value = payload
     await refreshFoundUserAccess()
-    messageOk.value = 'Пароль пользователя сброшен.'
+    messageOk.value = 'Одноразовая ссылка для установки нового пароля создана.'
   } catch (error) {
     messageError.value = error.message || 'Не удалось сбросить пароль пользователя.'
+  }
+}
+
+async function copyPasswordResetLink() {
+  resetMessages()
+  const link = absolutePasswordResetLink.value
+  if (!link) {
+    messageError.value = 'Ссылка для сброса пароля недоступна.'
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(link)
+    messageOk.value = 'Ссылка скопирована в буфер обмена.'
+  } catch {
+    messageError.value = 'Не удалось скопировать ссылку. Скопируйте ее вручную.'
   }
 }
 

@@ -7,6 +7,7 @@ import Admin from '../pages/Admin.vue'
 import ApiExplorer from '../pages/ApiExplorer.vue'
 import ApiExplorerTest from '../pages/ApiExplorerTest.vue'
 import CreateMatch from '../pages/CreateMatch.vue'
+import ResetPasswordPage from '../pages/ResetPasswordPage.vue'
 import TeamRepDashboard from '../pages/TeamRepDashboard.vue'
 import { useAuth } from '../store/auth'
 
@@ -19,8 +20,9 @@ const router = createRouter({
     { path: '/create', component: CreateMatch, meta: { requiresAuth: true } },
     { path: '/admin', component: Admin, meta: { requiresAuth: true, requiresSuperAdmin: true } },
     { path: '/team-rep-dashboard', component: TeamRepDashboard, meta: { requiresAuth: true, requiresTeamRep: true } },
-    { path: '/api-explorer', component: ApiExplorer },
-    { path: '/api-explorer/test/:endpointKey', component: ApiExplorerTest },
+    { path: '/reset-password', component: ResetPasswordPage },
+    { path: '/api-explorer', component: ApiExplorer, meta: { requiresAuth: true, requiresSuperAdmin: true } },
+    { path: '/api-explorer/test/:endpointKey', component: ApiExplorerTest, meta: { requiresAuth: true, requiresSuperAdmin: true } },
     { path: '/match/:id', component: Match }
   ]
 })

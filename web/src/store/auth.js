@@ -1,6 +1,5 @@
 import { computed, ref } from 'vue'
 
-const STORAGE_KEY = 'football_stats_auth'
 const PERSISTENT_SESSION_KEY = 'football_stats_persistent_session'
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 const isDev = import.meta.env.DEV
@@ -67,34 +66,6 @@ function resolveTeamName(rawUser) {
   return TEAM_POOL[hashString(seed) % TEAM_POOL.length]
 }
 
-function restoreAuth() {
-  const raw = sessionStorage.getItem(STORAGE_KEY)
-  if (!raw) return
-
-  try {
-    const parsed = JSON.parse(raw)
-    token.value = parsed.token || ''
-    user.value = parsed.user || null
-  } catch {
-    sessionStorage.removeItem(STORAGE_KEY)
-  }
-}
-
-function persistAuth() {
-  if (!token.value && !user.value) {
-    sessionStorage.removeItem(STORAGE_KEY)
-    return
-  }
-
-  sessionStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      token: token.value,
-      user: user.value,
-    })
-  )
-}
-
 function setPersistentSession(enabled) {
   if (enabled) {
     localStorage.setItem(PERSISTENT_SESSION_KEY, '1')
@@ -110,7 +81,6 @@ function hasPersistentSessionHint() {
 function clearLocalAuthState() {
   token.value = ''
   user.value = null
-  sessionStorage.removeItem(STORAGE_KEY)
   setPersistentSession(false)
 }
 
@@ -212,7 +182,6 @@ function applyAuthResponse(payload) {
     mustChangePassword: Boolean(payload.mustChangePassword),
     teamName: resolveTeamName(payload),
   }
-  persistAuth()
 }
 
 async function register({ email, name, password }) {
@@ -284,8 +253,6 @@ async function loadCurrentUser() {
   } else {
     user.value.teamName = resolveTeamName(user.value)
   }
-
-  persistAuth()
   return user.value
 }
 
@@ -421,8 +388,6 @@ async function logout({ remote = true, suppressErrors = false } = {}) {
     clearLocalAuthState()
   }
 }
-
-restoreAuth()
 
 const isAuthenticated = computed(() => Boolean(token.value))
 

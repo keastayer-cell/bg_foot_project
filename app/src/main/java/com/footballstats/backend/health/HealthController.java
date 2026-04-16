@@ -1,6 +1,7 @@
 package com.footballstats.backend.health;
 
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,6 +28,7 @@ public class HealthController {
     }
 
     @GetMapping("/db")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public Map<String, Object> dbHealth() {
         String database = jdbcTemplate.queryForObject("select current_database()", String.class);
         String user = jdbcTemplate.queryForObject("select current_user", String.class);

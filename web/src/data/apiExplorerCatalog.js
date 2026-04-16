@@ -27,8 +27,8 @@ export const endpointGroups = [
         access: 'Публичный endpoint',
         auth: false,
         bodyExample: {
-          email: 'keastayer@gmail.com',
-          password: 'AntonAdmin2026!',
+          email: 'admin@example.com',
+          password: 'set-a-real-password',
         },
       },
       {
@@ -61,8 +61,8 @@ export const endpointGroups = [
         access: 'USER / TEAM_REP / SUPER_ADMIN',
         auth: true,
         bodyExample: {
-          currentPassword: 'Football2026!',
-          newPassword: 'MyNewStrongPassword123!',
+          currentPassword: 'current-password-here',
+          newPassword: 'new-strong-password-here',
         },
       },
     ],
@@ -772,12 +772,25 @@ export const endpointGroups = [
         title: 'Сбросить пароль пользователя',
         method: 'POST',
         path: '/api/admin/access/users/{userId}/reset-password',
-        description: 'Сбрасывает пароль пользователя на временный пароль по регламенту и включает обязательную смену пароля после входа.',
+        description: 'Создает одноразовую ссылку для установки нового пароля и инвалидирует текущие сессии пользователя.',
         access: 'SUPER_ADMIN',
         auth: true,
         pathParams: [
           { name: 'userId', placeholder: 'например 6' },
         ],
+      },
+      {
+        key: 'auth-password-reset-complete',
+        title: 'Завершить сброс пароля по ссылке',
+        method: 'POST',
+        path: '/api/auth/password-reset/complete',
+        description: 'Использует одноразовый токен из ссылки администратора и устанавливает новый пароль пользователя.',
+        access: 'Публичный endpoint по одноразовому токену',
+        auth: false,
+        bodyExample: {
+          token: 'reset-token-from-link',
+          newPassword: 'new-strong-password-here',
+        },
       },
       {
         key: 'admin-team-scope-assign',

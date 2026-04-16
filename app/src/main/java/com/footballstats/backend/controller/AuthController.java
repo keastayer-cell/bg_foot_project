@@ -11,7 +11,10 @@ import com.footballstats.backend.service.AuthCookieService;
 import com.footballstats.backend.service.AuthService;
 import com.footballstats.backend.service.RefreshTokenService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -31,11 +34,18 @@ public class AuthController {
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
     private final AuthCookieService authCookieService;
+    private final boolean trustForwardHeaders;
 
-    public AuthController(AuthService authService, RefreshTokenService refreshTokenService, AuthCookieService authCookieService) {
+    public AuthController(
+        AuthService authService,
+        RefreshTokenService refreshTokenService,
+        AuthCookieService authCookieService,
+        @Value("${APP_TRUST_FORWARD_HEADERS:false}") boolean trustForwardHeaders
+    ) {
         this.authService = authService;
         this.refreshTokenService = refreshTokenService;
         this.authCookieService = authCookieService;
+        this.trustForwardHeaders = trustForwardHeaders;
     }
 
     @PostMapping("/register")
@@ -98,6 +108,12 @@ public class AuthController {
             .build();
     }
 
+    @PostMapping("/password-reset/complete")
+    public ResponseEntity<Void> completePasswordReset(@Valid @RequestBody CompletePasswordResetRequest request) {
+        authService.completePasswordReset(request.token(), request.newPassword());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me(@RequestHeader("Authorization") String authHeader) {
         return ResponseEntity.ok(authService.getCurrentUser(authHeader));
@@ -126,10 +142,23 @@ public class AuthController {
     }
 
     private String extractClientIp(HttpServletRequest request) {
+        if (!trustForwardHeaders) {
+            return request.getRemoteAddr();
+        }
+
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
+            String candidate = forwardedFor.split(",")[0].trim();
+            if (!candidate.isEmpty() && candidate.length() <= 64 && candidate.chars().noneMatch(Character::isWhitespace)) {
+                return candidate;
+            }
         }
         return request.getRemoteAddr();
+    }
+
+    public record CompletePasswordResetRequest(
+        @NotBlank(message = "Токен обязателен.") String token,
+        @NotBlank(message = "Новый пароль обязателен.") @Size(min = 8, max = 120, message = "Новый пароль должен содержать от 8 до 120 символов.") String newPassword
+    ) {
     }
 }
