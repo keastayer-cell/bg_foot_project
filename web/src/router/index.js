@@ -25,10 +25,14 @@ const router = createRouter({
   ]
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (!to.meta.requiresAuth) return true
 
-  const { isAuthenticated, hasRole } = useAuth()
+  const { isAuthenticated, hasRole, ensureSession } = useAuth()
+  if (!isAuthenticated.value) {
+    await ensureSession({ forceRefresh: true })
+  }
+
   if (!isAuthenticated.value) {
     return '/'
   }

@@ -156,6 +156,17 @@ public class AuthService {
         );
     }
 
+    public AuthResponse buildAuthResponseForUserId(Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Пользователь больше не найден. Войдите снова.");
+        }
+
+        AppUser user = appUserRepository.findById(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Пользователь больше не найден. Войдите снова."));
+
+        return buildAuthResponse(user);
+    }
+
     private Integer readTokenVersion(Object versionClaim) {
         if (versionClaim == null) {
             return 0;

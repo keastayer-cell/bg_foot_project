@@ -163,7 +163,7 @@ import { useRouter } from 'vue-router'
 import { useAuth } from './store/auth'
 import bogorodskCoat from './assets/bogorodsk-coat.png'
 
-const { user, isAuthenticated, register, login, logout, changePassword, loadCurrentUser, hasRole } = useAuth()
+const { user, isAuthenticated, register, login, logout, changePassword, ensureSession, hasRole } = useAuth()
 const router = useRouter()
 
 const authModalOpen = ref(false)
@@ -283,8 +283,8 @@ async function submitPasswordChange() {
   }
 }
 
-function handleLogout() {
-  logout()
+async function handleLogout() {
+  await logout({ remote: true, suppressErrors: true })
   router.replace('/')
 }
 
@@ -297,13 +297,11 @@ function canSeeAdmin() {
 }
 
 onMounted(async () => {
-  if (!isAuthenticated.value) return
-
   try {
-    await loadCurrentUser()
+    await ensureSession({ forceRefresh: isAuthenticated.value })
     syncPasswordChangeModal()
   } catch {
-    logout()
+    await logout({ remote: true, suppressErrors: true })
   }
 })
 

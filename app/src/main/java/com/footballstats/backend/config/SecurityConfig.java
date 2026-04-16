@@ -55,7 +55,7 @@ public class SecurityConfig {
                 .accessDeniedHandler(jsonAccessDeniedHandler)
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/guest").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/guest", "/api/auth/refresh", "/api/auth/logout").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/change-password").authenticated()
                 .requestMatchers("/api/health", "/api/health/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
