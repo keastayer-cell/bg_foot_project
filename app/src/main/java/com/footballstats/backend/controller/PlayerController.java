@@ -149,7 +149,7 @@ public class PlayerController {
     // POST /api/players — создать игрока (только SUPER_ADMIN)
     // ----------------------------------------------------------------
     @PostMapping("/players")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<PlayerResponse> createPlayer(@Valid @RequestBody PlayerUpsertRequest request, Authentication authentication) {
         if (playerRepository.existsByFullNameIgnoreCase(request.fullName())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Игрок с таким именем уже существует.");
@@ -180,7 +180,7 @@ public class PlayerController {
     }
 
     @PutMapping("/players/{playerId}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     @Transactional
     public ResponseEntity<PlayerResponse> updatePlayer(
         @PathVariable Long playerId,
@@ -228,7 +228,7 @@ public class PlayerController {
     }
 
     @DeleteMapping("/players/{playerId}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<Void> deactivatePlayer(@PathVariable Long playerId, Authentication authentication) {
         Player player = playerRepository.findById(playerId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Игрок не найден."));

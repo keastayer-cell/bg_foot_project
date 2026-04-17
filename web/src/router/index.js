@@ -18,7 +18,7 @@ const router = createRouter({
     { path: '/players', component: Players },
     { path: '/teams', component: Teams },
     { path: '/create', component: CreateMatch, meta: { requiresAuth: true } },
-    { path: '/admin', component: Admin, meta: { requiresAuth: true, requiresSuperAdmin: true } },
+    { path: '/admin', component: Admin, meta: { requiresAuth: true, requiresAdminPanel: true } },
     { path: '/team-rep-dashboard', component: TeamRepDashboard, meta: { requiresAuth: true, requiresTeamRep: true } },
     { path: '/reset-password', component: ResetPasswordPage },
     { path: '/api-explorer', component: ApiExplorer, meta: { requiresAuth: true, requiresSuperAdmin: true } },
@@ -40,6 +40,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresSuperAdmin && !hasRole('SUPER_ADMIN')) return '/'
+  if (to.meta.requiresAdminPanel && !hasRole('SUPER_ADMIN') && !hasRole('REFEREE')) return '/'
   if (to.meta.requiresTeamRep && !hasRole('TEAM_REP')) return '/'
 
   return true

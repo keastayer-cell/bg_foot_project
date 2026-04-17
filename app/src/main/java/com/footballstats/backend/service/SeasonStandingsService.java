@@ -8,6 +8,7 @@ import com.footballstats.backend.domain.SeasonStandingsRow;
 import com.footballstats.backend.domain.SeasonTeam;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.TourMatch;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.footballstats.backend.repository.SeasonRepository;
 import com.footballstats.backend.repository.SeasonStandingsConfigRepository;
 import com.footballstats.backend.repository.SeasonStandingsRowRepository;
@@ -20,10 +21,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class SeasonStandingsService {
@@ -33,19 +36,22 @@ public class SeasonStandingsService {
     private final TourMatchRepository tourMatchRepository;
     private final SeasonStandingsConfigRepository seasonStandingsConfigRepository;
     private final SeasonStandingsRowRepository seasonStandingsRowRepository;
+    private final ObjectMapper objectMapper;
 
     public SeasonStandingsService(
         SeasonRepository seasonRepository,
         SeasonTeamRepository seasonTeamRepository,
         TourMatchRepository tourMatchRepository,
         SeasonStandingsConfigRepository seasonStandingsConfigRepository,
-        SeasonStandingsRowRepository seasonStandingsRowRepository
+        SeasonStandingsRowRepository seasonStandingsRowRepository,
+        ObjectMapper objectMapper
     ) {
         this.seasonRepository = seasonRepository;
         this.seasonTeamRepository = seasonTeamRepository;
         this.tourMatchRepository = tourMatchRepository;
         this.seasonStandingsConfigRepository = seasonStandingsConfigRepository;
         this.seasonStandingsRowRepository = seasonStandingsRowRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -78,6 +84,7 @@ public class SeasonStandingsService {
             table.put(team.getId(), new StandingsAccumulator(team));
         }
 
+        List<MatchResult> matchResults = new ArrayList<>();
         List<TourMatch> matches = tourMatchRepository.findAllActiveDetailedByPublishedSeasonId(seasonId);
         for (TourMatch match : matches) {
             MatchProtocol protocol = match.getProtocol();
@@ -95,14 +102,16 @@ public class SeasonStandingsService {
             }
 
             applyMatchResult(home, away, protocol.getHomeScore(), protocol.getAwayScore(), config);
+            matchResults.add(new MatchResult(
+                match.getHomeTeam().getId(),
+                match.getAwayTeam().getId(),
+                protocol.getHomeScore(),
+                protocol.getAwayScore()
+            ));
         }
 
-        List<StandingsAccumulator> sortedRows = new ArrayList<>(table.values());
-        sortedRows.sort(Comparator
-            .comparingInt(StandingsAccumulator::points).reversed()
-            .thenComparingInt(StandingsAccumulator::goalDifference).reversed()
-            .thenComparingInt(StandingsAccumulator::goalsFor).reversed()
-            .thenComparing(item -> item.team().getName(), String.CASE_INSENSITIVE_ORDER));
+        List<String> rankingRules = StandingsRankingRules.fromJson(config.getRankingRulesJson(), objectMapper);
+        List<StandingsAccumulator> sortedRows = sortByRules(new ArrayList<>(table.values()), rankingRules, matchResults, config);
 
         seasonStandingsRowRepository.deleteAllBySeason_Id(seasonId);
         seasonStandingsRowRepository.flush();
@@ -131,6 +140,93 @@ public class SeasonStandingsService {
         config.setUpdatedByUserId(actorUserId);
         config.setUpdatedAt(now);
         seasonStandingsConfigRepository.save(config);
+    }
+
+    private List<StandingsAccumulator> sortByRules(
+        List<StandingsAccumulator> group,
+        List<String> rules,
+        List<MatchResult> matchResults,
+        SeasonStandingsConfig config
+    ) {
+        if (group.size() <= 1) {
+            return group;
+        }
+        if (rules.isEmpty()) {
+            group.sort((left, right) -> left.team().getName().compareToIgnoreCase(right.team().getName()));
+            return group;
+        }
+
+        String currentRule = rules.get(0);
+        List<String> remainingRules = rules.subList(1, rules.size());
+        if (StandingsRankingRules.ALPHABETICAL.equals(currentRule)) {
+            group.sort((left, right) -> left.team().getName().compareToIgnoreCase(right.team().getName()));
+            return group;
+        }
+
+        Map<Long, Integer> headToHeadPoints = StandingsRankingRules.HEAD_TO_HEAD.equals(currentRule)
+            ? calculateHeadToHeadPoints(group, matchResults, config)
+            : Map.of();
+
+        Map<Integer, List<StandingsAccumulator>> buckets = new HashMap<>();
+        for (StandingsAccumulator accumulator : group) {
+            int metric = resolveMetric(currentRule, accumulator, headToHeadPoints);
+            buckets.computeIfAbsent(metric, ignored -> new ArrayList<>()).add(accumulator);
+        }
+
+        List<Integer> orderedMetrics = new ArrayList<>(buckets.keySet());
+        orderedMetrics.sort((left, right) -> Integer.compare(right, left));
+
+        List<StandingsAccumulator> ranked = new ArrayList<>();
+        for (Integer metric : orderedMetrics) {
+            ranked.addAll(sortByRules(buckets.get(metric), remainingRules, matchResults, config));
+        }
+        return ranked;
+    }
+
+    private Map<Long, Integer> calculateHeadToHeadPoints(
+        List<StandingsAccumulator> group,
+        List<MatchResult> matchResults,
+        SeasonStandingsConfig config
+    ) {
+        Set<Long> teamIds = new LinkedHashSet<>();
+        for (StandingsAccumulator accumulator : group) {
+            teamIds.add(accumulator.team().getId());
+        }
+
+        Map<Long, Integer> pointsByTeamId = new HashMap<>();
+        for (Long teamId : teamIds) {
+            pointsByTeamId.put(teamId, 0);
+        }
+
+        for (MatchResult matchResult : matchResults) {
+            if (!teamIds.contains(matchResult.homeTeamId()) || !teamIds.contains(matchResult.awayTeamId())) {
+                continue;
+            }
+
+            if (matchResult.homeScore() > matchResult.awayScore()) {
+                pointsByTeamId.computeIfPresent(matchResult.homeTeamId(), (ignored, value) -> value + config.getWinPoints());
+                pointsByTeamId.computeIfPresent(matchResult.awayTeamId(), (ignored, value) -> value + config.getLossPoints());
+            } else if (matchResult.homeScore() < matchResult.awayScore()) {
+                pointsByTeamId.computeIfPresent(matchResult.awayTeamId(), (ignored, value) -> value + config.getWinPoints());
+                pointsByTeamId.computeIfPresent(matchResult.homeTeamId(), (ignored, value) -> value + config.getLossPoints());
+            } else {
+                pointsByTeamId.computeIfPresent(matchResult.homeTeamId(), (ignored, value) -> value + config.getDrawPoints());
+                pointsByTeamId.computeIfPresent(matchResult.awayTeamId(), (ignored, value) -> value + config.getDrawPoints());
+            }
+        }
+
+        return pointsByTeamId;
+    }
+
+    private int resolveMetric(String rule, StandingsAccumulator accumulator, Map<Long, Integer> headToHeadPoints) {
+        return switch (rule) {
+            case StandingsRankingRules.POINTS -> accumulator.points();
+            case StandingsRankingRules.GOAL_DIFFERENCE -> accumulator.goalDifference();
+            case StandingsRankingRules.GOALS_FOR -> accumulator.goalsFor();
+            case StandingsRankingRules.WINS -> accumulator.wins();
+            case StandingsRankingRules.HEAD_TO_HEAD -> headToHeadPoints.getOrDefault(accumulator.team().getId(), 0);
+            default -> 0;
+        };
     }
 
     private void applyMatchResult(
@@ -188,6 +284,8 @@ public class SeasonStandingsService {
     }
 
     public record SeasonStandingsSnapshot(SeasonStandingsConfig config, List<SeasonStandingsRow> rows) {}
+
+    private record MatchResult(Long homeTeamId, Long awayTeamId, int homeScore, int awayScore) {}
 
     private static final class StandingsAccumulator {
         private final Team team;

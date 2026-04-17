@@ -12,9 +12,16 @@
 
     <article class="card match-screen" v-else-if="match">
       <div class="match-topbar">
-        <router-link class="btn-ghost" to="/">← На главную</router-link>
+        <div class="match-topbar-actions">
+          <router-link class="btn-ghost" to="/">← На главную</router-link>
+          <button v-if="canDownloadProtocol" class="btn-ghost" type="button" @click="downloadProtocolPdf" :disabled="downloadingProtocolPdf">
+            {{ downloadingProtocolPdf ? 'Подготовка PDF...' : 'Скачать протокол PDF' }}
+          </button>
+        </div>
         <span class="match-status-badge">{{ matchStatusLabel(match.protocol?.status) }}</span>
       </div>
+
+      <p v-if="protocolDownloadError" class="error-text">{{ protocolDownloadError }}</p>
 
       <div class="match-hero">
         <div class="match-team-card">
@@ -110,13 +117,30 @@
         </article>
       </section>
 
+      <article class="match-section referee-summary-card">
+        <div class="section-head match-section-head">
+          <div>
+            <h3 class="section-title">Судейская бригада</h3>
+            <p class="muted-text">Состав арбитров, закрепленный в протоколе матча.</p>
+          </div>
+        </div>
+
+        <div class="referee-summary-grid">
+          <article v-for="item in protocolRefereeCards" :key="item.key" class="referee-summary-item">
+            <span class="muted-text referee-role-label">{{ item.label }}</span>
+            <strong class="referee-summary-name">{{ item.name }}</strong>
+            <span class="muted-text referee-summary-meta">{{ item.meta || 'Город не указан' }}</span>
+          </article>
+        </div>
+      </article>
+
       <article class="match-section protocol-editor-card" v-if="showProtocolEditor">
         <div class="section-head match-section-head">
           <div>
             <h3 class="section-title">Протокол матча</h3>
-            <p class="muted-text">Админ заполняет протокол по уже поданным составам. События формируются автоматически.</p>
+            <p class="muted-text">Администратор или рефери заполняет протокол по уже поданным составам. События формируются автоматически.</p>
           </div>
-          <span class="muted-text">{{ protocolSaving ? 'Сохранение...' : 'SUPER_ADMIN' }}</span>
+          <span class="muted-text">{{ protocolSaving ? 'Сохранение...' : protocolEditorRoleLabel }}</span>
         </div>
 
         <p class="error-text" v-if="protocolError">{{ protocolError }}</p>
@@ -125,6 +149,31 @@
         <p class="empty-text" v-if="!hasSubmittedLineups">Администратор может сам сформировать составы обеих команд выше, а затем заполнить протокол.</p>
 
         <template v-else>
+          <div class="protocol-referee-grid">
+            <label class="protocol-referee-field">
+              <span class="protocol-referee-label">Главный арбитр</span>
+              <select v-model="protocolDraft.chiefRefereeId" :disabled="protocolSaving">
+                <option value="">— не выбран —</option>
+                <option v-for="referee in availableRefereeOptions" :key="`chief-${referee.value}`" :value="referee.value">{{ referee.label }}</option>
+              </select>
+            </label>
+            <label class="protocol-referee-field">
+              <span class="protocol-referee-label">Помощник 1</span>
+              <select v-model="protocolDraft.assistantRefereeOneId" :disabled="protocolSaving">
+                <option value="">— не выбран —</option>
+                <option v-for="referee in availableRefereeOptions" :key="`assistant-one-${referee.value}`" :value="referee.value">{{ referee.label }}</option>
+              </select>
+            </label>
+            <label class="protocol-referee-field">
+              <span class="protocol-referee-label">Помощник 2</span>
+              <select v-model="protocolDraft.assistantRefereeTwoId" :disabled="protocolSaving">
+                <option value="">— не выбран —</option>
+                <option v-for="referee in availableRefereeOptions" :key="`assistant-two-${referee.value}`" :value="referee.value">{{ referee.label }}</option>
+              </select>
+            </label>
+          </div>
+          <p class="muted-text protocol-referee-empty" v-if="!availableRefereeOptions.length">Для сезона этого матча пока не привязано ни одного судьи.</p>
+
           <div class="protocol-layout-top">
             <article class="protocol-side-card protocol-side-card-left">
               <h4 class="section-title">{{ match.homeTeam.name }}</h4>
@@ -283,7 +332,7 @@ import { useAuth } from '../store/auth'
 import SearchableSelect from '../components/SearchableSelect.vue'
 
 const route = useRoute()
-const { optionalAuthApiRequest, authorizedApiRequest, user, hasRole } = useAuth()
+const { optionalAuthApiRequest, optionalAuthApiRequestRaw, authorizedApiRequest, user, hasRole } = useAuth()
 
 const match = ref(null)
 const loading = ref(false)
@@ -296,6 +345,8 @@ const selectedAvailablePlayerId = ref('')
 const protocolSaving = ref(false)
 const protocolError = ref('')
 const protocolNotice = ref('')
+const protocolDownloadError = ref('')
+const downloadingProtocolPdf = ref(false)
 const protocolDraft = ref(createEmptyProtocolDraft())
 
 const lineupCards = computed(() => {
@@ -325,6 +376,8 @@ const hasSubmittedLineups = computed(() => {
 const isVerifiedProtocol = computed(() => {
   return match.value?.protocol?.status === 'VERIFIED'
 })
+
+const canDownloadProtocol = computed(() => isVerifiedProtocol.value)
 
 const canReopenVerifiedProtocol = computed(() => {
   return canEditProtocol() && isVerifiedProtocol.value
@@ -361,6 +414,7 @@ watch(
 async function loadMatch(matchId) {
   loading.value = true
   pageError.value = ''
+  protocolDownloadError.value = ''
 
   try {
     const payload = await optionalAuthApiRequest(`/api/matches/${encodeURIComponent(matchId)}`, {
@@ -379,7 +433,63 @@ async function loadMatch(matchId) {
 }
 
 function canEditProtocol() {
-  return hasRole('SUPER_ADMIN')
+  return hasRole('SUPER_ADMIN') || hasRole('REFEREE')
+}
+
+const protocolEditorRoleLabel = computed(() => {
+  if (hasRole('SUPER_ADMIN')) return 'SUPER_ADMIN'
+  if (hasRole('REFEREE')) return 'REFEREE'
+  return ''
+})
+
+const availableRefereeOptions = computed(() => {
+  return (match.value?.availableReferees || []).map((referee) => ({
+    value: String(referee.id),
+    label: refereeOptionLabel(referee),
+  }))
+})
+
+const protocolRefereeCards = computed(() => {
+  const protocol = match.value?.protocol || {}
+  return [
+    buildProtocolRefereeCard('chief', 'Главный арбитр', protocol.chiefReferee),
+    buildProtocolRefereeCard('assistant-1', 'Помощник 1', protocol.assistantRefereeOne),
+    buildProtocolRefereeCard('assistant-2', 'Помощник 2', protocol.assistantRefereeTwo),
+  ]
+})
+
+async function downloadProtocolPdf() {
+  if (!match.value || !canDownloadProtocol.value) return
+
+  downloadingProtocolPdf.value = true
+  protocolDownloadError.value = ''
+
+  try {
+    const response = await optionalAuthApiRequestRaw(`/api/matches/${encodeURIComponent(match.value.id)}/protocol/pdf`, {
+      method: 'GET',
+    })
+    const pdfBlob = await response.blob()
+    const disposition = response.headers.get('content-disposition') || ''
+    const fileNameMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+    const fileName = fileNameMatch ? decodeURIComponent(fileNameMatch[1]) : 'match-protocol.pdf'
+    const objectUrl = URL.createObjectURL(pdfBlob)
+
+    try {
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = fileName
+      link.style.display = 'none'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+    }
+  } catch (error) {
+    protocolDownloadError.value = error.message || 'Не удалось скачать PDF протокола.'
+  } finally {
+    downloadingProtocolPdf.value = false
+  }
 }
 
 function canEditLineup(teamId) {
@@ -528,6 +638,9 @@ function createEmptyProtocolDraft() {
     awayScore: 0,
     homeTechnicalDefeat: false,
     awayTechnicalDefeat: false,
+    chiefRefereeId: '',
+    assistantRefereeOneId: '',
+    assistantRefereeTwoId: '',
     playerStats: [],
   }
 }
@@ -559,6 +672,9 @@ function syncProtocolDraft(payload) {
     awayScore: Number.isInteger(protocol.awayScore) ? protocol.awayScore : 0,
     homeTechnicalDefeat: Boolean(protocol.homeTechnicalDefeat),
     awayTechnicalDefeat: Boolean(protocol.awayTechnicalDefeat),
+    chiefRefereeId: protocol.chiefReferee?.id ? String(protocol.chiefReferee.id) : '',
+    assistantRefereeOneId: protocol.assistantRefereeOne?.id ? String(protocol.assistantRefereeOne.id) : '',
+    assistantRefereeTwoId: protocol.assistantRefereeTwo?.id ? String(protocol.assistantRefereeTwo.id) : '',
     playerStats: nextPlayerStats,
   }
   protocolError.value = ''
@@ -661,6 +777,9 @@ function buildProtocolPayload(asVerified) {
     homeTechnicalDefeat,
     awayTechnicalDefeat,
     bestPlayerId: null,
+    chiefRefereeId: protocolDraft.value.chiefRefereeId ? Number(protocolDraft.value.chiefRefereeId) : null,
+    assistantRefereeOneId: protocolDraft.value.assistantRefereeOneId ? Number(protocolDraft.value.assistantRefereeOneId) : null,
+    assistantRefereeTwoId: protocolDraft.value.assistantRefereeTwoId ? Number(protocolDraft.value.assistantRefereeTwoId) : null,
     notes: null,
     startedAt: null,
     finishedAt: null,
@@ -819,6 +938,22 @@ function lineupSubmittedLabel(lineup) {
   if (!lineup?.submittedAt) return 'Не подана'
   return `Подана ${formatDateTime(lineup.submittedAt)}`
 }
+
+function refereeOptionLabel(referee) {
+  if (!referee) return ''
+  const city = referee.city ? `, ${referee.city}` : ''
+  return `${referee.fullName || ''}${city}`
+}
+
+function buildProtocolRefereeCard(key, label, referee) {
+  return {
+    key,
+    label,
+    name: referee?.fullName || 'Не назначен',
+    meta: referee?.city || '',
+  }
+}
+
 </script>
 
 <style scoped>
@@ -836,6 +971,13 @@ function lineupSubmittedLabel(lineup) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.match-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -938,9 +1080,293 @@ function lineupSubmittedLabel(lineup) {
 .protocol-player-list,
 .protocol-toolbar-footer,
 .protocol-side-card,
-.protocol-score-center {
+.protocol-score-center,
+.referee-summary-card,
+.referee-summary-item,
+.protocol-referee-field {
   display: grid;
   gap: 14px;
+}
+
+.referee-summary-card,
+.protocol-editor-card {
+  gap: 16px;
+}
+
+.referee-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.referee-summary-item {
+  gap: 6px;
+  align-content: start;
+  min-height: 104px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(124, 163, 255, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.028));
+}
+
+.referee-role-label,
+.protocol-referee-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.referee-summary-name {
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.referee-summary-meta {
+  min-height: 1.2em;
+}
+
+.protocol-referee-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(124, 163, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.protocol-referee-field {
+  gap: 8px;
+  min-width: 0;
+}
+
+.protocol-referee-empty {
+  margin: -4px 0 0;
+  padding: 0 2px;
+}
+
+.protocol-document-card,
+.protocol-document-sheet,
+.protocol-document-block,
+.protocol-document-team-block,
+.protocol-document-summary-card,
+.protocol-document-note-box {
+  display: grid;
+  gap: 14px;
+}
+
+.protocol-document-card {
+  gap: 18px;
+}
+
+.protocol-document-sheet {
+  gap: 18px;
+  padding: 24px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(250, 251, 255, 0.98), rgba(245, 247, 252, 0.96));
+  color: #182033;
+}
+
+.protocol-document-sheet h2,
+.protocol-document-sheet h4,
+.protocol-document-sheet h5,
+.protocol-document-sheet p {
+  margin: 0;
+}
+
+.protocol-document-header,
+.protocol-document-scorebar,
+.protocol-document-footer-row,
+.protocol-document-referee-row,
+.protocol-document-team-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.protocol-document-head-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.protocol-document-kicker {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #5b6477;
+}
+
+.protocol-document-head-copy h2 {
+  font-size: 1.8rem;
+  line-height: 1.1;
+}
+
+.protocol-document-head-meta {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  font-size: 0.92rem;
+  color: #4d5566;
+}
+
+.protocol-document-scorebar {
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(30, 42, 70, 0.14);
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.protocol-document-team {
+  flex: 1 1 0;
+}
+
+.protocol-document-team-away {
+  text-align: right;
+}
+
+.protocol-document-scorebox {
+  display: grid;
+  gap: 6px;
+  min-width: 140px;
+  justify-items: center;
+}
+
+.protocol-document-score-label,
+.protocol-document-referee-role,
+.protocol-document-team-head span {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #616a7e;
+}
+
+.protocol-document-scorebox strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.protocol-document-block {
+  gap: 12px;
+}
+
+.protocol-document-block-head {
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(24, 32, 51, 0.12);
+}
+
+.protocol-document-referee-list,
+.protocol-document-footer {
+  display: grid;
+  gap: 10px;
+}
+
+.protocol-document-referee-role {
+  min-width: 170px;
+}
+
+.protocol-document-referee-name {
+  flex: 1 1 auto;
+}
+
+.protocol-document-signature-line {
+  display: inline-block;
+  min-width: 180px;
+  border-bottom: 1px solid rgba(24, 32, 51, 0.55);
+  height: 24px;
+}
+
+.protocol-document-team-block {
+  gap: 10px;
+}
+
+.protocol-document-team-head {
+  padding-top: 4px;
+}
+
+.protocol-document-team-head h5 {
+  font-size: 1.05rem;
+}
+
+.protocol-document-table-wrap {
+  overflow-x: auto;
+}
+
+.protocol-document-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.protocol-document-table th,
+.protocol-document-table td {
+  padding: 8px 10px;
+  border: 1px solid rgba(24, 32, 51, 0.16);
+  font-size: 0.92rem;
+  text-align: center;
+}
+
+.protocol-document-table th {
+  background: rgba(232, 236, 245, 0.9);
+  font-weight: 700;
+}
+
+.protocol-document-player-cell {
+  text-align: left !important;
+}
+
+.protocol-document-empty-cell {
+  color: #5f687b;
+}
+
+.protocol-document-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.protocol-document-summary-card {
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(24, 32, 51, 0.12);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.protocol-document-summary-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.protocol-document-summary-empty {
+  color: #5f687b;
+}
+
+.protocol-document-note-box {
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(24, 32, 51, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.protocol-document-note-lines {
+  display: grid;
+  gap: 18px;
+}
+
+.protocol-document-note-lines span {
+  display: block;
+  border-bottom: 1px solid rgba(24, 32, 51, 0.22);
+}
+
+.protocol-document-footer-row span:first-child {
+  min-width: 170px;
 }
 
 .protocol-side-card {
@@ -1169,12 +1595,33 @@ function lineupSubmittedLabel(lineup) {
   .match-hero,
   .lineup-grid,
   .admin-protocol-grid,
-  .protocol-layout-top {
+  .protocol-layout-top,
+  .referee-summary-grid,
+  .protocol-referee-grid,
+  .protocol-document-summary-grid {
     grid-template-columns: 1fr;
   }
 
   .protocol-side-card-right {
     justify-items: start;
+    text-align: left;
+  }
+
+  .protocol-document-header,
+  .protocol-document-scorebar,
+  .protocol-document-footer-row,
+  .protocol-document-referee-row,
+  .protocol-document-team-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .protocol-document-head-meta {
+    justify-items: start;
+  }
+
+  .protocol-document-team,
+  .protocol-document-team-away {
     text-align: left;
   }
 }
@@ -1198,6 +1645,28 @@ function lineupSubmittedLabel(lineup) {
   .protocol-score-center,
   .protocol-team-card {
     padding: 14px;
+  }
+
+  .referee-summary-item,
+  .protocol-referee-grid,
+  .protocol-document-sheet,
+  .protocol-document-scorebar,
+  .protocol-document-summary-card,
+  .protocol-document-note-box {
+    padding: 12px 14px;
+  }
+
+  .protocol-document-head-copy h2 {
+    font-size: 1.45rem;
+  }
+
+  .protocol-document-scorebox strong {
+    font-size: 1.6rem;
+  }
+
+  .protocol-document-signature-line {
+    min-width: 0;
+    width: 100%;
   }
 
   .match-score {

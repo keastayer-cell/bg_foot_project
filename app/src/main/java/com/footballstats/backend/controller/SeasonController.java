@@ -5,22 +5,29 @@ import com.footballstats.backend.domain.MatchProtocol;
 import com.footballstats.backend.domain.MatchProtocolStatus;
 import com.footballstats.backend.domain.Player;
 import com.footballstats.backend.domain.PlayerTeam;
+import com.footballstats.backend.domain.Referee;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.Tour;
 import com.footballstats.backend.domain.TourMatch;
 import com.footballstats.backend.domain.SeasonStandingsConfig;
 import com.footballstats.backend.domain.SeasonStandingsRow;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.footballstats.backend.repository.PlayerTeamRepository;
 import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.service.MediaAssetService;
+import com.footballstats.backend.service.MatchProtocolService;
+import com.footballstats.backend.service.SeasonProtocolArchiveService;
 import com.footballstats.backend.service.SeasonPlayerService;
 import com.footballstats.backend.service.SeasonPlayerStatsService;
 import com.footballstats.backend.service.SeasonService;
 import com.footballstats.backend.service.SeasonStandingsService;
+import com.footballstats.backend.service.StandingsRankingRules;
 import com.footballstats.backend.service.TourService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -46,8 +53,11 @@ public class SeasonController {
     private final SeasonStandingsService seasonStandingsService;
     private final SeasonPlayerService seasonPlayerService;
     private final SeasonPlayerStatsService seasonPlayerStatsService;
+    private final MatchProtocolService matchProtocolService;
+    private final SeasonProtocolArchiveService seasonProtocolArchiveService;
     private final PlayerTeamRepository playerTeamRepository;
     private final MediaAssetService mediaAssetService;
+    private final ObjectMapper objectMapper;
 
     public SeasonController(
         SeasonService seasonService,
@@ -55,16 +65,22 @@ public class SeasonController {
         SeasonStandingsService seasonStandingsService,
         SeasonPlayerService seasonPlayerService,
         SeasonPlayerStatsService seasonPlayerStatsService,
+        MatchProtocolService matchProtocolService,
+        SeasonProtocolArchiveService seasonProtocolArchiveService,
         PlayerTeamRepository playerTeamRepository,
-        MediaAssetService mediaAssetService
+        MediaAssetService mediaAssetService,
+        ObjectMapper objectMapper
     ) {
         this.seasonService = seasonService;
         this.tourService = tourService;
         this.seasonStandingsService = seasonStandingsService;
         this.seasonPlayerService = seasonPlayerService;
         this.seasonPlayerStatsService = seasonPlayerStatsService;
+        this.matchProtocolService = matchProtocolService;
+        this.seasonProtocolArchiveService = seasonProtocolArchiveService;
         this.playerTeamRepository = playerTeamRepository;
         this.mediaAssetService = mediaAssetService;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping("/api/seasons")
@@ -77,7 +93,7 @@ public class SeasonController {
     }
 
     @PostMapping("/api/seasons")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<SeasonResponse> createSeason(
         @Valid @RequestBody SeasonUpsertRequest request,
         Authentication authentication
@@ -88,6 +104,9 @@ public class SeasonController {
             request.roundsCount(),
             request.playoffEnabled(),
             request.playoffTeamCount(),
+            request.applicationDeadline(),
+            request.rankingRules(),
+            request.refereeIds(),
             request.yellowCardsForSuspension(),
             request.redCardsForSuspension(),
             actorUserId
@@ -96,7 +115,7 @@ public class SeasonController {
     }
 
     @PutMapping("/api/seasons/{seasonId}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<SeasonResponse> updateSeason(
         @PathVariable Long seasonId,
         @Valid @RequestBody SeasonUpsertRequest request,
@@ -108,6 +127,9 @@ public class SeasonController {
             request.roundsCount(),
             request.playoffEnabled(),
             request.playoffTeamCount(),
+            request.applicationDeadline(),
+            request.rankingRules(),
+            request.refereeIds(),
             request.yellowCardsForSuspension(),
             request.redCardsForSuspension(),
             currentUserId(authentication)
@@ -115,13 +137,13 @@ public class SeasonController {
     }
 
     @DeleteMapping("/api/seasons/{seasonId}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<SeasonResponse> deactivateSeason(@PathVariable Long seasonId, Authentication authentication) {
         return ResponseEntity.ok(toResponse(seasonService.deactivateSeason(seasonId, currentUserId(authentication))));
     }
 
     @GetMapping("/api/seasons/{seasonId}/teams")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<List<SeasonTeamResponse>> listSeasonTeams(@PathVariable Long seasonId) {
         return ResponseEntity.ok(seasonService.listSeasonTeams(seasonId).stream().map(this::toTeamResponse).toList());
     }
@@ -142,6 +164,22 @@ public class SeasonController {
         ));
     }
 
+    @GetMapping("/api/seasons/{seasonId}/protocols/export")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
+    public ResponseEntity<byte[]> getSeasonProtocolsExport(@PathVariable Long seasonId) {
+        Season season = seasonService.getSeason(seasonId);
+        SeasonProtocolArchiveService.ArchivePayload archive = seasonProtocolArchiveService.buildSeasonProtocolsArchive(
+            season.getName(),
+            matchProtocolService.getSeasonProtocolExportMatches(seasonId)
+        );
+
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + java.net.URLEncoder.encode(archive.fileName(), java.nio.charset.StandardCharsets.UTF_8).replaceAll("\\+", "%20"))
+            .contentType(MediaType.parseMediaType("application/zip"))
+            .contentLength(archive.bytes().length)
+            .body(archive.bytes());
+    }
+
     @GetMapping("/api/seasons/{seasonId}/player-stats")
     public ResponseEntity<List<SeasonPlayerStatsResponse>> getSeasonPlayerStats(@PathVariable Long seasonId) {
         return ResponseEntity.ok(seasonPlayerStatsService.getSeasonPlayerStats(seasonId).stream()
@@ -157,7 +195,7 @@ public class SeasonController {
     }
 
     @PutMapping("/api/seasons/{seasonId}/teams")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<List<SeasonTeamResponse>> replaceSeasonTeams(
         @PathVariable Long seasonId,
         @Valid @RequestBody SeasonTeamsUpsertRequest request,
@@ -170,7 +208,7 @@ public class SeasonController {
     }
 
     @GetMapping("/api/seasons/{seasonId}/teams/{teamId}/players")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<List<SeasonTeamPlayerResponse>> listSeasonTeamPlayers(
         @PathVariable Long seasonId,
         @PathVariable Long teamId
@@ -179,7 +217,7 @@ public class SeasonController {
     }
 
     @PostMapping("/api/seasons/{seasonId}/teams/{teamId}/players/{playerId}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<List<SeasonTeamPlayerResponse>> addSeasonTeamPlayer(
         @PathVariable Long seasonId,
         @PathVariable Long teamId,
@@ -191,7 +229,7 @@ public class SeasonController {
     }
 
     @DeleteMapping("/api/seasons/{seasonId}/teams/{teamId}/players/{playerId}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<List<SeasonTeamPlayerResponse>> removeSeasonTeamPlayer(
         @PathVariable Long seasonId,
         @PathVariable Long teamId,
@@ -245,7 +283,10 @@ public class SeasonController {
             season.getRoundsCount(),
             season.isPlayoffEnabled(),
             season.getPlayoffTeamCount(),
+            season.getApplicationDeadline(),
             seasonService.calculateRegularToursCount(season.getId()),
+            StandingsRankingRules.fromJson(config.getRankingRulesJson(), objectMapper),
+            seasonService.listSeasonReferees(season.getId()).stream().map(this::toRefereeResponse).toList(),
             config.getYellowCardsForSuspension(),
             config.getRedCardsForSuspension(),
             season.isActive(),
@@ -258,6 +299,17 @@ public class SeasonController {
 
     private SeasonTeamResponse toTeamResponse(Team team) {
         return new SeasonTeamResponse(team.getId(), team.getName(), team.getShortName(), team.getCity(), team.isActive());
+    }
+
+    private RefereeResponse toRefereeResponse(Referee referee) {
+        return new RefereeResponse(
+            referee.getId(),
+            referee.getFullName(),
+            referee.getCity(),
+            referee.getBirthDate(),
+            mediaAssetService.loadDataUrl(MediaAssetService.OWNER_REFEREE, referee.getId(), MediaAssetService.KIND_REFEREE_PHOTO),
+            referee.isActive()
+        );
     }
 
     private TourOverviewResponse toTourOverviewResponse(Tour tour, List<TourMatch> matches) {
@@ -289,6 +341,7 @@ public class SeasonController {
             config.getWinPoints(),
             config.getDrawPoints(),
             config.getLossPoints(),
+            StandingsRankingRules.fromJson(config.getRankingRulesJson(), objectMapper),
             config.getYellowCardsForSuspension(),
             config.getRedCardsForSuspension(),
             config.getLastCalculatedAt()
@@ -327,7 +380,10 @@ public class SeasonController {
         Integer roundsCount,
         boolean playoffEnabled,
         Integer playoffTeamCount,
+        LocalDate applicationDeadline,
         Integer regularToursCount,
+        List<String> rankingRules,
+        List<RefereeResponse> referees,
         Integer yellowCardsForSuspension,
         Integer redCardsForSuspension,
         boolean active,
@@ -342,8 +398,20 @@ public class SeasonController {
         Integer roundsCount,
         Boolean playoffEnabled,
         Integer playoffTeamCount,
+        LocalDate applicationDeadline,
+        List<String> rankingRules,
+        List<Long> refereeIds,
         Integer yellowCardsForSuspension,
         Integer redCardsForSuspension
+    ) {}
+
+    public record RefereeResponse(
+        Long id,
+        String fullName,
+        String city,
+        LocalDate birthDate,
+        String photoDataUrl,
+        boolean active
     ) {}
 
     public record SeasonTeamResponse(Long id, String name, String shortName, String city, boolean active) {}
@@ -371,6 +439,7 @@ public class SeasonController {
         Integer winPoints,
         Integer drawPoints,
         Integer lossPoints,
+        List<String> rankingRules,
         Integer yellowCardsForSuspension,
         Integer redCardsForSuspension,
         OffsetDateTime lastCalculatedAt
@@ -419,6 +488,7 @@ public class SeasonController {
         Integer homeScore,
         Integer awayScore
     ) {}
+
 
     public record SeasonTeamsUpsertRequest(@jakarta.validation.constraints.NotEmpty(message = "Нужно выбрать хотя бы одну команду.") List<Long> teamIds) {}
 }

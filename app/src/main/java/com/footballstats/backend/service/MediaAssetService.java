@@ -12,8 +12,10 @@ public class MediaAssetService {
 
     public static final String OWNER_TEAM = "TEAM";
     public static final String OWNER_PLAYER = "PLAYER";
+    public static final String OWNER_REFEREE = "REFEREE";
     public static final String KIND_TEAM_LOGO = "TEAM_LOGO";
     public static final String KIND_PLAYER_PHOTO = "PLAYER_PHOTO";
+    public static final String KIND_REFEREE_PHOTO = "REFEREE_PHOTO";
 
     private final MediaAssetRepository mediaAssetRepository;
 

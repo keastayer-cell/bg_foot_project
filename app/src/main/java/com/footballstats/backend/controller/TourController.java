@@ -47,7 +47,7 @@ public class TourController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<TourResponse> createTour(
         @Valid @RequestBody TourCreateRequest request,
         Authentication authentication
@@ -66,7 +66,7 @@ public class TourController {
     }
 
     @PostMapping("/{tourId}/matches")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<TourMatchResponse> createMatch(
         @PathVariable Long tourId,
         @Valid @RequestBody TourMatchCreateRequest request,
@@ -83,7 +83,7 @@ public class TourController {
     }
 
     @DeleteMapping("/{tourId}/matches/{matchId}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<Void> deleteMatch(
         @PathVariable Long tourId,
         @PathVariable Long matchId,
@@ -94,7 +94,7 @@ public class TourController {
     }
 
     @PutMapping("/{tourId}/publish")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<TourResponse> publishTour(@PathVariable Long tourId, Authentication authentication) {
         return ResponseEntity.ok(toResponse(tourService.publishTour(tourId, currentUserId(authentication))));
     }

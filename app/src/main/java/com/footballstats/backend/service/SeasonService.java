@@ -1,10 +1,15 @@
 package com.footballstats.backend.service;
 
 import com.footballstats.backend.domain.Season;
+import com.footballstats.backend.domain.Referee;
+import com.footballstats.backend.domain.SeasonReferee;
 import com.footballstats.backend.domain.SeasonStandingsConfig;
 import com.footballstats.backend.domain.SeasonTeam;
 import com.footballstats.backend.domain.Team;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.footballstats.backend.repository.RefereeRepository;
 import com.footballstats.backend.repository.SeasonRepository;
+import com.footballstats.backend.repository.SeasonRefereeRepository;
 import com.footballstats.backend.repository.SeasonStandingsConfigRepository;
 import com.footballstats.backend.repository.SeasonTeamRepository;
 import com.footballstats.backend.repository.TeamRepository;
@@ -13,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,30 +27,39 @@ import java.util.Set;
 @Service
 public class SeasonService {
 
+    private final RefereeRepository refereeRepository;
     private final SeasonRepository seasonRepository;
+    private final SeasonRefereeRepository seasonRefereeRepository;
     private final SeasonTeamRepository seasonTeamRepository;
     private final TeamRepository teamRepository;
     private final SeasonStandingsConfigRepository seasonStandingsConfigRepository;
     private final SeasonStructureService seasonStructureService;
     private final SeasonPlayerService seasonPlayerService;
     private final SeasonStandingsService seasonStandingsService;
+    private final ObjectMapper objectMapper;
 
     public SeasonService(
+        RefereeRepository refereeRepository,
         SeasonRepository seasonRepository,
+        SeasonRefereeRepository seasonRefereeRepository,
         SeasonTeamRepository seasonTeamRepository,
         TeamRepository teamRepository,
         SeasonStandingsConfigRepository seasonStandingsConfigRepository,
         SeasonStructureService seasonStructureService,
         SeasonPlayerService seasonPlayerService,
-        SeasonStandingsService seasonStandingsService
+        SeasonStandingsService seasonStandingsService,
+        ObjectMapper objectMapper
     ) {
+        this.refereeRepository = refereeRepository;
         this.seasonRepository = seasonRepository;
+        this.seasonRefereeRepository = seasonRefereeRepository;
         this.seasonTeamRepository = seasonTeamRepository;
         this.teamRepository = teamRepository;
         this.seasonStandingsConfigRepository = seasonStandingsConfigRepository;
         this.seasonStructureService = seasonStructureService;
         this.seasonPlayerService = seasonPlayerService;
         this.seasonStandingsService = seasonStandingsService;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -63,6 +78,9 @@ public class SeasonService {
         Integer roundsCount,
         Boolean playoffEnabled,
         Integer playoffTeamCount,
+        LocalDate applicationDeadline,
+        List<String> rankingRules,
+        List<Long> refereeIds,
         Integer yellowCardsForSuspension,
         Integer redCardsForSuspension,
         Long actorUserId
@@ -73,13 +91,15 @@ public class SeasonService {
         Season season = new Season();
         season.setName(normalizedName);
         applyFormat(season, roundsCount, playoffEnabled, playoffTeamCount, false);
+        season.setApplicationDeadline(applicationDeadline);
         season.setCreatedByUserId(actorUserId);
         season.setUpdatedByUserId(actorUserId);
         season.setActive(true);
         season.setUpdatedAt(OffsetDateTime.now());
         Season savedSeason = seasonRepository.save(season);
         seasonStandingsService.initializeSeasonStandings(savedSeason.getId(), actorUserId);
-        updateStandingsConfig(savedSeason.getId(), yellowCardsForSuspension, redCardsForSuspension, actorUserId);
+        updateStandingsConfig(savedSeason.getId(), rankingRules, yellowCardsForSuspension, redCardsForSuspension, actorUserId);
+        replaceSeasonReferees(savedSeason, refereeIds, actorUserId);
         return savedSeason;
     }
 
@@ -90,6 +110,9 @@ public class SeasonService {
         Integer roundsCount,
         Boolean playoffEnabled,
         Integer playoffTeamCount,
+        LocalDate applicationDeadline,
+        List<String> rankingRules,
+        List<Long> refereeIds,
         Integer yellowCardsForSuspension,
         Integer redCardsForSuspension,
         Long actorUserId
@@ -109,13 +132,16 @@ public class SeasonService {
 
         season.setName(normalizedName);
         applyFormat(season, roundsCount, playoffEnabled, playoffTeamCount, true);
+    season.setApplicationDeadline(applicationDeadline);
         season.setUpdatedByUserId(actorUserId);
         season.setUpdatedAt(OffsetDateTime.now());
         Season savedSeason = seasonRepository.save(season);
-        updateStandingsConfig(seasonId, yellowCardsForSuspension, redCardsForSuspension, actorUserId);
+        updateStandingsConfig(seasonId, rankingRules, yellowCardsForSuspension, redCardsForSuspension, actorUserId);
+        replaceSeasonReferees(savedSeason, refereeIds, actorUserId);
         if (!hasRegularMatches) {
             seasonStructureService.syncRegularToursForSeason(savedSeason, actorUserId);
         }
+        seasonStandingsService.recalculateSeasonStandings(seasonId, actorUserId);
         return savedSeason;
     }
 
@@ -144,6 +170,14 @@ public class SeasonService {
         getExistingSeason(seasonId);
         return seasonTeamRepository.findAllBySeasonIdOrderByTeamNameAsc(seasonId).stream()
             .map(SeasonTeam::getTeam)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Referee> listSeasonReferees(Long seasonId) {
+        getExistingSeason(seasonId);
+        return seasonRefereeRepository.findAllBySeasonIdOrderByRefereeFullNameAsc(seasonId).stream()
+            .map(SeasonReferee::getReferee)
             .toList();
     }
 
@@ -194,6 +228,11 @@ public class SeasonService {
         return seasonStructureService.calculateRegularToursCountForSeason(seasonId, season.getRoundsCount());
     }
 
+    @Transactional(readOnly = true)
+    public Season getSeason(Long seasonId) {
+        return getExistingSeason(seasonId);
+    }
+
     private Season getExistingSeason(Long seasonId) {
         return seasonRepository.findById(seasonId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сезон не найден."));
@@ -202,6 +241,11 @@ public class SeasonService {
     private Team getExistingTeam(Long teamId) {
         return teamRepository.findById(teamId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда не найдена."));
+    }
+
+    private Referee getExistingReferee(Long refereeId) {
+        return refereeRepository.findById(refereeId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Судья не найден."));
     }
 
     private void validateUniqueName(String normalizedName, Long currentSeasonId) {
@@ -227,13 +271,37 @@ public class SeasonService {
         season.setPlayoffTeamCount(normalizedPlayoffTeamCount);
     }
 
-    private void updateStandingsConfig(Long seasonId, Integer yellowCardsForSuspension, Integer redCardsForSuspension, Long actorUserId) {
+    private void updateStandingsConfig(
+        Long seasonId,
+        List<String> rankingRules,
+        Integer yellowCardsForSuspension,
+        Integer redCardsForSuspension,
+        Long actorUserId
+    ) {
         SeasonStandingsConfig config = getStandingsConfig(seasonId);
+        config.setRankingRulesJson(StandingsRankingRules.toJson(rankingRules, objectMapper));
         config.setYellowCardsForSuspension(normalizeSuspensionThreshold(yellowCardsForSuspension, "ЖК"));
         config.setRedCardsForSuspension(normalizeSuspensionThreshold(redCardsForSuspension, "КК"));
         config.setUpdatedByUserId(actorUserId);
         config.setUpdatedAt(OffsetDateTime.now());
         seasonStandingsConfigRepository.save(config);
+    }
+
+    private void replaceSeasonReferees(Season season, List<Long> refereeIds, Long actorUserId) {
+        Set<Long> uniqueRefereeIds = new LinkedHashSet<>(refereeIds == null ? List.of() : refereeIds);
+        seasonRefereeRepository.deleteAllBySeason_Id(season.getId());
+        seasonRefereeRepository.flush();
+
+        for (Long refereeId : uniqueRefereeIds) {
+            if (refereeId == null) {
+                continue;
+            }
+            SeasonReferee seasonReferee = new SeasonReferee();
+            seasonReferee.setSeason(season);
+            seasonReferee.setReferee(getExistingReferee(refereeId));
+            seasonReferee.setCreatedByUserId(actorUserId);
+            seasonRefereeRepository.save(seasonReferee);
+        }
     }
 
     private int normalizeRoundsCount(Integer roundsCount) {

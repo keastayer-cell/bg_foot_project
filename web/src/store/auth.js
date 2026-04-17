@@ -172,6 +172,24 @@ async function apiRequest(path, options = {}) {
   return body
 }
 
+async function apiRequestRaw(path, options = {}) {
+  const method = (options.method || 'GET').toUpperCase()
+  const url = `${apiBaseUrl}${path}`
+  const requestOptions = {
+    ...options,
+    credentials: options.credentials || 'include',
+    headers: {
+      ...(options.headers || {}),
+    },
+  }
+
+  try {
+    return await fetch(url, requestOptions)
+  } catch {
+    throw new Error('Сервер недоступен. Попробуйте позже.')
+  }
+}
+
 function applyAuthResponse(payload) {
   token.value = payload.token
   user.value = {
@@ -347,6 +365,48 @@ async function authorizedApiRequest(path, options = {}) {
   }
 }
 
+async function authorizedApiRequestRaw(path, options = {}) {
+  const { __retriedAfterRefresh, ...requestOptions } = options
+
+  if (!token.value) {
+    await ensureSession({ forceRefresh: true })
+  }
+
+  if (!token.value) {
+    throw new Error('Требуется авторизация.')
+  }
+
+  const headers = {
+    ...(requestOptions.headers || {}),
+    Authorization: `Bearer ${token.value}`,
+  }
+
+  const response = await apiRequestRaw(path, {
+    ...requestOptions,
+    headers,
+  })
+
+  if (response.status === 401 && !__retriedAfterRefresh) {
+    await refreshSession()
+    return authorizedApiRequestRaw(path, {
+      ...requestOptions,
+      __retriedAfterRefresh: true,
+    })
+  }
+
+  if (!response.ok) {
+    let body = {}
+    try {
+      body = await response.json()
+    } catch {
+      body = {}
+    }
+    throw createHttpError(body.error || 'Не удалось выполнить запрос.', response.status, body)
+  }
+
+  return response
+}
+
 async function changePassword({ currentPassword, newPassword }) {
   const payload = await authorizedApiRequest('/api/auth/change-password', {
     method: 'POST',
@@ -371,6 +431,33 @@ async function optionalAuthApiRequest(path, options = {}) {
     ...options,
     headers,
   })
+}
+
+async function optionalAuthApiRequestRaw(path, options = {}) {
+  const headers = {
+    ...(options.headers || {}),
+  }
+
+  if (token.value) {
+    headers.Authorization = `Bearer ${token.value}`
+  }
+
+  const response = await apiRequestRaw(path, {
+    ...options,
+    headers,
+  })
+
+  if (!response.ok) {
+    let body = {}
+    try {
+      body = await response.json()
+    } catch {
+      body = {}
+    }
+    throw createHttpError(body.error || 'Не удалось выполнить запрос.', response.status, body)
+  }
+
+  return response
 }
 
 async function logout({ remote = true, suppressErrors = false } = {}) {
@@ -414,7 +501,9 @@ export function useAuth() {
     ensureSession,
     refreshSession,
     authorizedApiRequest,
+    authorizedApiRequestRaw,
     optionalAuthApiRequest,
+    optionalAuthApiRequestRaw,
     hasRole,
     isTeamRepresentative,
   }

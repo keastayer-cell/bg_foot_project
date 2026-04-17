@@ -167,6 +167,30 @@ function parseRequestBody() {
   }
 }
 
+function isBinaryContentType(contentType) {
+  if (!contentType) return false
+  const normalized = contentType.toLowerCase()
+  return normalized.includes('application/pdf')
+    || normalized.includes('application/zip')
+    || normalized.includes('application/octet-stream')
+}
+
+function getFileNameFromDisposition(contentDisposition) {
+  if (!contentDisposition) return null
+
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match) {
+    try {
+      return decodeURIComponent(utf8Match[1])
+    } catch {
+      return utf8Match[1]
+    }
+  }
+
+  const plainMatch = contentDisposition.match(/filename="?([^";]+)"?/i)
+  return plainMatch ? plainMatch[1] : null
+}
+
 async function runTest() {
   if (!endpoint.value) return
 
@@ -202,13 +226,26 @@ async function runTest() {
     })
 
     const durationMs = Math.round(performance.now() - startedAt)
-    const text = await response.text()
+    const contentType = response.headers.get('content-type') || ''
+    const contentDisposition = response.headers.get('content-disposition') || ''
 
-    let parsed = text
-    try {
-      parsed = text ? JSON.parse(text) : {}
-    } catch {
-      parsed = text || '(пустой ответ)'
+    let parsed
+    if (isBinaryContentType(contentType)) {
+      const blob = await response.blob()
+      parsed = {
+        kind: 'binary',
+        contentType: contentType || '(не указан)',
+        sizeBytes: blob.size,
+        fileName: getFileNameFromDisposition(contentDisposition) || '(не указано)',
+      }
+    } else {
+      const text = await response.text()
+      parsed = text
+      try {
+        parsed = text ? JSON.parse(text) : {}
+      } catch {
+        parsed = text || '(пустой ответ)'
+      }
     }
 
     responseMeta.value = {

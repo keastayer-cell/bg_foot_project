@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -28,6 +29,9 @@ public class Season {
 
     @Column(name = "playoff_team_count")
     private Integer playoffTeamCount;
+
+    @Column(name = "application_deadline")
+    private LocalDate applicationDeadline;
 
     @Column(name = "created_by_user_id")
     private Long createdByUserId;
@@ -82,6 +86,14 @@ public class Season {
 
     public void setPlayoffTeamCount(Integer playoffTeamCount) {
         this.playoffTeamCount = playoffTeamCount;
+    }
+
+    public LocalDate getApplicationDeadline() {
+        return applicationDeadline;
+    }
+
+    public void setApplicationDeadline(LocalDate applicationDeadline) {
+        this.applicationDeadline = applicationDeadline;
     }
 
     public void setCreatedByUserId(Long createdByUserId) {

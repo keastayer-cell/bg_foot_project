@@ -95,6 +95,13 @@ public class SeasonPlayerService {
         return seasonPlayerRepository.countBySeason_IdAndTeam_IdAndActiveTrue(seasonId, teamId);
     }
 
+    @Transactional(readOnly = true)
+    public Season getSeasonForTeam(Long teamId, Long seasonId) {
+        validateSeasonMembership(teamId, seasonId);
+        return seasonRepository.findById(seasonId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сезон не найден."));
+    }
+
     @Transactional
     public void replaceSeasonPlayers(Long teamId, Long seasonId, List<Long> playerIds, Long actorUserId) {
         validateSeasonMembership(teamId, seasonId);
