@@ -3,12 +3,16 @@ package com.footballstats.backend.controller;
 import com.footballstats.backend.domain.MatchEvent;
 import com.footballstats.backend.domain.MatchProtocol;
 import com.footballstats.backend.domain.MatchProtocolStatus;
+import com.footballstats.backend.domain.Referee;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.TourMatch;
 import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.service.MatchProtocolService;
+import com.footballstats.backend.service.SeasonProtocolArchiveService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -20,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
+import java.net.URLEncoder;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -28,9 +34,11 @@ import java.util.List;
 public class MatchController {
 
     private final MatchProtocolService matchProtocolService;
+    private final SeasonProtocolArchiveService seasonProtocolArchiveService;
 
-    public MatchController(MatchProtocolService matchProtocolService) {
+    public MatchController(MatchProtocolService matchProtocolService, SeasonProtocolArchiveService seasonProtocolArchiveService) {
         this.matchProtocolService = matchProtocolService;
+        this.seasonProtocolArchiveService = seasonProtocolArchiveService;
     }
 
     @GetMapping("/{matchId}")
@@ -38,8 +46,23 @@ public class MatchController {
         return ResponseEntity.ok(toResponse(matchProtocolService.getMatchDetails(matchId)));
     }
 
+    @GetMapping("/{matchId}/protocol/pdf")
+    public ResponseEntity<byte[]> downloadVerifiedProtocolPdf(@PathVariable Long matchId) {
+        MatchProtocolService.MatchDetailsData details = matchProtocolService.getMatchDetails(matchId);
+        SeasonProtocolArchiveService.PdfPayload pdf = seasonProtocolArchiveService.buildMatchProtocolPdf(
+            details.match().getTour().getSeason().getName(),
+            matchProtocolService.getVerifiedMatchProtocolExport(matchId)
+        );
+
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + URLEncoder.encode(pdf.fileName(), StandardCharsets.UTF_8).replaceAll("\\+", "%20"))
+            .contentType(MediaType.APPLICATION_PDF)
+            .contentLength(pdf.bytes().length)
+            .body(pdf.bytes());
+    }
+
     @PutMapping("/{matchId}/protocol")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<MatchDetailsResponse> upsertProtocol(
         @PathVariable Long matchId,
         @Valid @RequestBody MatchProtocolUpsertRequest request,
@@ -53,6 +76,9 @@ public class MatchController {
             request.homeTechnicalDefeat(),
             request.awayTechnicalDefeat(),
             request.bestPlayerId(),
+            request.chiefRefereeId(),
+            request.assistantRefereeOneId(),
+            request.assistantRefereeTwoId(),
             request.notes(),
             request.startedAt(),
             request.finishedAt(),
@@ -65,7 +91,8 @@ public class MatchController {
                     playerStat.redCards()
                 ))
                 .toList(),
-            currentUserId(authentication)
+            currentUserId(authentication),
+            isSuperAdmin(authentication)
         )));
     }
 
@@ -116,11 +143,28 @@ public class MatchController {
                 protocol.isAwayTechnicalDefeat(),
                 protocol.getBestPlayer() == null ? null : protocol.getBestPlayer().getId(),
                 protocol.getBestPlayer() == null ? null : protocol.getBestPlayer().getFullName(),
+                toRefereeResponse(protocol.getChiefReferee()),
+                toRefereeResponse(protocol.getAssistantRefereeOne()),
+                toRefereeResponse(protocol.getAssistantRefereeTwo()),
                 protocol.getStartedAt(),
                 protocol.getFinishedAt(),
                 protocol.getNotes(),
                 data.events().stream().map(this::toEventResponse).toList()
-            )
+            ),
+            data.availableReferees().stream().map(this::toRefereeResponse).toList()
+        );
+    }
+
+    private RefereeResponse toRefereeResponse(Referee referee) {
+        if (referee == null) {
+            return null;
+        }
+        return new RefereeResponse(
+            referee.getId(),
+            referee.getFullName(),
+            referee.getCity(),
+            referee.getBirthDate(),
+            referee.isActive()
         );
     }
 
@@ -199,7 +243,8 @@ public class MatchController {
         OffsetDateTime kickoffAt,
         MatchLineupResponse homeLineup,
         MatchLineupResponse awayLineup,
-        MatchProtocolResponse protocol
+        MatchProtocolResponse protocol,
+        List<RefereeResponse> availableReferees
     ) {}
 
     public record TeamResponse(Long id, String name, String shortName, String city, String logoDataUrl) {}
@@ -212,10 +257,21 @@ public class MatchController {
         boolean awayTechnicalDefeat,
         Long bestPlayerId,
         String bestPlayerName,
+        RefereeResponse chiefReferee,
+        RefereeResponse assistantRefereeOne,
+        RefereeResponse assistantRefereeTwo,
         OffsetDateTime startedAt,
         OffsetDateTime finishedAt,
         String notes,
         List<MatchEventResponse> events
+    ) {}
+
+    public record RefereeResponse(
+        Long id,
+        String fullName,
+        String city,
+        java.time.LocalDate birthDate,
+        boolean active
     ) {}
 
     public record MatchEventResponse(
@@ -268,6 +324,9 @@ public class MatchController {
         Boolean homeTechnicalDefeat,
         Boolean awayTechnicalDefeat,
         Long bestPlayerId,
+        Long chiefRefereeId,
+        Long assistantRefereeOneId,
+        Long assistantRefereeTwoId,
         String notes,
         OffsetDateTime startedAt,
         OffsetDateTime finishedAt,

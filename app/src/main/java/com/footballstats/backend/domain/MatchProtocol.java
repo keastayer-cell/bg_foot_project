@@ -47,6 +47,18 @@ public class MatchProtocol {
     @JoinColumn(name = "best_player_id")
     private Player bestPlayer;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "chief_referee_id")
+    private Referee chiefReferee;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assistant_referee_one_id")
+    private Referee assistantRefereeOne;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assistant_referee_two_id")
+    private Referee assistantRefereeTwo;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -126,6 +138,30 @@ public class MatchProtocol {
 
     public void setBestPlayer(Player bestPlayer) {
         this.bestPlayer = bestPlayer;
+    }
+
+    public Referee getChiefReferee() {
+        return chiefReferee;
+    }
+
+    public void setChiefReferee(Referee chiefReferee) {
+        this.chiefReferee = chiefReferee;
+    }
+
+    public Referee getAssistantRefereeOne() {
+        return assistantRefereeOne;
+    }
+
+    public void setAssistantRefereeOne(Referee assistantRefereeOne) {
+        this.assistantRefereeOne = assistantRefereeOne;
+    }
+
+    public Referee getAssistantRefereeTwo() {
+        return assistantRefereeTwo;
+    }
+
+    public void setAssistantRefereeTwo(Referee assistantRefereeTwo) {
+        this.assistantRefereeTwo = assistantRefereeTwo;
     }
 
     public String getNotes() {

@@ -160,6 +160,7 @@ export const endpointGroups = [
           roundsCount: 2,
           playoffEnabled: true,
           playoffTeamCount: 8,
+          applicationDeadline: '2026-04-20',
         },
       },
       {
@@ -182,6 +183,18 @@ export const endpointGroups = [
         description: 'Возвращает сезон, команды сезона и только опубликованные туры вместе со всеми их матчами. Используется стартовой страницей одним запросом.',
         access: 'Публичный endpoint',
         auth: false,
+        pathParams: [
+          { name: 'seasonId', placeholder: 'например 1' },
+        ],
+      },
+      {
+        key: 'season-protocols-export',
+        title: 'Скачать архив протоколов сезона',
+        method: 'GET',
+        path: '/api/seasons/{seasonId}/protocols/export',
+        description: 'Возвращает готовый ZIP-архив со всеми PDF протоколов подтвержденных матчей сезона. Архив собирается на backend.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
         pathParams: [
           { name: 'seasonId', placeholder: 'например 1' },
         ],
@@ -270,6 +283,7 @@ export const endpointGroups = [
           roundsCount: 2,
           playoffEnabled: true,
           playoffTeamCount: 8,
+          applicationDeadline: '2026-04-20',
         },
       },
       {
@@ -354,6 +368,18 @@ export const endpointGroups = [
         method: 'GET',
         path: '/api/matches/{matchId}',
         description: 'Возвращает матч, его текущий протокол, счет, статус, список событий и две заявки команд. Внутри заявок backend уже отдает только игроков команды, заявленных на сезон матча.',
+        access: 'Публичный endpoint',
+        auth: false,
+        pathParams: [
+          { name: 'matchId', placeholder: 'например 4' },
+        ],
+      },
+      {
+        key: 'match-protocol-pdf',
+        title: 'Скачать PDF подтвержденного протокола матча',
+        method: 'GET',
+        path: '/api/matches/{matchId}/protocol/pdf',
+        description: 'Возвращает готовый PDF подтвержденного протокола матча. Использует тот же backend-рендеринг, что и сезонный архив в админке.',
         access: 'Публичный endpoint',
         auth: false,
         pathParams: [
@@ -491,7 +517,7 @@ export const endpointGroups = [
         title: 'Сохранить заявку команды на сезон',
         method: 'PUT',
         path: '/api/team-rep/seasons/{seasonId}/players',
-        description: 'Полностью заменяет заявку команды представителя на выбранный сезон. В заявку можно включать только игроков текущего состава команды.',
+        description: 'Полностью заменяет заявку команды представителя на выбранный сезон. В заявку можно включать только игроков текущего состава команды. После дедлайна сезона допускает только удаления без новых добавлений.',
         access: 'TEAM_REP с canEditApplication',
         auth: true,
         pathParams: [
@@ -506,7 +532,7 @@ export const endpointGroups = [
         title: 'Добавить игрока в команду и заявку сезона',
         method: 'POST',
         path: '/api/team-rep/seasons/{seasonId}/players/{playerId}',
-        description: 'Если игрок уже в текущем составе команды, он просто добавляется в заявку. Если игрок вне состава, он переводится в команду представителя и сразу включается в заявку выбранного сезона.',
+        description: 'Если игрок уже в текущем составе команды, он просто добавляется в заявку. Если игрок вне состава, он переводится в команду представителя и сразу включается в заявку выбранного сезона. После дедлайна сезона добавление новых игроков запрещено.',
         access: 'TEAM_REP с canEditApplication',
         auth: true,
         pathParams: [

@@ -53,7 +53,7 @@ public class TeamController {
     }
 
     @GetMapping("/{teamId}/seasons")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<List<TeamSeasonResponse>> listTeamSeasons(@PathVariable Long teamId) {
         return ResponseEntity.ok(seasonPlayerService.listAvailableSeasonsForTeam(teamId).stream()
             .map(this::toSeasonResponse)
@@ -61,7 +61,7 @@ public class TeamController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<TeamResponse> createTeam(
         @Valid @RequestBody TeamUpsertRequest request,
         Authentication authentication
@@ -71,7 +71,7 @@ public class TeamController {
     }
 
     @PutMapping("/{teamId}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<TeamResponse> updateTeam(
         @PathVariable Long teamId,
         @Valid @RequestBody TeamUpsertRequest request,
@@ -82,7 +82,7 @@ public class TeamController {
     }
 
     @DeleteMapping("/{teamId}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<TeamResponse> deactivateTeam(@PathVariable Long teamId, Authentication authentication) {
         Team team = teamService.deactivateTeam(teamId, currentUserId(authentication));
         return ResponseEntity.ok(toResponse(team));

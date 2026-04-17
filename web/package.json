@@ -8,6 +8,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
+    "pdfmake": "^0.3.7",
     "vue": "^3.4.0",
     "vue-router": "^4.2.0"
   },

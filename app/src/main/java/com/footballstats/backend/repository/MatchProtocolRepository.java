@@ -16,6 +16,9 @@ public interface MatchProtocolRepository extends JpaRepository<MatchProtocol, Lo
         FROM MatchProtocol mp
         JOIN FETCH mp.match match
         LEFT JOIN FETCH mp.bestPlayer bestPlayer
+        LEFT JOIN FETCH mp.chiefReferee chiefReferee
+        LEFT JOIN FETCH mp.assistantRefereeOne assistantRefereeOne
+        LEFT JOIN FETCH mp.assistantRefereeTwo assistantRefereeTwo
         WHERE match.id = :matchId
         """)
     Optional<MatchProtocol> findDetailedByMatchId(@Param("matchId") Long matchId);

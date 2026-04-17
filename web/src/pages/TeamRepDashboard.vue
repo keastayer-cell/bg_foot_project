@@ -49,6 +49,10 @@
           <div class="toolbar team-rep-card-head team-rep-season-actions">
             <div class="team-rep-badge-row">
               <span class="team-rep-season-chip">В заявке: {{ selectedSeasonSummary.selectedPlayersCount }}</span>
+              <span class="team-rep-season-chip">{{ selectedSeasonSummary.applicationDeadline ? `Дедлайн: ${formatDateOnly(selectedSeasonSummary.applicationDeadline)}` : 'Дедлайн не задан' }}</span>
+              <span class="team-rep-season-chip" :class="selectedSeasonSummary.applicationOpen ? 'team-rep-season-chip-open' : 'team-rep-season-chip-closed'">
+                {{ selectedSeasonSummary.applicationOpen ? 'Добавление открыто' : 'Добавление закрыто' }}
+              </span>
             </div>
             <div class="actions-row team-rep-season-actions-row">
               <button
@@ -58,9 +62,12 @@
               >
                 {{ showSelectedSeasonPlayersOnly ? 'Показать весь состав' : 'Показать игроков в заявке' }}
               </button>
-              <button class="btn-primary" type="button" @click="openAddPlayerModal(selectedSeasonSummary.id)">Добавить игрока</button>
+              <button class="btn-primary" type="button" @click="openAddPlayerModal(selectedSeasonSummary.id)" :disabled="!selectedSeasonSummary.applicationOpen">Добавить игрока</button>
             </div>
           </div>
+          <p v-if="!selectedSeasonSummary.applicationOpen" class="muted-text">
+            Дедлайн добавления игроков в заявку сезона истек. Удалять игроков из заявки по-прежнему можно.
+          </p>
         </template>
 
         <p v-if="seasonError" class="error-text">{{ seasonError }}</p>
@@ -122,7 +129,7 @@
               class="btn-primary"
               type="button"
               @click="addAvailablePlayersToSeason"
-              :disabled="seasonLoading || !seasonView || !selectedAvailablePlayerIds.length"
+              :disabled="seasonLoading || !seasonView || !seasonView.applicationOpen || !selectedAvailablePlayerIds.length"
             >
               Добавить выбранных
             </button>
@@ -150,7 +157,11 @@
           </div>
         </div>
 
-        <p v-else class="muted-text">Не удалось загрузить доступных игроков.</p>
+        <p v-if="seasonView && !seasonView.applicationOpen" class="muted-text">
+          Добавление новых игроков закрыто с {{ formatDateOnly(seasonView.applicationDeadline) }}.
+        </p>
+
+        <p v-if="!seasonView" class="muted-text">Не удалось загрузить доступных игроков.</p>
 
         <p class="error-text" v-if="seasonError">{{ seasonError }}</p>
 
@@ -363,6 +374,13 @@ async function loadSeasonView(seasonId) {
 async function openAddPlayerModal(seasonId) {
   seasonError.value = ''
   seasonSuccess.value = ''
+  const summary = teamSeasons.value.find((season) => String(season.id) === String(seasonId)) || null
+  if (summary && !summary.applicationOpen) {
+    seasonError.value = summary.applicationDeadline
+      ? `Дедлайн добавления игроков истек ${formatDateOnly(summary.applicationDeadline)}.`
+      : 'Добавление игроков в заявку этого сезона закрыто.'
+    return
+  }
   addPlayerModalOpen.value = true
 
   if (String(seasonView.value?.seasonId || '') === String(seasonId)) {
@@ -396,6 +414,12 @@ async function removeFromSeason(playerId) {
 async function addAvailablePlayersToSeason() {
   if (!seasonView.value || !selectedAvailablePlayerIds.value.length) {
     seasonError.value = 'Выберите хотя бы одного игрока из списка.'
+    return
+  }
+  if (!seasonView.value.applicationOpen) {
+    seasonError.value = seasonView.value.applicationDeadline
+      ? `Дедлайн добавления игроков истек ${formatDateOnly(seasonView.value.applicationDeadline)}.`
+      : 'Добавление игроков в заявку этого сезона закрыто.'
     return
   }
 
@@ -657,6 +681,16 @@ function formatPlayerOptionLabel(player) {
   border: 1px solid rgba(97, 232, 162, 0.18);
   color: var(--text);
   font-size: 0.82rem;
+}
+
+.team-rep-season-chip-open {
+  background: rgba(97, 232, 162, 0.1);
+  border-color: rgba(97, 232, 162, 0.28);
+}
+
+.team-rep-season-chip-closed {
+  background: rgba(255, 184, 107, 0.1);
+  border-color: rgba(255, 184, 107, 0.28);
 }
 
 .team-rep-filter-hint {

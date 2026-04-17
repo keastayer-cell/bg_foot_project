@@ -27,6 +27,9 @@ public interface TourMatchRepository extends JpaRepository<TourMatch, Long> {
       JOIN FETCH tm.awayTeam awayTeam
       LEFT JOIN FETCH tm.protocol protocol
       LEFT JOIN FETCH protocol.bestPlayer bestPlayer
+      LEFT JOIN FETCH protocol.chiefReferee chiefReferee
+      LEFT JOIN FETCH protocol.assistantRefereeOne assistantRefereeOne
+      LEFT JOIN FETCH protocol.assistantRefereeTwo assistantRefereeTwo
       WHERE tm.id = :matchId
       """)
     Optional<TourMatch> findDetailedById(@Param("matchId") Long matchId);

@@ -755,6 +755,7 @@ function formatMatchDateTime(value) {
   }).format(date)
 }
 
+
 function matchScoreLabel(match) {
   if (Number.isInteger(match.homeScore) && Number.isInteger(match.awayScore)) {
     return `${match.homeScore} : ${match.awayScore}`
@@ -946,6 +947,10 @@ onMounted(async () => {
 
 .standings-head > div:first-child {
   min-width: 0;
+}
+
+.standings-rules-text {
+  margin: 8px 0 0;
 }
 
 .standings-toolbar {

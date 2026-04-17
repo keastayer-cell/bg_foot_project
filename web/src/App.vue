@@ -22,7 +22,7 @@
           <router-link to="/players">Игроки</router-link>
           <router-link to="/teams">Команды</router-link>
           <router-link v-if="canSeeAdmin()" to="/admin">Админ-панель</router-link>
-          <router-link v-if="canSeeAdmin()" to="/api-explorer">API Explorer</router-link>
+          <router-link v-if="canSeeApiExplorer()" to="/api-explorer">API Explorer</router-link>
         </nav>
 
         <div class="auth-strip" v-if="isAuthenticated && user">
@@ -306,6 +306,10 @@ function openProfile() {
 }
 
 function canSeeAdmin() {
+  return isAuthenticated.value && (hasRole('SUPER_ADMIN') || hasRole('REFEREE'))
+}
+
+function canSeeApiExplorer() {
   return isAuthenticated.value && hasRole('SUPER_ADMIN')
 }
 

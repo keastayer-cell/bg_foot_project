@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,8 @@ public class TeamRepService {
             .map(season -> new TeamRepSeasonData(
                 season.getId(),
                 season.getName(),
+                season.getApplicationDeadline(),
+                isApplicationOpen(season),
                 rosterCount,
                 seasonPlayerService.countActiveSeasonPlayers(context.teamId(), season.getId())
             ))
@@ -135,7 +138,16 @@ public class TeamRepService {
             ))
             .toList();
 
-        return new TeamRepSeasonPlayersData(season.getId(), season.getName(), context.teamId(), context.teamName(), players, availablePlayers);
+        return new TeamRepSeasonPlayersData(
+            season.getId(),
+            season.getName(),
+            season.getApplicationDeadline(),
+            isApplicationOpen(season),
+            context.teamId(),
+            context.teamName(),
+            players,
+            availablePlayers
+        );
     }
 
     @Transactional
@@ -225,6 +237,7 @@ public class TeamRepService {
     @Transactional
     public TeamRepSeasonPlayersData replaceSeasonPlayers(Long userId, Long seasonId, List<Long> playerIds) {
         TeamScopeContext context = requireApplicationScope(userId);
+        ensureSeasonApplicationOpenForAdditions(context.teamId(), seasonId, playerIds);
         seasonPlayerService.replaceSeasonPlayers(context.teamId(), seasonId, playerIds, userId);
         return getSeasonPlayers(userId, seasonId);
     }
@@ -232,6 +245,7 @@ public class TeamRepService {
     @Transactional
     public TeamRepSeasonPlayersData addSeasonPlayers(Long userId, Long seasonId, List<Long> playerIds) {
         TeamScopeContext context = requireApplicationScope(userId);
+        ensureSeasonApplicationOpenForAdditions(context.teamId(), seasonId, playerIds);
         java.util.LinkedHashSet<Long> ids = new java.util.LinkedHashSet<>(playerIds == null ? List.of() : playerIds.stream().filter(java.util.Objects::nonNull).toList());
         for (Long playerId : ids) {
             boolean alreadyInRoster = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, context.teamId()).isPresent();
@@ -247,6 +261,7 @@ public class TeamRepService {
     @Transactional
     public TeamRepSeasonPlayersData addSeasonPlayer(Long userId, Long seasonId, Long playerId) {
         TeamScopeContext context = requireApplicationScope(userId);
+        ensureSeasonApplicationOpenForAdditions(context.teamId(), seasonId, List.of(playerId));
         boolean alreadyInRoster = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, context.teamId()).isPresent();
         if (alreadyInRoster) {
             seasonPlayerService.addSeasonPlayer(context.teamId(), seasonId, playerId, userId);
@@ -300,6 +315,33 @@ public class TeamRepService {
         return context;
     }
 
+    private void ensureSeasonApplicationOpenForAdditions(Long teamId, Long seasonId, List<Long> playerIds) {
+        Season season = seasonPlayerService.getSeasonForTeam(teamId, seasonId);
+        if (isApplicationOpen(season)) {
+            return;
+        }
+
+        Set<Long> requestedIds = new LinkedHashSet<>(playerIds == null ? List.of() : playerIds.stream().filter(java.util.Objects::nonNull).toList());
+        if (requestedIds.isEmpty()) {
+            return;
+        }
+
+        Set<Long> activeIds = seasonPlayerService.getActivePlayerIds(teamId, seasonId);
+        boolean hasNewPlayers = requestedIds.stream().anyMatch(playerId -> !activeIds.contains(playerId));
+        if (!hasNewPlayers) {
+            return;
+        }
+
+        throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "Срок добавления игроков в заявку сезона истек " + season.getApplicationDeadline() + "."
+        );
+    }
+
+    private boolean isApplicationOpen(Season season) {
+        return season.getApplicationDeadline() == null || !LocalDate.now().isAfter(season.getApplicationDeadline());
+    }
+
     private String normalizeOptional(String value) {
         String normalized = String.valueOf(value == null ? "" : value).trim();
         return normalized.isEmpty() ? null : normalized;
@@ -315,7 +357,14 @@ public class TeamRepService {
 
     private record TeamScopeContext(UserTeamScope scope, Long teamId, String teamName) {}
 
-    public record TeamRepSeasonData(Long id, String name, long rosterPlayersCount, long selectedPlayersCount) {}
+    public record TeamRepSeasonData(
+        Long id,
+        String name,
+        LocalDate applicationDeadline,
+        boolean applicationOpen,
+        long rosterPlayersCount,
+        long selectedPlayersCount
+    ) {}
 
     public record TeamRepPlayerData(
         Long id,
@@ -334,6 +383,8 @@ public class TeamRepService {
     public record TeamRepSeasonPlayersData(
         Long seasonId,
         String seasonName,
+        LocalDate applicationDeadline,
+        boolean applicationOpen,
         Long teamId,
         String teamName,
         List<TeamRepSeasonPlayerData> players,

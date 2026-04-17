@@ -1,20 +1,28 @@
 package com.footballstats.backend.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.footballstats.backend.domain.MatchEvent;
 import com.footballstats.backend.domain.MatchEventType;
 import com.footballstats.backend.domain.MatchLineup;
 import com.footballstats.backend.domain.MatchLineupPlayer;
+import com.footballstats.backend.domain.MatchProtocolExportSnapshot;
 import com.footballstats.backend.domain.MatchProtocol;
 import com.footballstats.backend.domain.MatchProtocolStatus;
 import com.footballstats.backend.domain.Player;
 import com.footballstats.backend.domain.PlayerTeam;
+import com.footballstats.backend.domain.Referee;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.TourMatch;
 import com.footballstats.backend.repository.MatchEventRepository;
+import com.footballstats.backend.repository.MatchProtocolExportSnapshotRepository;
 import com.footballstats.backend.repository.MatchLineupPlayerRepository;
 import com.footballstats.backend.repository.MatchLineupRepository;
 import com.footballstats.backend.repository.MatchProtocolRepository;
 import com.footballstats.backend.repository.PlayerRepository;
+import com.footballstats.backend.repository.RefereeRepository;
+import com.footballstats.backend.repository.SeasonRefereeRepository;
 import com.footballstats.backend.repository.TourMatchRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.HttpStatus;
@@ -34,39 +42,54 @@ import java.util.HashSet;
 @Service
 public class MatchProtocolService {
 
+    private static final TypeReference<List<SeasonProtocolExportRefereeData>> EXPORT_REFEREES_TYPE = new TypeReference<>() {};
+    private static final TypeReference<List<SeasonProtocolExportTeamData>> EXPORT_TEAMS_TYPE = new TypeReference<>() {};
+
     private final TourMatchRepository tourMatchRepository;
     private final MatchProtocolRepository matchProtocolRepository;
+    private final MatchProtocolExportSnapshotRepository matchProtocolExportSnapshotRepository;
     private final MatchEventRepository matchEventRepository;
     private final MatchLineupRepository matchLineupRepository;
     private final MatchLineupPlayerRepository matchLineupPlayerRepository;
     private final PlayerRepository playerRepository;
+    private final RefereeRepository refereeRepository;
+    private final SeasonRefereeRepository seasonRefereeRepository;
     private final AccessControlService accessControlService;
     private final SeasonPlayerService seasonPlayerService;
     private final SeasonStandingsService seasonStandingsService;
     private final SeasonDisciplineService seasonDisciplineService;
+    private final ObjectMapper objectMapper;
 
     public MatchProtocolService(
         TourMatchRepository tourMatchRepository,
         MatchProtocolRepository matchProtocolRepository,
+        MatchProtocolExportSnapshotRepository matchProtocolExportSnapshotRepository,
         MatchEventRepository matchEventRepository,
         MatchLineupRepository matchLineupRepository,
         MatchLineupPlayerRepository matchLineupPlayerRepository,
         PlayerRepository playerRepository,
+        RefereeRepository refereeRepository,
+        SeasonRefereeRepository seasonRefereeRepository,
         AccessControlService accessControlService,
         SeasonPlayerService seasonPlayerService,
         SeasonStandingsService seasonStandingsService,
-        SeasonDisciplineService seasonDisciplineService
+        SeasonDisciplineService seasonDisciplineService,
+        ObjectMapper objectMapper
     ) {
         this.tourMatchRepository = tourMatchRepository;
         this.matchProtocolRepository = matchProtocolRepository;
+        this.matchProtocolExportSnapshotRepository = matchProtocolExportSnapshotRepository;
         this.matchEventRepository = matchEventRepository;
         this.matchLineupRepository = matchLineupRepository;
         this.matchLineupPlayerRepository = matchLineupPlayerRepository;
         this.playerRepository = playerRepository;
+        this.refereeRepository = refereeRepository;
+        this.seasonRefereeRepository = seasonRefereeRepository;
         this.accessControlService = accessControlService;
         this.seasonPlayerService = seasonPlayerService;
         this.seasonStandingsService = seasonStandingsService;
         this.seasonDisciplineService = seasonDisciplineService;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -80,7 +103,30 @@ public class MatchProtocolService {
         }
         List<MatchEvent> events = matchEventRepository.findAllDetailedByMatchId(matchId);
         MatchLineupsData lineups = loadLineups(match);
-        return new MatchDetailsData(match, protocol, events, lineups.homeLineup(), lineups.awayLineup());
+        return new MatchDetailsData(match, protocol, events, lineups.homeLineup(), lineups.awayLineup(), loadSeasonReferees(match));
+    }
+
+    @Transactional
+    public List<SeasonProtocolExportMatchData> getSeasonProtocolExportMatches(Long seasonId) {
+        ensureSeasonProtocolExportSnapshots(seasonId);
+        return matchProtocolExportSnapshotRepository.findAllBySeasonIdOrderByExportOrder(seasonId).stream()
+            .map(this::toSeasonProtocolExportMatchData)
+            .toList();
+    }
+
+    @Transactional
+    public SeasonProtocolExportMatchData getVerifiedMatchProtocolExport(Long matchId) {
+        MatchProtocolExportSnapshot snapshot = matchProtocolExportSnapshotRepository.findByMatchId(matchId).orElse(null);
+        if (snapshot != null) {
+            return toSeasonProtocolExportMatchData(snapshot);
+        }
+
+        MatchDetailsData data = getMatchDetails(matchId);
+        if (data.protocol().getStatus() != MatchProtocolStatus.VERIFIED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Скачать PDF можно только для подтвержденного протокола.");
+        }
+
+        return toSeasonProtocolExportMatchData(data);
     }
 
     @Transactional
@@ -92,14 +138,21 @@ public class MatchProtocolService {
         Boolean homeTechnicalDefeat,
         Boolean awayTechnicalDefeat,
         Long bestPlayerId,
+        Long chiefRefereeId,
+        Long assistantRefereeOneId,
+        Long assistantRefereeTwoId,
         String notes,
         OffsetDateTime startedAt,
         OffsetDateTime finishedAt,
         List<PlayerProtocolStatDraft> playerStatDrafts,
-        Long actorUserId
+        Long actorUserId,
+        boolean superAdmin
     ) {
         TourMatch match = getExistingDetailedMatch(matchId);
         MatchProtocol protocol = getOrCreateProtocol(match, actorUserId);
+        if (!superAdmin && protocol.getStatus() == MatchProtocolStatus.VERIFIED) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Подтвержденный протокол может изменять только супер администратор.");
+        }
         MatchProtocolStatus previousStatus = protocol.getStatus();
         MatchProtocolStatus nextStatus = status == null ? MatchProtocolStatus.SCHEDULED : status;
 
@@ -141,6 +194,10 @@ public class MatchProtocolService {
         protocol.setHomeTechnicalDefeat(homeTech);
         protocol.setAwayTechnicalDefeat(awayTech);
         protocol.setBestPlayer(resolvePlayer(bestPlayerId));
+        RefereeAssignments refereeAssignments = resolveRefereeAssignments(match, chiefRefereeId, assistantRefereeOneId, assistantRefereeTwoId);
+        protocol.setChiefReferee(refereeAssignments.chiefReferee());
+        protocol.setAssistantRefereeOne(refereeAssignments.assistantRefereeOne());
+        protocol.setAssistantRefereeTwo(refereeAssignments.assistantRefereeTwo());
         protocol.setNotes(normalizeNullable(notes));
         protocol.setStartedAt(startedAt);
         protocol.setFinishedAt(finishedAt);
@@ -154,7 +211,16 @@ public class MatchProtocolService {
 
         TourMatch refreshedMatch = getExistingDetailedMatch(matchId);
         MatchLineupsData lineups = loadLineups(refreshedMatch);
-        return new MatchDetailsData(refreshedMatch, protocol, persistedEvents, lineups.homeLineup(), lineups.awayLineup());
+        MatchDetailsData result = new MatchDetailsData(
+            refreshedMatch,
+            protocol,
+            persistedEvents,
+            lineups.homeLineup(),
+            lineups.awayLineup(),
+            loadSeasonReferees(refreshedMatch)
+        );
+        syncSeasonProtocolExportSnapshot(result);
+        return result;
     }
 
     @Transactional
@@ -170,6 +236,8 @@ public class MatchProtocolService {
         protocol.setUpdatedByUserId(actorUserId);
         protocol.setUpdatedAt(OffsetDateTime.now());
         matchProtocolRepository.save(protocol);
+
+        matchProtocolExportSnapshotRepository.deleteByMatchId(matchId);
 
         seasonStandingsService.recalculateSeasonStandings(match.getTour().getSeason().getId(), actorUserId);
 
@@ -296,6 +364,51 @@ public class MatchProtocolService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Игрок протокола не найден."));
     }
 
+    private Referee resolveSeasonReferee(TourMatch match, Long refereeId) {
+        if (refereeId == null) {
+            return null;
+        }
+        boolean assignedToSeason = seasonRefereeRepository.existsBySeason_IdAndReferee_Id(match.getTour().getSeason().getId(), refereeId);
+        if (!assignedToSeason) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Судья не привязан к сезону этого матча.");
+        }
+        return refereeRepository.findById(refereeId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Судья не найден."));
+    }
+
+    private RefereeAssignments resolveRefereeAssignments(
+        TourMatch match,
+        Long chiefRefereeId,
+        Long assistantRefereeOneId,
+        Long assistantRefereeTwoId
+    ) {
+        Referee chiefReferee = resolveSeasonReferee(match, chiefRefereeId);
+        Referee assistantRefereeOne = resolveSeasonReferee(match, assistantRefereeOneId);
+        Referee assistantRefereeTwo = resolveSeasonReferee(match, assistantRefereeTwoId);
+
+        Set<Long> uniqueRefereeIds = new HashSet<>();
+        validateUniqueReferee(uniqueRefereeIds, chiefReferee);
+        validateUniqueReferee(uniqueRefereeIds, assistantRefereeOne);
+        validateUniqueReferee(uniqueRefereeIds, assistantRefereeTwo);
+
+        return new RefereeAssignments(chiefReferee, assistantRefereeOne, assistantRefereeTwo);
+    }
+
+    private void validateUniqueReferee(Set<Long> uniqueRefereeIds, Referee referee) {
+        if (referee == null) {
+            return;
+        }
+        if (!uniqueRefereeIds.add(referee.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Одного и того же судью нельзя назначить на несколько ролей в матче.");
+        }
+    }
+
+    private List<Referee> loadSeasonReferees(TourMatch match) {
+        return seasonRefereeRepository.findAllBySeasonIdOrderByRefereeFullNameAsc(match.getTour().getSeason().getId()).stream()
+            .map(seasonReferee -> seasonReferee.getReferee())
+            .toList();
+    }
+
     private Team resolveEventTeam(TourMatch match, Long teamId) {
         if (teamId == null) {
             return null;
@@ -318,6 +431,34 @@ public class MatchProtocolService {
         return team;
     }
 
+    private void ensureSeasonProtocolExportSnapshots(Long seasonId) {
+        List<TourMatch> verifiedMatches = tourMatchRepository.findAllActiveDetailedBySeasonId(seasonId).stream()
+            .filter(match -> match.getProtocol() != null && match.getProtocol().getStatus() == MatchProtocolStatus.VERIFIED)
+            .toList();
+
+        if (verifiedMatches.isEmpty()) {
+            matchProtocolExportSnapshotRepository.deleteAllBySeasonId(seasonId);
+            return;
+        }
+
+        Set<Long> verifiedMatchIds = verifiedMatches.stream()
+            .map(TourMatch::getId)
+            .collect(java.util.stream.Collectors.toSet());
+        Set<Long> snapshotMatchIds = new HashSet<>(matchProtocolExportSnapshotRepository.findMatchIdsBySeasonId(seasonId));
+
+        for (Long snapshotMatchId : snapshotMatchIds) {
+            if (!verifiedMatchIds.contains(snapshotMatchId)) {
+                matchProtocolExportSnapshotRepository.deleteByMatchId(snapshotMatchId);
+            }
+        }
+
+        for (TourMatch verifiedMatch : verifiedMatches) {
+            if (!snapshotMatchIds.contains(verifiedMatch.getId())) {
+                upsertSeasonProtocolExportSnapshot(getMatchDetails(verifiedMatch.getId()));
+            }
+        }
+    }
+
     private MatchLineupsData loadLineups(TourMatch match) {
         Long matchId = match.getId();
         Long seasonId = match.getTour().getSeason().getId();
@@ -337,6 +478,175 @@ public class MatchProtocolService {
         TeamLineupData homeLineup = buildLineupData(match, match.getHomeTeam(), seasonId, lineupsByTeamId, playersByTeamId, suspendedPlayers);
         TeamLineupData awayLineup = buildLineupData(match, match.getAwayTeam(), seasonId, lineupsByTeamId, playersByTeamId, suspendedPlayers);
         return new MatchLineupsData(homeLineup, awayLineup);
+    }
+
+    private SeasonProtocolExportMatchData toSeasonProtocolExportMatchData(MatchDetailsData data) {
+        Map<String, ProtocolPlayerStats> statsByPlayerKey = buildProtocolPlayerStatsMap(data.events());
+        MatchProtocol protocol = data.protocol();
+
+        String note = normalizeExportNote(data);
+
+        return new SeasonProtocolExportMatchData(
+            data.match().getId(),
+            data.match().getTour().getName(),
+            data.match().getKickoffAt(),
+            data.match().getHomeTeam().getName(),
+            data.match().getAwayTeam().getName(),
+            protocol.getHomeScore(),
+            protocol.getAwayScore(),
+            protocol.isHomeTechnicalDefeat(),
+            protocol.isAwayTechnicalDefeat(),
+            note,
+            List.of(
+                new SeasonProtocolExportRefereeData("Главный арбитр", protocol.getChiefReferee() == null ? null : protocol.getChiefReferee().getFullName()),
+                new SeasonProtocolExportRefereeData("Помощник 1", protocol.getAssistantRefereeOne() == null ? null : protocol.getAssistantRefereeOne().getFullName()),
+                new SeasonProtocolExportRefereeData("Помощник 2", protocol.getAssistantRefereeTwo() == null ? null : protocol.getAssistantRefereeTwo().getFullName())
+            ),
+            List.of(
+                toSeasonProtocolExportTeamData(data.homeLineup(), statsByPlayerKey),
+                toSeasonProtocolExportTeamData(data.awayLineup(), statsByPlayerKey)
+            ),
+            buildSeasonProtocolExportFileName(data.match())
+        );
+    }
+
+    private SeasonProtocolExportMatchData toSeasonProtocolExportMatchData(MatchProtocolExportSnapshot snapshot) {
+        return new SeasonProtocolExportMatchData(
+            snapshot.getMatchId(),
+            snapshot.getTourName(),
+            snapshot.getKickoffAt(),
+            snapshot.getHomeTeamName(),
+            snapshot.getAwayTeamName(),
+            snapshot.getHomeScore(),
+            snapshot.getAwayScore(),
+            snapshot.isHomeTechnicalDefeat(),
+            snapshot.isAwayTechnicalDefeat(),
+            snapshot.getNote(),
+            readSnapshotJson(snapshot.getRefereesJson(), EXPORT_REFEREES_TYPE),
+            readSnapshotJson(snapshot.getTeamsJson(), EXPORT_TEAMS_TYPE),
+            snapshot.getFileName()
+        );
+    }
+
+    private void syncSeasonProtocolExportSnapshot(MatchDetailsData data) {
+        if (data.protocol().getStatus() == MatchProtocolStatus.VERIFIED) {
+            upsertSeasonProtocolExportSnapshot(data);
+            return;
+        }
+        matchProtocolExportSnapshotRepository.deleteByMatchId(data.match().getId());
+    }
+
+    private void upsertSeasonProtocolExportSnapshot(MatchDetailsData data) {
+        SeasonProtocolExportMatchData exportData = toSeasonProtocolExportMatchData(data);
+        MatchProtocolExportSnapshot snapshot = matchProtocolExportSnapshotRepository.findByMatchId(data.match().getId())
+            .orElseGet(MatchProtocolExportSnapshot::new);
+
+        snapshot.setSeasonId(data.match().getTour().getSeason().getId());
+        snapshot.setMatchId(data.match().getId());
+        snapshot.setTourSortOrder(data.match().getTour().getSortOrder());
+        snapshot.setKickoffAt(exportData.kickoffAt());
+        snapshot.setTourName(exportData.tourName());
+        snapshot.setHomeTeamName(exportData.homeTeamName());
+        snapshot.setAwayTeamName(exportData.awayTeamName());
+        snapshot.setHomeScore(exportData.homeScore());
+        snapshot.setAwayScore(exportData.awayScore());
+        snapshot.setHomeTechnicalDefeat(exportData.homeTechnicalDefeat());
+        snapshot.setAwayTechnicalDefeat(exportData.awayTechnicalDefeat());
+        snapshot.setNote(exportData.note());
+        snapshot.setFileName(exportData.fileName());
+        snapshot.setRefereesJson(writeSnapshotJson(exportData.referees()));
+        snapshot.setTeamsJson(writeSnapshotJson(exportData.teams()));
+        snapshot.setUpdatedAt(OffsetDateTime.now());
+        matchProtocolExportSnapshotRepository.save(snapshot);
+    }
+
+    private String writeSnapshotJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Не удалось сохранить снимок подтвержденного протокола.", exception);
+        }
+    }
+
+    private <T> T readSnapshotJson(String rawJson, TypeReference<T> typeReference) {
+        try {
+            return objectMapper.readValue(rawJson, typeReference);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Не удалось прочитать снимок подтвержденного протокола.", exception);
+        }
+    }
+
+    private SeasonProtocolExportTeamData toSeasonProtocolExportTeamData(TeamLineupData lineup, Map<String, ProtocolPlayerStats> statsByPlayerKey) {
+        return new SeasonProtocolExportTeamData(
+            lineup.teamName(),
+            lineup.players().stream()
+                .map(player -> {
+                    ProtocolPlayerStats stats = statsByPlayerKey.getOrDefault(playerStatsKey(lineup.teamId(), player.playerId()), ProtocolPlayerStats.EMPTY);
+                    return new SeasonProtocolExportPlayerData(
+                        player.playerId(),
+                        player.playerName(),
+                        player.sortOrder(),
+                        stats.goals(),
+                        stats.yellowCards(),
+                        stats.redCards()
+                    );
+                })
+                .toList()
+        );
+    }
+
+    private Map<String, ProtocolPlayerStats> buildProtocolPlayerStatsMap(List<MatchEvent> events) {
+        Map<String, ProtocolPlayerStats> statsByPlayerKey = new LinkedHashMap<>();
+
+        for (MatchEvent event : events) {
+            if (event.getTeam() == null || event.getPlayer() == null) {
+                continue;
+            }
+
+            String key = playerStatsKey(event.getTeam().getId(), event.getPlayer().getId());
+            ProtocolPlayerStats current = statsByPlayerKey.getOrDefault(key, ProtocolPlayerStats.EMPTY);
+            statsByPlayerKey.put(key, switch (event.getEventType()) {
+                case GOAL, PENALTY_GOAL -> current.withGoals(current.goals() + 1);
+                case YELLOW_CARD -> current.withYellowCards(current.yellowCards() + 1);
+                case RED_CARD, SECOND_YELLOW_RED -> current.withRedCards(current.redCards() + 1);
+                default -> current;
+            });
+        }
+
+        return statsByPlayerKey;
+    }
+
+    private String normalizeExportNote(MatchDetailsData data) {
+        MatchProtocol protocol = data.protocol();
+        if (protocol.isHomeTechnicalDefeat()) {
+            return "Зафиксировано техническое поражение команды " + data.match().getHomeTeam().getName() + ".";
+        }
+        if (protocol.isAwayTechnicalDefeat()) {
+            return "Зафиксировано техническое поражение команды " + data.match().getAwayTeam().getName() + ".";
+        }
+        return normalizeNullable(protocol.getNotes()) == null ? "Дополнительные замечания по матчу не указаны." : normalizeNullable(protocol.getNotes());
+    }
+
+    private String buildSeasonProtocolExportFileName(TourMatch match) {
+        String date = match.getKickoffAt() == null ? "match" : match.getKickoffAt().toLocalDate().toString();
+        String tour = sanitizeFileNamePart(match.getTour().getName(), "tour");
+        String home = sanitizeFileNamePart(match.getHomeTeam().getName(), "home");
+        String away = sanitizeFileNamePart(match.getAwayTeam().getName(), "away");
+        return "protocol_" + date + "_" + tour + "_" + home + "_vs_" + away + ".pdf";
+    }
+
+    private String sanitizeFileNamePart(String value, String fallback) {
+        String normalized = value == null ? fallback : value.trim();
+        if (normalized.isEmpty()) {
+            normalized = fallback;
+        }
+        return normalized
+            .replaceAll("[\\\\/:*?\"<>|]", "_")
+            .replaceAll("\\s+", "_");
+    }
+
+    private String playerStatsKey(Long teamId, Long playerId) {
+        return teamId + ":" + playerId;
     }
 
     private TeamLineupData buildLineupData(
@@ -574,8 +884,64 @@ public class MatchProtocolService {
         MatchProtocol protocol,
         List<MatchEvent> events,
         TeamLineupData homeLineup,
-        TeamLineupData awayLineup
+        TeamLineupData awayLineup,
+        List<Referee> availableReferees
     ) {}
+
+    public record SeasonProtocolExportMatchData(
+        Long matchId,
+        String tourName,
+        OffsetDateTime kickoffAt,
+        String homeTeamName,
+        String awayTeamName,
+        Integer homeScore,
+        Integer awayScore,
+        boolean homeTechnicalDefeat,
+        boolean awayTechnicalDefeat,
+        String note,
+        List<SeasonProtocolExportRefereeData> referees,
+        List<SeasonProtocolExportTeamData> teams,
+        String fileName
+    ) {}
+
+    public record SeasonProtocolExportRefereeData(
+        String label,
+        String name
+    ) {}
+
+    public record SeasonProtocolExportTeamData(
+        String teamName,
+        List<SeasonProtocolExportPlayerData> players
+    ) {}
+
+    public record SeasonProtocolExportPlayerData(
+        Long playerId,
+        String playerName,
+        int sortOrder,
+        int goals,
+        int yellowCards,
+        int redCards
+    ) {}
+
+    private record ProtocolPlayerStats(
+        int goals,
+        int yellowCards,
+        int redCards
+    ) {
+        private static final ProtocolPlayerStats EMPTY = new ProtocolPlayerStats(0, 0, 0);
+
+        private ProtocolPlayerStats withGoals(int value) {
+            return new ProtocolPlayerStats(value, yellowCards, redCards);
+        }
+
+        private ProtocolPlayerStats withYellowCards(int value) {
+            return new ProtocolPlayerStats(goals, value, redCards);
+        }
+
+        private ProtocolPlayerStats withRedCards(int value) {
+            return new ProtocolPlayerStats(goals, yellowCards, value);
+        }
+    }
 
     public record TeamLineupData(
         Long matchId,
@@ -633,5 +999,11 @@ public class MatchProtocolService {
     private record ProtocolScoreData(
         int homeScore,
         int awayScore
+    ) {}
+
+    private record RefereeAssignments(
+        Referee chiefReferee,
+        Referee assistantRefereeOne,
+        Referee assistantRefereeTwo
     ) {}
 }

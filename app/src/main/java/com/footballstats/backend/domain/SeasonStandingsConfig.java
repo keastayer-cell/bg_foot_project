@@ -33,6 +33,9 @@ public class SeasonStandingsConfig {
     @Column(name = "loss_points", nullable = false)
     private int lossPoints = 0;
 
+    @Column(name = "ranking_rules_json", nullable = false)
+    private String rankingRulesJson = "[\"POINTS\",\"GOAL_DIFFERENCE\",\"GOALS_FOR\",\"ALPHABETICAL\"]";
+
     @Column(name = "yellow_cards_for_suspension", nullable = false)
     private int yellowCardsForSuspension = 0;
 
@@ -88,6 +91,14 @@ public class SeasonStandingsConfig {
 
     public void setLossPoints(int lossPoints) {
         this.lossPoints = lossPoints;
+    }
+
+    public String getRankingRulesJson() {
+        return rankingRulesJson;
+    }
+
+    public void setRankingRulesJson(String rankingRulesJson) {
+        this.rankingRulesJson = rankingRulesJson;
     }
 
     public int getYellowCardsForSuspension() {

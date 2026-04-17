@@ -190,6 +190,11 @@ public class AccessControlService {
                 "Супер администратор",
                 "Полный доступ ко всем разделам и управлению правами пользователей."
             );
+            case REFEREE -> new RoleAnnotationResponse(
+                roleCode.name(),
+                "Рефери",
+                "Может работать с матчевыми API и протоколами, но без раздела прав доступа и API Explorer."
+            );
             case TEAM_REP -> new RoleAnnotationResponse(
                 roleCode.name(),
                 "Представитель команды",
