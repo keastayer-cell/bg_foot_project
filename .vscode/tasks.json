@@ -1,0 +1,45 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Restart Backend (8080)",
+			"type": "shell",
+			"command": "pids=$(lsof -ti :8080); if [[ -n \"$pids\" ]]; then print -r -- \"$pids\" | xargs kill -9; fi; cd /Users/korytov/projects/bg_foot_project && mvn -f app/pom.xml spring-boot:run",
+			"args": [],
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Rebuild + Restart Backend (8080)",
+			"type": "shell",
+			"command": "pids=$(lsof -ti :8080); if [[ -n \"$pids\" ]]; then print -r -- \"$pids\" | xargs kill -9; fi; cd /Users/korytov/projects/bg_foot_project && mvn -f app/pom.xml clean package && mvn -f app/pom.xml spring-boot:run",
+			"args": [],
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Restart Web Dev (4173)",
+			"type": "shell",
+			"command": "pids=$(lsof -ti :4173); if [[ -n \"$pids\" ]]; then print -r -- \"$pids\" | xargs kill -9; fi; cd /Users/korytov/projects/bg_foot_project/web && npm run dev -- --host 127.0.0.1 --port 4173 --strictPort",
+			"args": [],
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Build + Preview Web (4173)",
+			"type": "shell",
+			"command": "pids=$(lsof -ti :4173); if [[ -n \"$pids\" ]]; then print -r -- \"$pids\" | xargs kill -9; fi; cd /Users/korytov/projects/bg_foot_project/web && npm run build && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort",
+			"args": [],
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Promote Dev To Test",
+			"type": "shell",
+			"command": "cd /Users/korytov/projects/bg_foot_project && bash ./scripts/promote-dev-to-test.sh",
+			"args": [],
+			"isBackground": false,
+			"group": "build"
+		}
+	]
+}

@@ -196,8 +196,9 @@ public class SeasonPlayerService {
     private void activateSeasonPlayer(Long teamId, Long seasonId, Long playerId, Long actorUserId, OffsetDateTime now) {
         validateSeasonUniqueness(teamId, seasonId, Set.of(playerId));
 
-        SeasonPlayer existing = seasonPlayerRepository.findBySeason_IdAndTeam_IdAndPlayer_IdAndActiveTrue(seasonId, teamId, playerId).orElse(null);
+        SeasonPlayer existing = seasonPlayerRepository.findBySeason_IdAndTeam_IdAndPlayer_Id(seasonId, teamId, playerId).orElse(null);
         if (existing != null) {
+            existing.setActive(true);
             existing.setUpdatedByUserId(actorUserId);
             existing.setUpdatedAt(now);
             seasonPlayerRepository.save(existing);

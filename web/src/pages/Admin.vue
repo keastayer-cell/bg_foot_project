@@ -443,29 +443,58 @@
         </label>
         <template v-if="editingTeamId">
           <div class="admin-sticky-actions-spacer"></div>
-          <label>
-            Название команды
-            <input v-model.trim="teamForm.name" type="text" />
-          </label>
-          <label>
-            Короткое название
-            <input v-model.trim="teamForm.shortName" type="text" />
-          </label>
-          <label>
-            Город
-            <input v-model.trim="teamForm.city" type="text" />
-          </label>
-          <label>
-            Лого команды
-            <input type="file" accept="image/*" @change="onTeamLogoSelected" />
-          </label>
-          <img v-if="teamForm.logoDataUrl" :src="teamForm.logoDataUrl" alt="Превью лого команды" class="admin-team-logo-preview" />
-          <div class="admin-team-management-grid">
+          <div class="admin-team-editor-shell">
+            <section class="admin-surface admin-team-identity-card">
+              <div class="admin-team-identity-head">
+                <div>
+                  <h4 class="admin-list-title">Карточка команды</h4>
+                  <p class="muted-text">Базовые поля и быстрые показатели в одном компактном блоке.</p>
+                </div>
+                <div class="admin-team-summary-grid">
+                  <article class="admin-team-summary-card">
+                    <span class="admin-team-summary-label">В составе</span>
+                    <strong>{{ teamRoster.length }}</strong>
+                  </article>
+                  <article class="admin-team-summary-card">
+                    <span class="admin-team-summary-label">Сезонов</span>
+                    <strong>{{ teamSeasonOptions.length }}</strong>
+                  </article>
+                  <article class="admin-team-summary-card" :class="{ 'is-accent': selectedTeamSeasonId }">
+                    <span class="admin-team-summary-label">В заявке</span>
+                    <strong>{{ selectedTeamSeasonId ? teamSeasonSelectedPlayers.length : '—' }}</strong>
+                  </article>
+                </div>
+              </div>
+
+              <div class="admin-team-identity-grid">
+                <label>
+                  Название команды
+                  <input v-model.trim="teamForm.name" type="text" />
+                </label>
+                <label>
+                  Короткое название
+                  <input v-model.trim="teamForm.shortName" type="text" />
+                </label>
+                <label>
+                  Город
+                  <input v-model.trim="teamForm.city" type="text" />
+                </label>
+                <label class="admin-team-logo-field">
+                  Лого команды
+                  <input type="file" accept="image/*" @change="onTeamLogoSelected" />
+                </label>
+                <div v-if="teamForm.logoDataUrl" class="admin-team-logo-preview-wrap">
+                  <img :src="teamForm.logoDataUrl" alt="Превью лого команды" class="admin-team-logo-preview" />
+                </div>
+              </div>
+            </section>
+
+            <div class="admin-team-management-grid">
             <section class="admin-list admin-team-management-card">
               <div class="toolbar admin-team-management-head">
                 <div>
                   <h4 class="admin-list-title">Состав команды</h4>
-                  <p class="muted-text">Добавление и удаление игроков без перехода в кабинет представителя.</p>
+                  <p class="muted-text">Массовое добавление в команду и быстрый контроль текущего состава.</p>
                 </div>
                 <div class="actions-row admin-team-head-actions">
                   <button class="btn-ghost btn-sm" type="button" @click="toggleTeamRosterVisibility">
@@ -475,17 +504,23 @@
                 </div>
               </div>
 
-              <div class="actions-row admin-team-picker-row">
+              <div class="actions-row admin-team-picker-row admin-team-management-toolbar">
                 <SearchableSelect
-                  v-model="teamRosterToAddId"
+                  :key="`team-roster-multi-${editingTeamId}-${teamRosterAddOptions.length}`"
+                  v-model="teamRosterToAddIds"
                   :options="teamRosterAddOptions"
-                  placeholder="— выберите игрока —"
+                  multiple
+                  multiple-summary-text="Выбрано игроков"
+                  placeholder="Выберите игроков в состав"
                   search-placeholder="Начните вводить ФИО игрока"
                   empty-text="Игрок по такому ФИО не найден"
                 />
-                <button class="btn-primary btn-sm" type="button" @click="addPlayerToEditingTeam" :disabled="teamRosterBusy || !teamRosterToAddId">
-                  Добавить в состав
-                </button>
+                <div class="admin-team-picker-side">
+                  <span class="admin-team-picker-count">Выбрано: {{ teamRosterToAddIds.length }}</span>
+                  <button class="btn-primary btn-sm" type="button" @click="addPlayerToEditingTeam" :disabled="teamRosterBusy || !teamRosterToAddIds.length">
+                    Добавить выбранных
+                  </button>
+                </div>
               </div>
 
               <p v-if="!isTeamRosterVisible" class="muted-text">Состав скрыт. Нажмите «Показать весь состав», если нужен полный список игроков.</p>
@@ -507,11 +542,13 @@
               <div class="toolbar admin-team-management-head">
                 <div>
                   <h4 class="admin-list-title">Заявка на сезон</h4>
-                  <p class="muted-text">Включение игроков выбранной команды в выбранный сезон.</p>
+                  <p class="muted-text">Выбери сезон, затем массово добавь или сними игроков без длинного списка.</p>
                 </div>
               </div>
 
-              <label>
+              <div class="admin-team-management-toolbar admin-team-management-toolbar-spacer" aria-hidden="true"></div>
+
+              <label class="admin-team-season-select-field">
                 Выберите сезон
                 <select v-model="selectedTeamSeasonId" @change="onAdminTeamSeasonChange">
                   <option value="">— выберите —</option>
@@ -525,28 +562,60 @@
               <p v-else-if="!selectedTeamSeasonId" class="muted-text">Выберите сезон, чтобы управлять заявкой команды.</p>
               <p v-else-if="!teamSeasonPlayers.length" class="muted-text">В составе команды пока нет игроков для управления заявкой сезона.</p>
 
-              <div v-else class="admin-list-items">
-                <article v-for="player in teamSeasonPlayers" :key="`team-season-player-${player.id}`" class="admin-list-item admin-player-manage-item">
-                  <div class="admin-player-manage-copy">
-                    <strong>{{ player.fullName }}<span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></strong>
-                    <span class="muted-text" v-if="player.birthDate">ДР: {{ formatDateOnly(player.birthDate) }}</span>
-                    <span class="muted-text" v-if="player.residence">Прописка: {{ player.residence }}</span>
-                    <span class="admin-season-player-badge" :class="player.selectedForSeason ? 'is-selected' : 'is-not-selected'">
-                      {{ player.selectedForSeason ? 'В заявке' : 'Не в заявке' }}
-                    </span>
+              <div v-else class="admin-team-season-tools">
+                <div class="admin-team-season-summary">
+                  <span class="admin-season-player-badge is-selected">В заявке: {{ teamSeasonSelectedPlayers.length }}</span>
+                  <span class="admin-season-player-badge is-not-selected">Доступно: {{ teamSeasonAvailablePlayers.length }}</span>
+                </div>
+
+                <div class="admin-team-season-action-block">
+                  <label class="admin-team-season-control">
+                    Добавить игроков в сезон
+                    <SearchableSelect
+                      :key="`team-season-add-${selectedTeamSeasonId}-${teamSeasonAddOptions.length}`"
+                      v-model="teamSeasonToAddIds"
+                      :options="teamSeasonAddOptions"
+                      multiple
+                      multiple-summary-text="Выбрано игроков"
+                      placeholder="Выберите игроков для заявки"
+                      search-placeholder="Начните вводить ФИО игрока"
+                      empty-text="Нет доступных игроков для добавления"
+                      :disabled="teamSeasonBusy || !teamSeasonAddOptions.length"
+                    />
+                  </label>
+                  <div class="admin-team-picker-side admin-team-picker-side-inline">
+                    <span class="admin-team-picker-count">Выбрано: {{ teamSeasonToAddIds.length }}</span>
+                    <button class="btn-primary btn-sm" type="button" @click="addSelectedPlayersToSeason" :disabled="teamSeasonBusy || !teamSeasonToAddIds.length">
+                      Добавить выбранных
+                    </button>
                   </div>
-                  <button
-                    class="btn-sm"
-                    :class="player.selectedForSeason ? 'btn-danger' : 'btn-primary'"
-                    type="button"
-                    @click="toggleEditingTeamSeasonPlayer(player)"
-                    :disabled="teamSeasonBusy"
-                  >
-                    {{ player.selectedForSeason ? 'Убрать из сезона' : 'Добавить в сезон' }}
-                  </button>
-                </article>
+                </div>
+
+                <div class="admin-team-season-action-block" v-if="teamSeasonRemoveOptions.length">
+                  <label class="admin-team-season-control">
+                    Убрать игроков из сезона
+                    <SearchableSelect
+                      :key="`team-season-remove-${selectedTeamSeasonId}-${teamSeasonRemoveOptions.length}`"
+                      v-model="teamSeasonToRemoveIds"
+                      :options="teamSeasonRemoveOptions"
+                      multiple
+                      multiple-summary-text="Выбрано игроков"
+                      placeholder="Выберите игроков для удаления"
+                      search-placeholder="Начните вводить ФИО игрока"
+                      empty-text="В заявке пока нет игроков"
+                      :disabled="teamSeasonBusy"
+                    />
+                  </label>
+                  <div class="admin-team-picker-side admin-team-picker-side-inline">
+                    <span class="admin-team-picker-count">Выбрано: {{ teamSeasonToRemoveIds.length }}</span>
+                    <button class="btn-danger btn-sm" type="button" @click="removeSelectedPlayersFromSeason" :disabled="teamSeasonBusy || !teamSeasonToRemoveIds.length">
+                      Убрать выбранных
+                    </button>
+                  </div>
+                </div>
               </div>
             </section>
+            </div>
           </div>
 
           <div class="actions-row admin-sticky-actions">
@@ -1142,8 +1211,10 @@ const teamEditSelectId = ref('')
 const teamRoster = ref([])
 const teamSeasonOptions = ref([])
 const teamSeasonPlayers = ref([])
-const teamRosterToAddId = ref('')
+const teamRosterToAddIds = ref([])
 const selectedTeamSeasonId = ref('')
+const teamSeasonToAddIds = ref([])
+const teamSeasonToRemoveIds = ref([])
 const teamRosterBusy = ref(false)
 const teamSeasonBusy = ref(false)
 const isTeamRosterVisible = ref(false)
@@ -1296,6 +1367,33 @@ const teamRosterAddOptions = computed(() => {
   return teamPlayersAvailableForRoster.value.map((player) => ({
     value: String(player.id),
     label: formatAdminRosterPlayerOption(player),
+    caption: formatAdminPlayerOptionCaption(player),
+    keywords: `${player.fullName || ''}`,
+  }))
+})
+
+const teamSeasonSelectedPlayers = computed(() => {
+  return teamSeasonPlayers.value.filter((player) => Boolean(player?.selectedForSeason))
+})
+
+const teamSeasonAvailablePlayers = computed(() => {
+  return teamSeasonPlayers.value.filter((player) => !player?.selectedForSeason)
+})
+
+const teamSeasonAddOptions = computed(() => {
+  return teamSeasonAvailablePlayers.value.map((player) => ({
+    value: String(player.id),
+    label: formatAdminRosterPlayerOption(player),
+    caption: formatAdminPlayerOptionCaption(player),
+    keywords: `${player.fullName || ''}`,
+  }))
+})
+
+const teamSeasonRemoveOptions = computed(() => {
+  return teamSeasonSelectedPlayers.value.map((player) => ({
+    value: String(player.id),
+    label: formatAdminRosterPlayerOption(player),
+    caption: formatAdminPlayerOptionCaption(player),
     keywords: `${player.fullName || ''}`,
   }))
 })
@@ -1885,8 +1983,10 @@ function resetAdminTeamContext() {
   teamRoster.value = []
   teamSeasonOptions.value = []
   teamSeasonPlayers.value = []
-  teamRosterToAddId.value = ''
+  teamRosterToAddIds.value = []
   selectedTeamSeasonId.value = ''
+  teamSeasonToAddIds.value = []
+  teamSeasonToRemoveIds.value = []
   teamRosterBusy.value = false
   teamSeasonBusy.value = false
   isTeamRosterVisible.value = false
@@ -1909,6 +2009,8 @@ async function refreshAdminTeamContext(teamId = editingTeamId.value) {
   if (selectedTeamSeasonId.value && !teamSeasonOptions.value.some((season) => String(season.id) === String(selectedTeamSeasonId.value))) {
     selectedTeamSeasonId.value = ''
     teamSeasonPlayers.value = []
+    teamSeasonToAddIds.value = []
+    teamSeasonToRemoveIds.value = []
   }
 
   if (selectedTeamSeasonId.value) {
@@ -1948,6 +2050,8 @@ async function loadEditingTeamSeasonOptions(teamId) {
 
 async function onAdminTeamSeasonChange() {
   resetMessages()
+  teamSeasonToAddIds.value = []
+  teamSeasonToRemoveIds.value = []
 
   if (!editingTeamId.value || !selectedTeamSeasonId.value) {
     teamSeasonPlayers.value = []
@@ -1965,8 +2069,12 @@ async function loadEditingTeamSeasonPlayers(teamId, seasonId) {
       { method: 'GET' }
     )
     teamSeasonPlayers.value = Array.isArray(payload) ? payload : []
+    teamSeasonToAddIds.value = []
+    teamSeasonToRemoveIds.value = []
   } catch (error) {
     teamSeasonPlayers.value = []
+    teamSeasonToAddIds.value = []
+    teamSeasonToRemoveIds.value = []
     messageError.value = error.message || 'Не удалось загрузить заявку команды на сезон.'
   } finally {
     teamSeasonBusy.value = false
@@ -1981,21 +2089,25 @@ async function addPlayerToEditingTeam() {
     return
   }
 
-  if (!teamRosterToAddId.value) {
-    messageError.value = 'Выберите игрока для добавления в состав.'
+  const playerIds = normalizePositiveIdList(teamRosterToAddIds.value)
+
+  if (!playerIds.length) {
+    messageError.value = 'Выберите хотя бы одного игрока для добавления в состав.'
     return
   }
 
   teamRosterBusy.value = true
   try {
-    await authorizedApiRequest(
-      `/api/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(teamRosterToAddId.value)}`,
-      { method: 'POST' }
-    )
-    teamRosterToAddId.value = ''
+    for (const playerId of playerIds) {
+      await authorizedApiRequest(
+        `/api/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(playerId)}`,
+        { method: 'POST' }
+      )
+    }
+    teamRosterToAddIds.value = []
     await loadPlayerRegistry()
     await refreshAdminTeamContext()
-    messageOk.value = 'Игрок добавлен в состав команды.'
+    messageOk.value = playerIds.length === 1 ? 'Игрок добавлен в состав команды.' : `В состав команды добавлено игроков: ${playerIds.length}.`
   } catch (error) {
     messageError.value = error.message || 'Не удалось добавить игрока в состав команды.'
   } finally {
@@ -2031,7 +2143,7 @@ async function removePlayerFromEditingTeam(playerId) {
   }
 }
 
-async function toggleEditingTeamSeasonPlayer(player) {
+async function addSelectedPlayersToSeason() {
   resetMessages()
 
   if (!editingTeamId.value || !selectedTeamSeasonId.value) {
@@ -2039,16 +2151,55 @@ async function toggleEditingTeamSeasonPlayer(player) {
     return
   }
 
-  const method = player.selectedForSeason ? 'DELETE' : 'POST'
+  const playerIds = normalizePositiveIdList(teamSeasonToAddIds.value)
+  if (!playerIds.length) {
+    messageError.value = 'Выберите хотя бы одного игрока для добавления в заявку сезона.'
+    return
+  }
+
   teamSeasonBusy.value = true
 
   try {
-    const payload = await authorizedApiRequest(
-      `/api/seasons/${encodeURIComponent(selectedTeamSeasonId.value)}/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(player.id)}`,
-      { method }
-    )
-    teamSeasonPlayers.value = Array.isArray(payload) ? payload : []
-    messageOk.value = player.selectedForSeason ? 'Игрок убран из заявки сезона.' : 'Игрок добавлен в заявку сезона.'
+    for (const playerId of playerIds) {
+      await authorizedApiRequest(
+        `/api/seasons/${encodeURIComponent(selectedTeamSeasonId.value)}/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(playerId)}`,
+        { method: 'POST' }
+      )
+    }
+    await loadEditingTeamSeasonPlayers(editingTeamId.value, selectedTeamSeasonId.value)
+    messageOk.value = playerIds.length === 1 ? 'Игрок добавлен в заявку сезона.' : `В заявку сезона добавлено игроков: ${playerIds.length}.`
+  } catch (error) {
+    messageError.value = error.message || 'Не удалось добавить игроков в заявку сезона.'
+  } finally {
+    teamSeasonBusy.value = false
+  }
+}
+
+async function removeSelectedPlayersFromSeason() {
+  resetMessages()
+
+  if (!editingTeamId.value || !selectedTeamSeasonId.value) {
+    messageError.value = 'Сначала выберите команду и сезон.'
+    return
+  }
+
+  const playerIds = normalizePositiveIdList(teamSeasonToRemoveIds.value)
+  if (!playerIds.length) {
+    messageError.value = 'Выберите хотя бы одного игрока для удаления из заявки сезона.'
+    return
+  }
+
+  teamSeasonBusy.value = true
+
+  try {
+    for (const playerId of playerIds) {
+      await authorizedApiRequest(
+        `/api/seasons/${encodeURIComponent(selectedTeamSeasonId.value)}/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(playerId)}`,
+        { method: 'DELETE' }
+      )
+    }
+    await loadEditingTeamSeasonPlayers(editingTeamId.value, selectedTeamSeasonId.value)
+    messageOk.value = playerIds.length === 1 ? 'Игрок убран из заявки сезона.' : `Из заявки сезона убрано игроков: ${playerIds.length}.`
   } catch (error) {
     messageError.value = error.message || 'Не удалось изменить заявку сезона.'
   } finally {
@@ -2652,6 +2803,29 @@ function formatAdminRosterPlayerOption(player) {
   return formatPlayerOptionLabel(player)
 }
 
+function formatAdminPlayerOptionCaption(player) {
+  if (!player) return ''
+
+  const parts = []
+  if (player.birthDate) {
+    parts.push(`ДР: ${formatDateOnly(player.birthDate)}`)
+  }
+  if (player.residence) {
+    parts.push(player.residence)
+  }
+  if (player.isGoalkeeper) {
+    parts.push('Вратарь')
+  }
+
+  return parts.join(' · ')
+}
+
+function normalizePositiveIdList(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0))]
+}
+
 function assignRole() {
   resetMessages()
 
@@ -3143,6 +3317,18 @@ onMounted(async () => {
     0 10px 26px rgba(3, 8, 24, 0.28);
 }
 
+.admin-tab-groups {
+  align-items: start;
+}
+
+.admin-tab-group {
+  align-content: start;
+}
+
+.admin-tabs-grid {
+  align-content: start;
+}
+
 .admin-temporal-input-wide {
   font-weight: 600;
 }
@@ -3444,18 +3630,85 @@ onMounted(async () => {
   border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
-.admin-team-management-grid {
+.admin-team-editor-shell {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
-.admin-team-management-card {
+.admin-team-identity-card {
+  display: grid;
   gap: 14px;
+}
+
+.admin-team-identity-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-team-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(88px, 1fr));
+  gap: 10px;
+}
+
+.admin-team-summary-card {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(124, 163, 255, 0.16);
+  background: rgba(15, 22, 50, 0.72);
+}
+
+.admin-team-summary-card.is-accent {
+  border-color: rgba(97, 232, 162, 0.32);
+  background: rgba(17, 43, 39, 0.52);
+}
+
+.admin-team-summary-label {
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-team-identity-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.admin-team-logo-field {
+  grid-column: span 2;
+}
+
+.admin-team-logo-preview-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.admin-team-management-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-team-management-card {
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(124, 163, 255, 0.14);
+  background: rgba(11, 17, 39, 0.82);
+  border-radius: 20px;
 }
 
 .admin-team-management-head {
   align-items: start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .admin-team-head-actions {
@@ -3463,18 +3716,94 @@ onMounted(async () => {
   justify-content: flex-end;
 }
 
+.admin-team-management-toolbar {
+  min-height: 44px;
+}
+
+.admin-team-management-toolbar-spacer {
+  display: block;
+}
+
+.admin-team-season-select-field {
+  display: grid;
+  gap: 8px;
+}
+
 .admin-team-picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
+  gap: 10px;
+}
+
+.admin-team-picker-side {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.admin-team-picker-side-inline {
+  min-width: 0;
+}
+
+.admin-team-picker-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: rgba(124, 163, 255, 0.1);
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.admin-team-picker-side .btn-primary,
+.admin-team-picker-side .btn-danger {
+  min-width: 220px;
 }
 
 .admin-player-manage-item {
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  padding: 12px 14px;
 }
 
 .admin-player-manage-copy {
   display: grid;
   gap: 4px;
+}
+
+.admin-team-season-tools {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-team-season-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-team-season-action-block {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(124, 163, 255, 0.14);
+  background: rgba(17, 24, 52, 0.52);
+}
+
+.admin-team-season-control {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-team-management-card :deep(.searchable-select.is-multiple.is-open .searchable-select-dropdown) {
+  max-height: none;
 }
 
 .admin-season-player-badge {
@@ -3518,6 +3847,18 @@ onMounted(async () => {
 }
 
 @media (max-width: 960px) {
+  .admin-team-identity-head,
+  .admin-team-picker-row {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .admin-team-management-toolbar-spacer {
+    display: none;
+  }
+
+  .admin-team-identity-grid,
+  .admin-team-summary-grid,
   .admin-season-grid,
   .admin-season-meta-grid {
     grid-template-columns: 1fr;
@@ -3548,6 +3889,15 @@ onMounted(async () => {
 
   .admin-team-management-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-team-logo-field {
+    grid-column: auto;
+  }
+
+  .admin-team-picker-side {
+    min-width: 0;
+    align-items: stretch;
   }
 
   .admin-sticky-actions {

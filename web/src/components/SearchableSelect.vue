@@ -24,6 +24,7 @@
 
     <div v-if="isOpen" class="searchable-select-dropdown">
       <p class="searchable-select-hint">{{ searchPlaceholder }}</p>
+      <p v-if="multiple && multipleActionHint" class="searchable-select-action-hint">{{ multipleActionHint }}</p>
       <div v-if="filteredOptions.length" class="searchable-select-options">
         <button
           v-for="option in filteredOptions"
@@ -79,6 +80,10 @@ const props = defineProps({
   multipleSummaryText: {
     type: String,
     default: 'Выбрано',
+  },
+  multipleActionHint: {
+    type: String,
+    default: '',
   },
 })
 
@@ -295,11 +300,26 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(12px);
 }
 
+.searchable-select.is-multiple.is-open .searchable-select-dropdown {
+  position: static;
+  top: auto;
+  left: auto;
+  right: auto;
+  margin-top: 8px;
+}
+
 .searchable-select-hint,
 .searchable-select-empty {
   margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.searchable-select-action-hint {
+  margin: 6px 0 0;
+  color: rgba(97, 232, 162, 0.92);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .searchable-select-options {
