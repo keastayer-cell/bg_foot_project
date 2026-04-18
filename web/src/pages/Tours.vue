@@ -98,7 +98,6 @@
               <td>{{ row.position }}</td>
               <td>
                 <div class="team-cell">
-                  <img v-if="row.teamLogoDataUrl" :src="row.teamLogoDataUrl" :alt="row.teamName" class="team-logo" />
                   <span>{{ row.teamName }}</span>
                 </div>
               </td>
@@ -128,7 +127,6 @@
               <td>{{ row.position }}</td>
               <td>
                 <div class="team-cell team-cell-mobile">
-                  <img v-if="row.teamLogoDataUrl" :src="row.teamLogoDataUrl" :alt="row.teamName" class="team-logo" />
                   <span>{{ row.teamName }}</span>
                 </div>
               </td>
@@ -1031,16 +1029,6 @@ onMounted(async () => {
   gap: 12px;
 }
 
-.team-logo {
-  width: 28px;
-  height: 28px;
-  padding: 3px;
-  border-radius: 50%;
-  object-fit: contain;
-  background: rgba(245, 237, 232, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
 .tour-list {
   display: grid;
   gap: 10px;
@@ -1532,12 +1520,6 @@ onMounted(async () => {
 
   .team-cell-mobile {
     gap: 6px;
-  }
-
-  .team-cell-mobile .team-logo {
-    width: 22px;
-    height: 22px;
-    padding: 2px;
   }
 }
 </style>
