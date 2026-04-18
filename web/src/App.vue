@@ -315,7 +315,9 @@ function canSeeApiExplorer() {
 
 onMounted(async () => {
   try {
-    await ensureSession({ forceRefresh: isAuthenticated.value })
+    if (!isAuthenticated.value) {
+      await ensureSession()
+    }
     syncPasswordChangeModal()
   } catch {
     await logout({ remote: true, suppressErrors: true })

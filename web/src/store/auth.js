@@ -2,7 +2,6 @@ import { computed, ref } from 'vue'
 
 const PERSISTENT_SESSION_KEY = 'football_stats_persistent_session'
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
-const isDev = import.meta.env.DEV
 const TEAM_POOL = [
   'Север',
   'Юг',
@@ -110,19 +109,8 @@ function maskSensitive(value) {
   return result
 }
 
-function parseRequestBody(body) {
-  if (!body || typeof body !== 'string') return null
-  try {
-    return maskSensitive(JSON.parse(body))
-  } catch {
-    return body
-  }
-}
-
 async function apiRequest(path, options = {}) {
-  const method = (options.method || 'GET').toUpperCase()
   const url = `${apiBaseUrl}${path}`
-  const startedAt = performance.now()
   const requestOptions = {
     ...options,
     credentials: options.credentials || 'include',
@@ -132,38 +120,14 @@ async function apiRequest(path, options = {}) {
     },
   }
 
-  if (isDev) {
-    console.groupCollapsed(`[API] ${method} ${path}`)
-    console.log('Запрос:', {
-      method,
-      url,
-      headers: requestOptions.headers || {},
-      body: parseRequestBody(options.body),
-    })
-  }
-
   let response
   try {
     response = await fetch(url, requestOptions)
   } catch (error) {
-    if (isDev) {
-      console.error('Ошибка сети:', error)
-      console.groupEnd()
-    }
     throw new Error('Сервер недоступен. Попробуйте позже.')
   }
 
   const body = await response.json().catch(() => ({}))
-
-  if (isDev) {
-    console.log('Ответ:', {
-      status: response.status,
-      ok: response.ok,
-      durationMs: Math.round(performance.now() - startedAt),
-      body: maskSensitive(body),
-    })
-    console.groupEnd()
-  }
 
   if (!response.ok) {
     throw createHttpError(body.error || 'Не удалось выполнить запрос.', response.status, body)

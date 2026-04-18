@@ -4052,4 +4052,41 @@ onMounted(async () => {
   justify-content: flex-end;
   margin-top: 10px;
 }
+
+@media (max-width: 640px) {
+  .admin-tab-groups,
+  .admin-tabs-grid,
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-subnav {
+    width: 100%;
+  }
+
+  .admin-subnav-btn,
+  .admin-season-edit-picker,
+  .admin-season-edit-picker select,
+  .admin-season-team-row > *,
+  .admin-role-manage-row > *,
+  .admin-add-role-row > *,
+  .tour-publish-row > *,
+  .tour-matches-header > * {
+    width: 100%;
+  }
+
+  .admin-season-edit-toolbar,
+  .admin-role-manage-row,
+  .admin-add-role-row,
+  .tour-publish-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-surface,
+  .admin-tab-group,
+  .admin-found-user {
+    padding: 14px;
+  }
+}
  </style>

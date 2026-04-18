@@ -7,6 +7,7 @@ import com.footballstats.backend.service.SeasonPlayerService;
 import com.footballstats.backend.service.TeamService;
 import com.footballstats.backend.service.TeamService.TeamUpsertData;
 import com.footballstats.backend.service.MediaAssetService;
+import com.footballstats.backend.service.TeamProfileService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
@@ -33,11 +34,18 @@ public class TeamController {
     private final TeamService teamService;
     private final MediaAssetService mediaAssetService;
     private final SeasonPlayerService seasonPlayerService;
+    private final TeamProfileService teamProfileService;
 
-    public TeamController(TeamService teamService, MediaAssetService mediaAssetService, SeasonPlayerService seasonPlayerService) {
+    public TeamController(
+        TeamService teamService,
+        MediaAssetService mediaAssetService,
+        SeasonPlayerService seasonPlayerService,
+        TeamProfileService teamProfileService
+    ) {
         this.teamService = teamService;
         this.mediaAssetService = mediaAssetService;
         this.seasonPlayerService = seasonPlayerService;
+        this.teamProfileService = teamProfileService;
     }
 
     @GetMapping
@@ -50,6 +58,19 @@ public class TeamController {
             .map(this::toResponse)
             .toList();
         return ResponseEntity.ok(teams);
+    }
+
+    @GetMapping("/{teamId}")
+    public ResponseEntity<TeamProfileService.TeamProfileData> getTeamProfile(@PathVariable Long teamId) {
+        return ResponseEntity.ok(teamProfileService.getTeamProfile(teamId));
+    }
+
+    @GetMapping("/{teamId}/seasons/{seasonId}/roster")
+    public ResponseEntity<List<TeamProfileService.TeamSeasonRosterPlayerData>> getSeasonRoster(
+        @PathVariable Long teamId,
+        @PathVariable Long seasonId
+    ) {
+        return ResponseEntity.ok(teamProfileService.getSeasonRoster(teamId, seasonId));
     }
 
     @GetMapping("/{teamId}/seasons")
