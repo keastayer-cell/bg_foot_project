@@ -2,7 +2,6 @@ package com.footballstats.backend.controller;
 
 import com.footballstats.backend.domain.Player;
 import com.footballstats.backend.domain.PlayerTeam;
-import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.repository.PlayerRepository;
 import com.footballstats.backend.repository.PlayerTeamRepository;
 import com.footballstats.backend.repository.TeamRepository;
@@ -37,6 +36,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -96,12 +96,16 @@ public class PlayerController {
             pageable
         );
 
+        Map<Long, SeasonPlayerService.ActiveSeasonAssignment> activeSeasonAssignments = seasonPlayerService.getLatestActiveSeasonAssignments(
+            players.getContent().stream().map(Player::getId).toList()
+        );
+
         Page<PlayerResponse> result = players.map(p -> {
             List<PlayerTeam> active = playerTeamRepository.findByPlayer_IdAndActiveTrue(p.getId());
             String teamName = active.isEmpty() ? null : active.get(0).getTeam().getName();
             Long currentTeamId = active.isEmpty() ? null : active.get(0).getTeam().getId();
             String photo = mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, p.getId(), MediaAssetService.KIND_PLAYER_PHOTO);
-            return toResponse(p, currentTeamId, teamName, photo);
+            return toResponse(p, currentTeamId, teamName, activeSeasonAssignments.get(p.getId()), photo);
         });
         return ResponseEntity.ok(result);
     }
@@ -119,8 +123,9 @@ public class PlayerController {
         String teamName = active.isEmpty() ? null : active.get(0).getTeam().getName();
         Long teamId = active.isEmpty() ? null : active.get(0).getTeam().getId();
         String photo = mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO);
+        SeasonPlayerService.ActiveSeasonAssignment activeSeasonAssignment = seasonPlayerService.getLatestActiveSeasonAssignment(player.getId());
 
-        return ResponseEntity.ok(toResponse(player, teamId, teamName, photo));
+        return ResponseEntity.ok(toResponse(player, teamId, teamName, activeSeasonAssignment, photo));
     }
 
     // ----------------------------------------------------------------
@@ -176,7 +181,7 @@ public class PlayerController {
             saved = playerRepository.save(saved);
         }
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(toResponse(saved, null, null, photo == null ? null : photo.getDataUrl()));
+            .body(toResponse(saved, null, null, null, photo == null ? null : photo.getDataUrl()));
     }
 
     @PutMapping("/players/{playerId}")
@@ -223,8 +228,9 @@ public class PlayerController {
         List<PlayerTeam> active = playerTeamRepository.findByPlayer_IdAndActiveTrue(saved.getId());
         String teamName = active.isEmpty() ? null : active.get(0).getTeam().getName();
         Long teamId = active.isEmpty() ? null : active.get(0).getTeam().getId();
+        SeasonPlayerService.ActiveSeasonAssignment activeSeasonAssignment = seasonPlayerService.getLatestActiveSeasonAssignment(saved.getId());
 
-        return ResponseEntity.ok(toResponse(saved, teamId, teamName, photoDataUrl));
+        return ResponseEntity.ok(toResponse(saved, teamId, teamName, activeSeasonAssignment, photoDataUrl));
     }
 
     @DeleteMapping("/players/{playerId}")
@@ -270,30 +276,17 @@ public class PlayerController {
         Authentication authentication
     ) {
         checkRosterEditAccess(authentication, teamId);
-        Long actorUserId = currentUserId(authentication);
 
         Player player = playerRepository.findById(playerId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Игрок не найден."));
-        Team team = teamRepository.findById(teamId)
+        teamRepository.findById(teamId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда не найдена."));
 
         if (playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, teamId).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Игрок уже в составе этой команды.");
         }
 
-        // Завершаем активную привязку к другой команде, если есть
-        playerTeamRepository.findByPlayer_IdAndActiveTrue(playerId).forEach(pt -> {
-            seasonPlayerService.deactivateActiveAssignmentsForPlayerInTeam(pt.getTeam().getId(), playerId, actorUserId);
-            pt.setActive(false);
-            pt.setValidTo(LocalDate.now().minusDays(1));
-            playerTeamRepository.save(pt);
-        });
-
-        PlayerTeam pt = new PlayerTeam();
-        pt.setPlayer(player);
-        pt.setTeam(team);
-        pt.setValidFrom(LocalDate.now());
-        playerTeamRepository.save(pt);
+        seasonPlayerService.ensurePlayerAssignedToTeam(teamId, player.getId(), currentUserId(authentication));
 
         return ResponseEntity.noContent().build();
     }
@@ -349,12 +342,22 @@ public class PlayerController {
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private PlayerResponse toResponse(Player player, Long currentTeamId, String currentTeamName, String photoDataUrl) {
+    private PlayerResponse toResponse(
+        Player player,
+        Long currentTeamId,
+        String currentTeamName,
+        SeasonPlayerService.ActiveSeasonAssignment activeSeasonAssignment,
+        String photoDataUrl
+    ) {
         return new PlayerResponse(
             player.getId(),
             player.getFullName(),
             currentTeamId,
             currentTeamName,
+            activeSeasonAssignment == null ? null : activeSeasonAssignment.teamId(),
+            activeSeasonAssignment == null ? null : activeSeasonAssignment.teamName(),
+            activeSeasonAssignment == null ? null : activeSeasonAssignment.seasonId(),
+            activeSeasonAssignment == null ? null : activeSeasonAssignment.seasonName(),
             photoDataUrl,
             player.getBirthDate(),
             player.getResidence(),
@@ -385,6 +388,10 @@ public class PlayerController {
         String fullName,
         Long currentTeamId,
         String currentTeamName,
+        Long activeSeasonTeamId,
+        String activeSeasonTeamName,
+        Long activeSeasonId,
+        String activeSeasonName,
         String photoDataUrl,
         LocalDate birthDate,
         String residence,

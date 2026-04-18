@@ -65,16 +65,19 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
           AND NOT EXISTS (
                 SELECT 1
                 FROM SeasonPlayer sp
+                JOIN sp.season season
                 WHERE sp.player.id = p.id
-                  AND sp.season.id = :seasonId
                   AND sp.active = TRUE
+                  AND season.active = TRUE
                   AND sp.team.id <> :teamId
           )
           AND NOT EXISTS (
                 SELECT 1
-                FROM PlayerTeam pt
-                WHERE pt.player.id = p.id
-                  AND pt.active = TRUE
+                FROM SeasonPlayer sp
+                WHERE sp.player.id = p.id
+                  AND sp.season.id = :seasonId
+                  AND sp.active = TRUE
+                  AND sp.team.id = :teamId
           )
         ORDER BY p.fullName
         """)
