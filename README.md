@@ -44,4 +44,9 @@ bash ./scripts/promote-dev-to-test.sh
 - чистый working tree
 - доступный remote `origin`
 
+Перед любым `push` он теперь обязательно делает локальную проверку сборки:
+
+- `mvn -f app/pom.xml -DskipTests package`
+- `npm --prefix web run build`
+
 После этого он сам делает `push origin dev`, переключается на `test`, подтягивает `origin/test`, делает merge `dev -> test`, пушит `test` и возвращается на `dev`.

@@ -5,6 +5,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 START_BRANCH="$(git -C "$REPO_ROOT" branch --show-current)"
 
+run_local_build_checks() {
+  echo "== build backend (mvn -DskipTests package) =="
+  mvn -f "$REPO_ROOT/app/pom.xml" -DskipTests package
+
+  echo "== build frontend (npm run build) =="
+  npm --prefix "$REPO_ROOT/web" run build
+}
+
 cleanup() {
   if [[ -n "$START_BRANCH" ]] && [[ "$(git -C "$REPO_ROOT" branch --show-current)" != "$START_BRANCH" ]]; then
     git -C "$REPO_ROOT" checkout "$START_BRANCH" >/dev/null 2>&1 || true
@@ -28,6 +36,9 @@ git -C "$REPO_ROOT" fetch origin
 
 echo "== update local dev =="
 git -C "$REPO_ROOT" pull --rebase origin dev
+
+echo "== validate local builds =="
+run_local_build_checks
 
 echo "== push dev =="
 git -C "$REPO_ROOT" push origin dev
