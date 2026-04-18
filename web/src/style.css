@@ -402,12 +402,28 @@ a {
 		padding: 10px 12px 12px;
 	}
 
+	.topbar {
+		gap: 12px;
+	}
+
+	.brand-link,
+	.brand-wrap,
+	.brand-row {
+		width: 100%;
+	}
+
+	.brand-row {
+		align-items: flex-start;
+	}
+
 	.brand {
 		font-size: 1.45rem;
+		line-height: 1.05;
 	}
 
 	.brand-sub {
 		font-size: 0.78rem;
+		line-height: 1.25;
 	}
 
 	.brand-emblem {
@@ -416,17 +432,26 @@ a {
 	}
 
 	.topnav {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 8px;
+		overflow: visible;
 	}
 
 	.topnav a {
 		padding: 7px 10px;
 		font-size: 0.9rem;
+		text-align: center;
+	}
+
+	.topbar-right > .btn-ghost {
+		width: 100%;
 	}
 
 	.auth-strip {
 		width: 100%;
 		justify-content: space-between;
+		flex-wrap: wrap;
 	}
 
 	.auth-dialog {
@@ -473,6 +498,48 @@ a {
 
 	.content-wrap {
 		padding-top: 14px;
+	}
+
+	.section-wrap {
+		gap: 14px;
+	}
+}
+
+@media (max-width: 480px) {
+	.app-shell {
+		padding: 8px 10px 12px;
+	}
+
+	.topbar {
+		padding: 8px 0 12px;
+	}
+
+	.brand {
+		font-size: 1.22rem;
+	}
+
+	.brand-sub {
+		font-size: 0.72rem;
+	}
+
+	.brand-emblem {
+		width: 34px;
+		height: 40px;
+	}
+
+	.topnav {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+
+	.topnav a,
+	.auth-strip,
+	.topbar-right > .btn-ghost {
+		border-radius: 14px;
+	}
+
+	.auth-profile-btn {
+		max-width: none;
+		width: 100%;
 	}
 }
 

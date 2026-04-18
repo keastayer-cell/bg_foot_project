@@ -7,13 +7,13 @@
     <article class="card" v-else-if="pageError">
       <h2 class="section-title">Матч недоступен</h2>
       <p class="error-text">{{ pageError }}</p>
-      <router-link class="btn-ghost" to="/">Вернуться на главную</router-link>
+      <router-link class="btn-ghost" :to="backLinkTarget">{{ backLinkLabel }}</router-link>
     </article>
 
     <article class="card match-screen" v-else-if="match">
       <div class="match-topbar">
         <div class="match-topbar-actions">
-          <router-link class="btn-ghost" to="/">← На главную</router-link>
+          <router-link class="btn-ghost" :to="backLinkTarget">{{ backLinkArrowLabel }}</router-link>
           <button v-if="canDownloadProtocol" class="btn-ghost" type="button" @click="downloadProtocolPdf" :disabled="downloadingProtocolPdf">
             {{ downloadingProtocolPdf ? 'Подготовка PDF...' : 'Скачать протокол PDF' }}
           </button>
@@ -348,6 +348,27 @@ const protocolNotice = ref('')
 const protocolDownloadError = ref('')
 const downloadingProtocolPdf = ref(false)
 const protocolDraft = ref(createEmptyProtocolDraft())
+
+const backLinkTarget = computed(() => {
+  if (route.query.from === 'team-profile' && route.query.teamId) {
+    return `/teams/${encodeURIComponent(String(route.query.teamId))}`
+  }
+  return '/'
+})
+
+const backLinkLabel = computed(() => {
+  if (route.query.from === 'team-profile' && route.query.teamId) {
+    return 'Вернуться в профиль команды'
+  }
+  return 'Вернуться на главную'
+})
+
+const backLinkArrowLabel = computed(() => {
+  if (route.query.from === 'team-profile' && route.query.teamId) {
+    return '← В профиль команды'
+  }
+  return '← На главную'
+})
 
 const lineupCards = computed(() => {
   if (!match.value) return []
@@ -1687,8 +1708,28 @@ function buildProtocolRefereeCard(key, label, referee) {
     flex-direction: column;
   }
 
+  .match-topbar-actions {
+    width: 100%;
+    display: grid;
+    gap: 10px;
+  }
+
+  .match-topbar-actions > * {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .match-status-badge {
+    align-self: flex-start;
+  }
+
   .match-screen {
-    gap: 16px;
+    gap: 14px;
+  }
+
+  .match-hero {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
 
   .match-team-card,
@@ -1698,6 +1739,18 @@ function buildProtocolRefereeCard(key, label, referee) {
   .protocol-score-center,
   .protocol-team-card {
     padding: 14px;
+  }
+
+  .match-score-card {
+    grid-column: 1 / -1;
+    order: -1;
+    padding: 16px 14px;
+  }
+
+  .match-team-card {
+    min-height: 0;
+    gap: 8px;
+    padding: 12px 10px;
   }
 
   .referee-summary-item,
@@ -1727,12 +1780,29 @@ function buildProtocolRefereeCard(key, label, referee) {
   }
 
   .match-team-logo {
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
+    padding: 4px;
   }
 
   .match-team-card h2 {
-    font-size: 1.15rem;
+    font-size: 1rem;
+    line-height: 1.15;
+  }
+
+  .match-date,
+  .match-result-note,
+  .match-score-card .muted-text {
+    font-size: 0.96rem;
+  }
+
+  .match-section-head {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .section-head.match-section-head .muted-text {
+    font-size: 0.86rem;
   }
 
   .protocol-score-center,
@@ -1776,6 +1846,29 @@ function buildProtocolRefereeCard(key, label, referee) {
 
   .player-name-single-line {
     white-space: normal;
+  }
+}
+
+@media (max-width: 420px) {
+  .match-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .match-score-card {
+    grid-column: auto;
+  }
+
+  .match-team-card {
+    grid-template-columns: 40px minmax(0, 1fr);
+    justify-items: start;
+    align-items: center;
+    text-align: left;
+  }
+
+  .match-team-logo {
+    width: 40px;
+    height: 40px;
+    margin: 0;
   }
 }
 </style>

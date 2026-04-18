@@ -115,3 +115,40 @@ function save() {
   router.push('/')
 }
 </script>
+
+<style scoped>
+.form-card {
+  display: grid;
+  gap: 16px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 8px;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions-row > * {
+    width: 100%;
+  }
+}
+</style>

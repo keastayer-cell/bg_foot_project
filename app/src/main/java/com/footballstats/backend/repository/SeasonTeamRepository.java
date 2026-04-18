@@ -29,6 +29,15 @@ public interface SeasonTeamRepository extends JpaRepository<SeasonTeam, Long> {
     List<SeasonTeam> findAllByTeamIdOrderBySeasonCreatedAtDesc(@Param("teamId") Long teamId);
 
     @Query("""
+        SELECT st
+        FROM SeasonTeam st
+        JOIN FETCH st.season season
+        WHERE st.team.id = :teamId
+        ORDER BY season.createdAt DESC, season.id DESC
+        """)
+    List<SeasonTeam> findAllDetailedByTeamId(@Param("teamId") Long teamId);
+
+    @Query("""
         SELECT st.team.id AS teamId
         FROM SeasonTeam st
         WHERE st.season.id = :seasonId

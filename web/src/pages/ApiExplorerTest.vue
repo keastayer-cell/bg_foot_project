@@ -261,3 +261,73 @@ async function runTest() {
   }
 }
 </script>
+
+<style scoped>
+.api-test-page {
+  display: grid;
+  gap: 16px;
+}
+
+.api-test-card {
+  display: grid;
+  gap: 14px;
+}
+
+.api-test-head,
+.api-body-head,
+.api-response-head {
+  align-items: center;
+}
+
+.api-test-base-row,
+.api-form-section,
+.api-response-card {
+  display: grid;
+  gap: 12px;
+}
+
+.api-params-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.api-params-grid label {
+  display: grid;
+  gap: 8px;
+}
+
+.api-test-path-input,
+.api-body-textarea {
+  width: 100%;
+}
+
+.api-body-textarea {
+  min-height: 240px;
+}
+
+.api-response-output {
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .api-test-head,
+  .api-body-head,
+  .api-response-head,
+  .actions-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .api-params-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions-row > * {
+    width: 100%;
+  }
+}
+</style>

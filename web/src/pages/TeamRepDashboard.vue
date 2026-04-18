@@ -828,4 +828,26 @@ function formatPlayerOptionLabel(player) {
     width: 100%;
   }
 }
+
+@media (max-width: 480px) {
+  .team-rep-page {
+    gap: 14px;
+  }
+
+  .team-rep-profile-card,
+  .team-rep-history-card,
+  .team-rep-players-card {
+    padding: 14px;
+  }
+
+  .team-rep-player-item {
+    padding: 12px;
+  }
+
+  .team-rep-player-photo,
+  .team-rep-player-photo-preview {
+    width: 64px;
+    height: 64px;
+  }
+}
 </style>

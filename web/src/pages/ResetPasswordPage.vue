@@ -103,3 +103,52 @@ async function submitReset() {
   }
 }
 </script>
+
+<style scoped>
+.reset-password-page {
+  display: grid;
+  justify-items: center;
+}
+
+.reset-password-card {
+  width: min(620px, 100%);
+  display: grid;
+  gap: 16px;
+}
+
+.reset-password-head,
+.reset-password-form {
+  display: grid;
+  gap: 12px;
+}
+
+.reset-password-kicker {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(151, 176, 255, 0.78);
+}
+
+.reset-password-form label {
+  display: grid;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .reset-password-card {
+    gap: 14px;
+  }
+
+  .reset-password-actions,
+  .actions-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reset-password-actions > *,
+  .actions-row > * {
+    width: 100%;
+  }
+}
+</style>

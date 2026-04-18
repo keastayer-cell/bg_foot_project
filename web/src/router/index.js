@@ -3,6 +3,7 @@ import Tours from '../pages/Tours.vue'
 import Match from '../pages/Match.vue'
 import Players from '../pages/Players.vue'
 import Teams from '../pages/Teams.vue'
+import TeamProfile from '../pages/TeamProfile.vue'
 import Admin from '../pages/Admin.vue'
 import ApiExplorer from '../pages/ApiExplorer.vue'
 import ApiExplorerTest from '../pages/ApiExplorerTest.vue'
@@ -17,6 +18,7 @@ const router = createRouter({
     { path: '/', component: Tours },
     { path: '/players', component: Players },
     { path: '/teams', component: Teams },
+    { path: '/teams/:id', component: TeamProfile },
     { path: '/create', component: CreateMatch, meta: { requiresAuth: true } },
     { path: '/admin', component: Admin, meta: { requiresAuth: true, requiresAdminPanel: true } },
     { path: '/team-rep-dashboard', component: TeamRepDashboard, meta: { requiresAuth: true, requiresTeamRep: true } },

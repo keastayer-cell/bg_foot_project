@@ -61,3 +61,77 @@ function endpointParamList(endpoint) {
   return parts.length ? parts.join(', ') : '—'
 }
 </script>
+
+<style scoped>
+.api-index-page {
+  display: grid;
+  gap: 16px;
+}
+
+.api-index-head {
+  align-items: center;
+}
+
+.api-index-card {
+  display: grid;
+  gap: 14px;
+}
+
+.api-index-group-title {
+  margin: 0;
+}
+
+.api-index-table-wrap {
+  overflow-x: auto;
+}
+
+.api-index-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.api-index-table th,
+.api-index-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.api-index-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.api-method-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: rgba(124, 163, 255, 0.12);
+  border: 1px solid rgba(124, 163, 255, 0.2);
+}
+
+.api-test-link {
+  color: var(--brand);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .api-index-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .api-index-table th,
+  .api-index-table td {
+    padding: 9px 10px;
+    font-size: 0.9rem;
+  }
+}
+</style>
