@@ -395,6 +395,10 @@
         <h3 class="section-title">Команды и составы</h3>
         <p class="muted-text">Карточка команды, текущий состав и сезонная заявка игроков.</p>
       </div>
+      <div class="admin-inline-message" v-if="messageError || messageOk">
+        <p class="error-text" v-if="messageError">{{ messageError }}</p>
+        <p class="success-text" v-if="messageOk">{{ messageOk }}</p>
+      </div>
       <div class="admin-subnav">
         <button
           class="btn-ghost admin-subnav-btn"
@@ -619,7 +623,9 @@
           </div>
 
           <div class="actions-row admin-sticky-actions">
-            <button class="btn-primary" type="button" @click="saveEditTeam">Сохранить изменения</button>
+            <button class="btn-primary" type="button" @click="saveEditTeam" :disabled="teamSaving">
+              {{ teamSaving ? 'Сохраняем...' : 'Сохранить изменения' }}
+            </button>
             <button class="btn-danger" type="button" @click="deactivateTeam(editingTeamId)">Удалить команду</button>
             <button class="btn-ghost" type="button" @click="cancelEditTeam(); teamEditSelectId = ''">Отмена</button>
           </div>
@@ -1218,6 +1224,7 @@ const teamSeasonToRemoveIds = ref([])
 const teamRosterBusy = ref(false)
 const teamSeasonBusy = ref(false)
 const isTeamRosterVisible = ref(false)
+const teamSaving = ref(false)
 const tourSeasonId = ref('')
 const selectedTourId = ref('')
 const editingPlayerId = ref(null)
@@ -1908,13 +1915,20 @@ function cancelEditTeam() {
 async function saveEditTeam() {
   resetMessages()
 
+  if (!editingTeamId.value) {
+    messageError.value = 'Сначала выберите команду для редактирования.'
+    return
+  }
+
   if (!teamForm.name || !teamForm.shortName || !teamForm.city) {
     messageError.value = 'Заполните все поля команды.'
     return
   }
 
+  teamSaving.value = true
+
   try {
-    await authorizedApiRequest(`/api/teams/${editingTeamId.value}`, {
+    const updatedTeam = await authorizedApiRequest(`/api/teams/${editingTeamId.value}`, {
       method: 'PUT',
       body: JSON.stringify({
         name: teamForm.name,
@@ -1923,11 +1937,21 @@ async function saveEditTeam() {
         logoDataUrl: teamForm.logoDataUrl,
       }),
     })
+
     await loadTeamRegistry()
-    cancelEditTeam()
+
+    const refreshedTeam = teamsList.value.find((team) => String(team.id) === String(updatedTeam?.id || editingTeamId.value)) || updatedTeam
+    if (refreshedTeam?.id) {
+      teamEditSelectId.value = String(refreshedTeam.id)
+      startEditTeam(refreshedTeam)
+      await refreshAdminTeamContext(refreshedTeam.id)
+    }
+
     messageOk.value = 'Команда обновлена.'
   } catch (error) {
     messageError.value = error.message || 'Не удалось обновить команду.'
+  } finally {
+    teamSaving.value = false
   }
 }
 
