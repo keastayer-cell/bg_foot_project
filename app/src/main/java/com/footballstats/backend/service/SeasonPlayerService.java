@@ -18,8 +18,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -91,6 +93,33 @@ public class SeasonPlayerService {
     }
 
     @Transactional(readOnly = true)
+    public ActiveSeasonAssignment getLatestActiveSeasonAssignment(Long playerId) {
+        return mapActiveSeasonAssignment(seasonPlayerRepository.findAllActiveDetailedByPlayerId(playerId).stream().findFirst().orElse(null));
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, ActiveSeasonAssignment> getLatestActiveSeasonAssignments(List<Long> playerIds) {
+        if (playerIds == null || playerIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<Long, ActiveSeasonAssignment> result = new LinkedHashMap<>();
+        for (SeasonPlayer assignment : seasonPlayerRepository.findAllActiveDetailedByPlayerIds(playerIds)) {
+            result.putIfAbsent(assignment.getPlayer().getId(), mapActiveSeasonAssignment(assignment));
+        }
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public ActiveSeasonAssignment getBlockingActiveSeasonAssignment(Long playerId, Long targetTeamId) {
+        return seasonPlayerRepository.findAllActiveDetailedByPlayerId(playerId).stream()
+            .filter(item -> !item.getTeam().getId().equals(targetTeamId))
+            .findFirst()
+            .map(this::mapActiveSeasonAssignment)
+            .orElse(null);
+    }
+
+    @Transactional(readOnly = true)
     public long countActiveSeasonPlayers(Long teamId, Long seasonId) {
         return seasonPlayerRepository.countBySeason_IdAndTeam_IdAndActiveTrue(seasonId, teamId);
     }
@@ -139,16 +168,31 @@ public class SeasonPlayerService {
     public void attachAvailablePlayerToTeamAndSeason(Long teamId, Long seasonId, Long playerId, Long actorUserId) {
         validateSeasonMembership(teamId, seasonId);
         validateSeasonUniqueness(teamId, seasonId, Set.of(playerId));
+        ensurePlayerAssignedToTeam(teamId, playerId, actorUserId);
+
+        activateSeasonPlayer(teamId, seasonId, playerId, actorUserId, OffsetDateTime.now());
+    }
+
+    @Transactional
+    public void ensurePlayerAssignedToTeam(Long teamId, Long playerId, Long actorUserId) {
+        ActiveSeasonAssignment blockingAssignment = getBlockingActiveSeasonAssignment(playerId, teamId);
+        if (blockingAssignment != null) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Игрок уже заявлен за команду «"
+                    + blockingAssignment.teamName()
+                    + "» в активном сезоне «"
+                    + blockingAssignment.seasonName()
+                    + "». Сначала уберите его из активной заявки."
+            );
+        }
+
         Player player = playerRepository.findById(playerId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Игрок не найден."));
         Team team = teamRepository.findById(teamId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда не найдена."));
 
-        // Добавление свободного игрока в заявку представителя означает перевод игрока
-        // в текущий состав команды представителя, иначе roster и season view расходятся.
         reassignPlayerToTeam(player, team, actorUserId);
-
-        activateSeasonPlayer(teamId, seasonId, playerId, actorUserId, OffsetDateTime.now());
     }
 
     @Transactional
@@ -226,13 +270,22 @@ public class SeasonPlayerService {
 
     private void reassignPlayerToTeam(Player player, Team team, Long actorUserId) {
         LocalDate today = LocalDate.now();
+        boolean alreadyInTargetTeam = false;
 
         playerTeamRepository.findByPlayer_IdAndActiveTrue(player.getId()).forEach(membership -> {
+            if (membership.getTeam().getId().equals(team.getId())) {
+                return;
+            }
             deactivateActiveAssignmentsForPlayerInTeam(membership.getTeam().getId(), player.getId(), actorUserId);
             membership.setActive(false);
             membership.setValidTo(today.minusDays(1));
             playerTeamRepository.save(membership);
         });
+
+        alreadyInTargetTeam = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(player.getId(), team.getId()).isPresent();
+        if (alreadyInTargetTeam) {
+            return;
+        }
 
         PlayerTeam newMembership = new PlayerTeam();
         newMembership.setPlayer(player);
@@ -273,4 +326,18 @@ public class SeasonPlayerService {
             }
         }
     }
+
+    private ActiveSeasonAssignment mapActiveSeasonAssignment(SeasonPlayer assignment) {
+        if (assignment == null) {
+            return null;
+        }
+        return new ActiveSeasonAssignment(
+            assignment.getSeason().getId(),
+            assignment.getSeason().getName(),
+            assignment.getTeam().getId(),
+            assignment.getTeam().getName()
+        );
+    }
+
+    public record ActiveSeasonAssignment(Long seasonId, String seasonName, Long teamId, String teamName) {}
 }

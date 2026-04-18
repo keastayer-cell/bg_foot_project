@@ -38,6 +38,30 @@ public interface SeasonPlayerRepository extends JpaRepository<SeasonPlayer, Long
     @Query("""
         SELECT sp
         FROM SeasonPlayer sp
+        JOIN FETCH sp.team team
+        JOIN FETCH sp.season season
+        WHERE sp.player.id = :playerId
+          AND sp.active = TRUE
+          AND season.active = TRUE
+        ORDER BY season.createdAt DESC, season.id DESC, sp.id DESC
+        """)
+    List<SeasonPlayer> findAllActiveDetailedByPlayerId(@Param("playerId") Long playerId);
+
+    @Query("""
+        SELECT sp
+        FROM SeasonPlayer sp
+        JOIN FETCH sp.team team
+        JOIN FETCH sp.season season
+        WHERE sp.player.id IN :playerIds
+          AND sp.active = TRUE
+          AND season.active = TRUE
+        ORDER BY season.createdAt DESC, season.id DESC, sp.id DESC
+        """)
+    List<SeasonPlayer> findAllActiveDetailedByPlayerIds(@Param("playerIds") List<Long> playerIds);
+
+    @Query("""
+        SELECT sp
+        FROM SeasonPlayer sp
         JOIN FETCH sp.player player
         WHERE sp.season.id = :seasonId
           AND sp.team.id = :teamId

@@ -1367,7 +1367,22 @@ const seasonAvailableReferees = computed(() => {
 
 const teamPlayersAvailableForRoster = computed(() => {
   const rosterIds = new Set(teamRoster.value.map((player) => Number(player.id)))
-  return playersList.value.filter((player) => !rosterIds.has(Number(player.id)))
+  const currentEditingTeamId = Number(editingTeamId.value)
+
+  return playersList.value.filter((player) => {
+    const playerId = Number(player.id)
+    const playerActiveSeasonTeamId = Number(player.activeSeasonTeamId)
+
+    if (rosterIds.has(playerId)) {
+      return false
+    }
+
+    if (!Number.isFinite(playerActiveSeasonTeamId) || playerActiveSeasonTeamId <= 0) {
+      return true
+    }
+
+    return playerActiveSeasonTeamId === currentEditingTeamId
+  })
 })
 
 const teamRosterAddOptions = computed(() => {
