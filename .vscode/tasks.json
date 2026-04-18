@@ -34,12 +34,36 @@
 			"group": "build"
 		},
 		{
+			"label": "Commit Dev",
+			"type": "shell",
+			"command": "cd /Users/korytov/projects/bg_foot_project && bash ./scripts/commit-dev.sh \"${input:devCommitMessage}\"",
+			"args": [],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Dev -> Test",
+			"type": "shell",
+			"command": "cd /Users/korytov/projects/bg_foot_project && bash ./scripts/promote-dev-to-test.sh",
+			"args": [],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
 			"label": "Promote Dev To Test",
 			"type": "shell",
 			"command": "cd /Users/korytov/projects/bg_foot_project && bash ./scripts/promote-dev-to-test.sh",
 			"args": [],
 			"isBackground": false,
 			"group": "build"
+		}
+	],
+	"inputs": [
+		{
+			"id": "devCommitMessage",
+			"type": "promptString",
+			"description": "Commit message for dev",
+			"default": "Update project"
 		}
 	]
 }
