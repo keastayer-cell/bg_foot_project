@@ -60,6 +60,8 @@ public interface SeasonPlayerRepository extends JpaRepository<SeasonPlayer, Long
 
     List<SeasonPlayer> findBySeason_IdAndTeam_IdAndActiveTrue(Long seasonId, Long teamId);
 
+    Optional<SeasonPlayer> findBySeason_IdAndTeam_IdAndPlayer_Id(Long seasonId, Long teamId, Long playerId);
+
     Optional<SeasonPlayer> findBySeason_IdAndTeam_IdAndPlayer_IdAndActiveTrue(Long seasonId, Long teamId, Long playerId);
 
     Optional<SeasonPlayer> findBySeason_IdAndPlayer_IdAndActiveTrue(Long seasonId, Long playerId);

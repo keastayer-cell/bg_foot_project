@@ -1000,6 +1000,10 @@ function buildProtocolRefereeCard(key, label, referee) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.lineup-grid {
+  align-items: start;
+}
+
 .protocol-layout-top {
   grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
   align-items: stretch;
@@ -1091,6 +1095,14 @@ function buildProtocolRefereeCard(key, label, referee) {
 .referee-summary-card,
 .protocol-editor-card {
   gap: 16px;
+}
+
+.lineup-card {
+  align-content: start;
+}
+
+.protocol-team-card {
+  align-content: start;
 }
 
 .referee-summary-grid {
@@ -1431,13 +1443,24 @@ function buildProtocolRefereeCard(key, label, referee) {
   list-style: none;
 }
 
+.protocol-player-list {
+  width: min(100%, 460px);
+  justify-self: center;
+  align-content: start;
+}
+
+.lineup-list {
+  gap: 4px;
+  align-content: start;
+}
+
 .lineup-item,
 .protocol-player-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-  padding: 5px 8px;
+  padding: 3px 8px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -1455,9 +1478,13 @@ function buildProtocolRefereeCard(key, label, referee) {
 .lineup-player-inline {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   flex-wrap: wrap;
+}
+
+.lineup-item {
+  padding: 2px 8px;
 }
 
 .lineup-order {
@@ -1498,15 +1525,19 @@ function buildProtocolRefereeCard(key, label, referee) {
 
 .player-stat-icons,
 .player-stat-inputs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  display: grid;
+  align-items: start;
+  gap: 4px;
 }
 
 .player-stat-icons {
   min-height: 16px;
   flex-shrink: 0;
+}
+
+.player-stat-inputs {
+  grid-template-columns: repeat(3, 52px);
+  justify-content: end;
 }
 
 .stat-icon-group {
@@ -1551,16 +1582,30 @@ function buildProtocolRefereeCard(key, label, referee) {
   display: grid;
   justify-items: center;
   gap: 3px;
-  width: 36px;
-  font-size: 0.68rem;
+  width: 52px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #eef2ff;
 }
 
 .micro-input {
-  width: 24px;
-  height: 24px;
+  width: 38px;
+  height: 38px;
   padding: 0;
+  border-radius: 12px;
   text-align: center;
-  font-size: 0.82rem;
+  text-indent: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 38px;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.micro-input::-webkit-outer-spin-button,
+.micro-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .protocol-editor-actions-bottom {
@@ -1588,7 +1633,11 @@ function buildProtocolRefereeCard(key, label, referee) {
 
 .btn-compact {
   min-width: 0;
-  padding-inline: 12px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  font-size: 0.95rem;
+  line-height: 1;
 }
 
 @media (max-width: 960px) {
@@ -1623,6 +1672,10 @@ function buildProtocolRefereeCard(key, label, referee) {
   .protocol-document-team,
   .protocol-document-team-away {
     text-align: left;
+  }
+
+  .protocol-player-list {
+    width: 100%;
   }
 }
 

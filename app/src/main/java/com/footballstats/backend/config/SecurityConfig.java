@@ -5,6 +5,7 @@ import com.footballstats.backend.security.JsonAuthEntryPoint;
 import com.footballstats.backend.security.PasswordChangeRequiredFilter;
 import com.footballstats.backend.security.JwtAuthenticationFilter;
 import com.footballstats.backend.security.ApiAccessRuleFilter;
+import com.footballstats.backend.security.ApiRequestLoggingFilter;
 import com.footballstats.backend.security.AuthRateLimitFilter;
 import com.footballstats.backend.security.SecurityHeadersFilter;
 import org.springframework.context.annotation.Bean;
@@ -45,6 +46,7 @@ public class SecurityConfig {
         AuthRateLimitFilter authRateLimitFilter,
         PasswordChangeRequiredFilter passwordChangeRequiredFilter,
         ApiAccessRuleFilter apiAccessRuleFilter,
+        ApiRequestLoggingFilter apiRequestLoggingFilter,
         JsonAuthEntryPoint jsonAuthEntryPoint,
         JsonAccessDeniedHandler jsonAccessDeniedHandler
     ) throws Exception {
@@ -73,7 +75,8 @@ public class SecurityConfig {
             .addFilterBefore(authRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(passwordChangeRequiredFilter, JwtAuthenticationFilter.class)
-            .addFilterAfter(apiAccessRuleFilter, JwtAuthenticationFilter.class);
+            .addFilterAfter(apiAccessRuleFilter, JwtAuthenticationFilter.class)
+            .addFilterAfter(apiRequestLoggingFilter, ApiAccessRuleFilter.class);
 
         return http.build();
     }

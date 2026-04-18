@@ -125,14 +125,6 @@
             <p v-if="seasonView" class="muted-text">{{ seasonView.seasonName }} · {{ seasonView.teamName }}</p>
           </div>
           <div class="actions-row team-rep-season-modal-head-actions">
-            <button
-              class="btn-primary"
-              type="button"
-              @click="addAvailablePlayersToSeason"
-              :disabled="seasonLoading || !seasonView || !seasonView.applicationOpen || !selectedAvailablePlayerIds.length"
-            >
-              Добавить выбранных
-            </button>
             <button class="btn-ghost" type="button" @click="closeSeasonModals">Закрыть</button>
           </div>
         </div>
@@ -146,6 +138,7 @@
             :options="seasonSelectablePlayerOptions"
             multiple
             multiple-summary-text="Выбрано игроков"
+            multiple-action-hint="После выбора нажмите «Добавить выбранных»"
             placeholder="Выберите игроков"
             search-placeholder="Начните вводить ФИО игрока"
             empty-text="Игрок по такому ФИО не найден"
@@ -154,6 +147,14 @@
             <span class="team-rep-selected-count">
               Выбрано: {{ selectedAvailablePlayerIds.length }}
             </span>
+            <button
+              class="btn-primary"
+              type="button"
+              @click="addAvailablePlayersToSeason"
+              :disabled="seasonLoading || !seasonView || !seasonView.applicationOpen || !selectedAvailablePlayerIds.length"
+            >
+              Добавить выбранных
+            </button>
           </div>
         </div>
 
@@ -753,7 +754,10 @@ function formatPlayerOptionLabel(player) {
 
 .team-rep-season-picker-meta {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .team-rep-selected-count {
@@ -805,6 +809,10 @@ function formatPlayerOptionLabel(player) {
   .team-rep-season-actions-row > *,
   .team-rep-player-row-actions > *,
   .team-rep-season-modal-head-actions > * {
+    width: 100%;
+  }
+
+  .team-rep-season-picker-meta > * {
     width: 100%;
   }
 
