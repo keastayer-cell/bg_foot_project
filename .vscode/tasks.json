@@ -34,6 +34,22 @@
 			"group": "build"
 		},
 		{
+			"label": "Restart Mailer (8090)",
+			"type": "shell",
+			"command": "pids=$(lsof -ti :8090); if [[ -n \"$pids\" ]]; then print -r -- \"$pids\" | xargs kill -9; fi; cd /Users/korytov/projects/bg_foot_project/mailer && mvn spring-boot:run",
+			"args": [],
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Rebuild + Restart Mailer (8090)",
+			"type": "shell",
+			"command": "pids=$(lsof -ti :8090); if [[ -n \"$pids\" ]]; then print -r -- \"$pids\" | xargs kill -9; fi; cd /Users/korytov/projects/bg_foot_project/mailer && mvn clean package && mvn spring-boot:run",
+			"args": [],
+			"isBackground": true,
+			"group": "build"
+		},
+		{
 			"label": "Commit Dev",
 			"type": "shell",
 			"command": "cd /Users/korytov/projects/bg_foot_project && bash ./scripts/commit-dev.sh \"${input:devCommitMessage}\"",

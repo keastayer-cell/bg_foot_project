@@ -3,10 +3,12 @@
 
 # local env
 .env
+mailer/.env
 *.local
 
 # backend
 app/target/
+mailer/target/
 
 # frontend
 web/node_modules/
@@ -16,3 +18,7 @@ web/dist/
 app/.vite/
 web/.vite/
 web/backend.log
+overview_7.json
+test_mail.jsh
+test_mail_v2.jsh
+test_utf8_mail.jsh

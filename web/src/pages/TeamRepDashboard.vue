@@ -3,7 +3,10 @@
     <article class="card team-rep-profile-card">
       <div class="toolbar team-rep-card-head">
         <h2 class="section-title">Личный кабинет представителя команды</h2>
-        <button class="btn-primary" type="button" @click="openCreatePlayerModal()">Создать игрока</button>
+        <div class="actions-row">
+          <button class="btn-ghost" type="button" @click="router.push('/team-rep-transfers')">Трансферы</button>
+          <button class="btn-primary" type="button" @click="openCreatePlayerModal()">Создать игрока</button>
+        </div>
       </div>
 
       <div class="team-rep-profile-grid">
@@ -23,6 +26,12 @@
 
       <p class="error-text" v-if="pageError">{{ pageError }}</p>
       <p class="success-text" v-if="pageSuccess">{{ pageSuccess }}</p>
+
+      <div v-if="incomingTransfersSummary.totalPendingCount > 0" class="team-rep-transfer-alert">
+        <button class="btn-primary team-rep-transfer-alert-btn" type="button" @click="openIncomingTransfersModal">
+          У вас новая заявка на трансфер · {{ incomingTransfersSummary.totalPendingCount }}
+        </button>
+      </div>
     </article>
 
     <article class="card team-rep-history-card">
@@ -49,7 +58,9 @@
           <div class="toolbar team-rep-card-head team-rep-season-actions">
             <div class="team-rep-badge-row">
               <span class="team-rep-season-chip">В заявке: {{ selectedSeasonSummary.selectedPlayersCount }}</span>
+              <span class="team-rep-season-chip" v-if="selectedSeasonSummary.maxRosterSize">Лимит: {{ selectedSeasonSummary.selectedPlayersCount }} / {{ selectedSeasonSummary.maxRosterSize }}</span>
               <span class="team-rep-season-chip">{{ selectedSeasonSummary.applicationDeadline ? `Дедлайн: ${formatDateOnly(selectedSeasonSummary.applicationDeadline)}` : 'Дедлайн не задан' }}</span>
+              <span class="team-rep-season-chip">Статус: {{ formatSeasonStatus(selectedSeasonSummary.status) }}</span>
               <span class="team-rep-season-chip" :class="selectedSeasonSummary.applicationOpen ? 'team-rep-season-chip-open' : 'team-rep-season-chip-closed'">
                 {{ selectedSeasonSummary.applicationOpen ? 'Добавление открыто' : 'Добавление закрыто' }}
               </span>
@@ -66,7 +77,9 @@
             </div>
           </div>
           <p v-if="!selectedSeasonSummary.applicationOpen" class="muted-text">
-            Дедлайн добавления игроков в заявку сезона истек. Удалять игроков из заявки по-прежнему можно.
+            {{ selectedSeasonSummary.status !== 'ACTIVE'
+              ? 'Изменения заявки закрыты, потому что сезон не находится в активном статусе.'
+              : 'Дедлайн добавления игроков в заявку сезона истек. Удалять игроков из заявки по-прежнему можно.' }}
           </p>
         </template>
 
@@ -108,6 +121,7 @@
               class="btn-danger btn-compact"
               type="button"
               @click="removeFromSelectedSeason(player.id)"
+              :disabled="selectedSeasonSummary?.status !== 'ACTIVE'"
             >
               Убрать из сезона
             </button>
@@ -116,6 +130,43 @@
         </article>
       </div>
     </article>
+
+    <div v-if="incomingTransfersModalOpen" class="modal-backdrop" @click.self="closeIncomingTransfersModal">
+      <article class="card auth-modal team-rep-modal incoming-transfer-modal">
+        <div class="toolbar auth-modal-head">
+          <div>
+            <h3 class="section-title">Входящие заявки на трансфер</h3>
+            <p class="muted-text">Здесь можно подтвердить или отклонить новые заявки.</p>
+          </div>
+          <button class="btn-ghost" type="button" @click="closeIncomingTransfersModal">Закрыть</button>
+        </div>
+
+        <p v-if="incomingTransfersLoading" class="muted-text">Загрузка заявок...</p>
+        <p v-else-if="!incomingTransfersSummary.requests.length" class="muted-text">Новых входящих заявок нет.</p>
+
+        <div v-else class="incoming-transfer-list">
+          <article class="incoming-transfer-item" v-for="request in incomingTransfersSummary.requests" :key="request.id">
+            <div class="incoming-transfer-main">
+              <strong>{{ request.playerName }}<span v-if="request.playerGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></strong>
+              <p class="muted-text">{{ request.toTeamName }} хочет забрать игрока из вашей команды</p>
+              <p class="muted-text">Заявка создана: {{ formatDateTime(request.requestedAt) }}</p>
+              <p v-if="request.requestComment" class="muted-text">Комментарий: {{ request.requestComment }}</p>
+            </div>
+            <textarea v-model.trim="incomingDecisionComments[request.id]" rows="2" placeholder="Комментарий к решению"></textarea>
+            <div class="actions-row team-rep-player-row-actions">
+              <button class="btn-primary btn-compact" type="button" @click="processIncomingTransfer(request.id, 'approve')" :disabled="incomingDecisionLoadingId === request.id">Подтвердить</button>
+              <button class="btn-danger btn-compact" type="button" @click="processIncomingTransfer(request.id, 'reject')" :disabled="incomingDecisionLoadingId === request.id">Отклонить</button>
+            </div>
+          </article>
+        </div>
+
+        <div class="pagination-bar" v-if="incomingTransfersSummary.totalPages > 1">
+          <button class="btn-ghost" type="button" @click="changeIncomingTransfersPage(incomingTransfersSummary.pageNumber - 1)" :disabled="incomingTransfersLoading || incomingTransfersSummary.pageNumber <= 0">Назад</button>
+          <span class="muted-text">Страница {{ incomingTransfersSummary.pageNumber + 1 }} из {{ incomingTransfersSummary.totalPages }} · всего {{ incomingTransfersSummary.totalElements }}</span>
+          <button class="btn-ghost" type="button" @click="changeIncomingTransfersPage(incomingTransfersSummary.pageNumber + 1)" :disabled="incomingTransfersLoading || incomingTransfersSummary.pageNumber + 1 >= incomingTransfersSummary.totalPages">Вперёд</button>
+        </div>
+      </article>
+    </div>
 
     <div v-if="addPlayerModalOpen" class="modal-backdrop" @click.self="closeSeasonModals">
       <article class="card auth-modal team-rep-modal team-rep-season-modal">
@@ -231,6 +282,18 @@ const pageError = ref('')
 const pageSuccess = ref('')
 const seasonError = ref('')
 const seasonSuccess = ref('')
+const incomingTransfersLoading = ref(false)
+const incomingTransfersModalOpen = ref(false)
+const incomingDecisionLoadingId = ref(null)
+const incomingTransfersSummary = ref({
+  totalPendingCount: 0,
+  requests: [],
+  pageNumber: 0,
+  pageSize: 20,
+  totalElements: 0,
+  totalPages: 0,
+})
+const incomingDecisionComments = reactive({})
 
 const teamSeasons = ref([])
 const teamPlayers = ref([])
@@ -308,6 +371,7 @@ watchEffect(() => {
 
   closeSeasonModals()
   closePlayerModal()
+  closeIncomingTransfersModal()
   router.replace('/')
 })
 
@@ -341,6 +405,7 @@ async function loadDashboard() {
     ])
     teamSeasons.value = Array.isArray(seasonsPayload) ? seasonsPayload : []
     teamPlayers.value = Array.isArray(playersPayload) ? playersPayload : []
+    await loadIncomingTransfersNotifications(0)
     if (selectedSeasonId.value) {
       const stillExists = teamSeasons.value.some((season) => String(season.id) === String(selectedSeasonId.value))
       if (!stillExists) {
@@ -352,6 +417,69 @@ async function loadDashboard() {
     pageError.value = error.message || 'Не удалось загрузить кабинет представителя.'
   } finally {
     dashboardLoading.value = false
+  }
+}
+
+async function loadIncomingTransfersNotifications(pageNum = 0) {
+  incomingTransfersLoading.value = true
+
+  try {
+    const payload = await authorizedApiRequest(`/api/team-rep/transfers/incoming-pending?pagenum=${pageNum}&pagesize=20`, {
+      method: 'GET',
+    })
+    incomingTransfersSummary.value = {
+      totalPendingCount: Number(payload?.totalPendingCount || 0),
+      requests: Array.isArray(payload?.requests) ? payload.requests : [],
+      pageNumber: Number(payload?.pageNumber || 0),
+      pageSize: Number(payload?.pageSize || 20),
+      totalElements: Number(payload?.totalElements || 0),
+      totalPages: Number(payload?.totalPages || 0),
+    }
+  } catch (error) {
+    pageError.value = error.message || 'Не удалось загрузить входящие трансферные заявки.'
+  } finally {
+    incomingTransfersLoading.value = false
+  }
+}
+
+async function openIncomingTransfersModal() {
+  incomingTransfersModalOpen.value = true
+  await loadIncomingTransfersNotifications(0)
+}
+
+function closeIncomingTransfersModal() {
+  incomingTransfersModalOpen.value = false
+}
+
+async function changeIncomingTransfersPage(pageNum) {
+  if (pageNum < 0) return
+  if (incomingTransfersSummary.value.totalPages && pageNum >= incomingTransfersSummary.value.totalPages) return
+  await loadIncomingTransfersNotifications(pageNum)
+}
+
+async function processIncomingTransfer(requestId, action) {
+  incomingDecisionLoadingId.value = requestId
+  pageError.value = ''
+  pageSuccess.value = ''
+
+  try {
+    await authorizedApiRequest(`/api/team-rep/transfers/${encodeURIComponent(requestId)}/${action}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        decisionComment: incomingDecisionComments[requestId] || null,
+      }),
+    })
+    incomingDecisionComments[requestId] = ''
+    pageSuccess.value = action === 'approve' ? 'Трансфер подтвержден.' : 'Трансфер отклонен.'
+    await loadIncomingTransfersNotifications(incomingTransfersSummary.value.pageNumber || 0)
+    await loadDashboard()
+    if (selectedSeasonId.value) {
+      await loadSeasonView(selectedSeasonId.value)
+    }
+  } catch (error) {
+    pageError.value = error.message || 'Не удалось обработать входящую заявку.'
+  } finally {
+    incomingDecisionLoadingId.value = null
   }
 }
 
@@ -601,9 +729,29 @@ function formatDateOnly(value) {
   }).format(date)
 }
 
+function formatDateTime(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
 function formatPlayerOptionLabel(player) {
   if (!player) return ''
   return `${player.fullName || ''}`
+}
+
+function formatSeasonStatus(status) {
+  if (status === 'ACTIVE') return 'Активный'
+  if (status === 'CLOSED') return 'Закрыт'
+  if (status === 'DRAFT') return 'Черновик'
+  return status || '—'
 }
 </script>
 
@@ -698,6 +846,14 @@ function formatPlayerOptionLabel(player) {
   margin-top: 6px;
 }
 
+.team-rep-transfer-alert {
+  margin-top: 14px;
+}
+
+.team-rep-transfer-alert-btn {
+  width: 100%;
+}
+
 .team-rep-player-list {
   display: grid;
   gap: 10px;
@@ -739,8 +895,35 @@ function formatPlayerOptionLabel(player) {
   width: min(720px, calc(100vw - 24px));
 }
 
+.incoming-transfer-modal {
+  width: min(760px, calc(100vw - 24px));
+}
+
 .team-rep-season-modal {
   width: min(560px, calc(100vw - 24px));
+}
+
+.incoming-transfer-list {
+  display: grid;
+  gap: 12px;
+}
+
+.incoming-transfer-item {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
 }
 
 .team-rep-inline-picker {
@@ -813,6 +996,10 @@ function formatPlayerOptionLabel(player) {
   }
 
   .team-rep-season-picker-meta > * {
+    width: 100%;
+  }
+
+  .pagination-bar > * {
     width: 100%;
   }
 

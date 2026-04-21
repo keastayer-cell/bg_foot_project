@@ -73,6 +73,18 @@
               <input v-model="seasonForm.applicationDeadline" type="date" />
             </label>
             <label class="admin-season-field">
+              Лимит игроков в заявке
+              <input v-model="seasonForm.maxRosterSize" type="number" min="1" placeholder="Пусто = без лимита" />
+            </label>
+            <label class="admin-season-field">
+              Старт окна трансферов
+              <input v-model="seasonForm.transferWindowStartDate" type="date" />
+            </label>
+            <label class="admin-season-field">
+              Конец окна трансферов
+              <input v-model="seasonForm.transferWindowEndDate" type="date" />
+            </label>
+            <label class="admin-season-field">
               Пропуск за ЖК
               <input v-model="seasonForm.yellowCardsForSuspension" type="number" min="0" placeholder="0 = выключено" />
             </label>
@@ -93,6 +105,13 @@
                 <option value="">— выберите —</option>
                 <option v-for="count in playoffTeamOptions" :key="`create-playoff-${count}`" :value="String(count)">{{ count }}</option>
               </select>
+            </label>
+            <label v-if="seasonForm.playoffEnabled && Number(seasonForm.playoffTeamCount || 0) >= 4" class="admin-season-field admin-season-toggle-field">
+              Матч за 3 место
+              <span class="admin-season-toggle-control">
+                <input v-model="seasonForm.thirdPlaceEnabled" type="checkbox" />
+                <span>Добавить бронзовый матч</span>
+              </span>
             </label>
           </div>
 
@@ -132,10 +151,20 @@
                 <strong>{{ Number(seasonForm.yellowCardsForSuspension || 0) || 0 }} ЖК / {{ Number(seasonForm.redCardsForSuspension || 0) || 0 }} КК</strong>
                 <p class="muted-text">Порог автоматического пропуска.</p>
               </article>
+              <article class="admin-season-meta-card">
+                <span class="admin-season-meta-label">Регламент состава</span>
+                <strong>{{ seasonForm.maxRosterSize || 'Без лимита' }}</strong>
+                <p class="muted-text">Статус: {{ seasonForm.status === 'ACTIVE' ? 'Активный' : seasonForm.status === 'CLOSED' ? 'Закрыт' : 'Черновик' }}.</p>
+              </article>
+              <article class="admin-season-meta-card">
+                <span class="admin-season-meta-label">Трансферы</span>
+                <strong>{{ seasonForm.transferWindowStartDate || seasonForm.transferWindowEndDate ? `${seasonForm.transferWindowStartDate || '...'} - ${seasonForm.transferWindowEndDate || '...'}` : 'Без окна' }}</strong>
+                <p class="muted-text">Пустые даты означают отсутствие ограничений.</p>
+              </article>
               <article v-if="seasonForm.playoffEnabled && seasonForm.playoffTeamCount" class="admin-season-meta-card admin-season-meta-card-accent">
                 <span class="admin-season-meta-label">Плей-офф</span>
                 <strong>{{ seasonForm.playoffTeamCount }} команд</strong>
-                <p class="muted-text">Финальный этап включен.</p>
+                <p class="muted-text">{{ seasonForm.thirdPlaceEnabled ? 'С матчем за 3 место.' : 'Без матча за 3 место.' }}</p>
               </article>
             </div>
           </section>
@@ -245,8 +274,28 @@
                 </select>
               </label>
               <label class="admin-season-field">
+                Статус сезона
+                <select v-model="seasonForm.status">
+                  <option value="ACTIVE">Активный</option>
+                  <option value="DRAFT">Черновик</option>
+                  <option value="CLOSED">Закрыт</option>
+                </select>
+              </label>
+              <label class="admin-season-field">
                 Дедлайн заявки
                 <input v-model="seasonForm.applicationDeadline" type="date" />
+              </label>
+              <label class="admin-season-field">
+                Лимит игроков в заявке
+                <input v-model="seasonForm.maxRosterSize" type="number" min="1" placeholder="Пусто = без лимита" />
+              </label>
+              <label class="admin-season-field">
+                Старт окна трансферов
+                <input v-model="seasonForm.transferWindowStartDate" type="date" />
+              </label>
+              <label class="admin-season-field">
+                Конец окна трансферов
+                <input v-model="seasonForm.transferWindowEndDate" type="date" />
               </label>
               <label class="admin-season-field">
                 Пропуск за ЖК
@@ -269,6 +318,13 @@
                   <option value="">— выберите —</option>
                   <option v-for="count in playoffTeamOptions" :key="`edit-playoff-${count}`" :value="String(count)">{{ count }}</option>
                 </select>
+              </label>
+              <label v-if="seasonForm.playoffEnabled && Number(seasonForm.playoffTeamCount || 0) >= 4" class="admin-season-field admin-season-toggle-field">
+                Матч за 3 место
+                <span class="admin-season-toggle-control">
+                  <input v-model="seasonForm.thirdPlaceEnabled" type="checkbox" />
+                  <span>Добавить бронзовый матч</span>
+                </span>
               </label>
             </div>
 
@@ -308,10 +364,20 @@
                   <strong>{{ Number(seasonForm.yellowCardsForSuspension || 0) || 0 }} ЖК / {{ Number(seasonForm.redCardsForSuspension || 0) || 0 }} КК</strong>
                   <p class="muted-text">Порог автоматического пропуска.</p>
                 </article>
+                <article class="admin-season-meta-card">
+                  <span class="admin-season-meta-label">Регламент состава</span>
+                  <strong>{{ seasonForm.maxRosterSize || 'Без лимита' }}</strong>
+                  <p class="muted-text">Статус: {{ seasonForm.status === 'ACTIVE' ? 'Активный' : seasonForm.status === 'CLOSED' ? 'Закрыт' : 'Черновик' }}.</p>
+                </article>
+                <article class="admin-season-meta-card">
+                  <span class="admin-season-meta-label">Трансферы</span>
+                  <strong>{{ seasonForm.transferWindowStartDate || seasonForm.transferWindowEndDate ? `${seasonForm.transferWindowStartDate || '...'} - ${seasonForm.transferWindowEndDate || '...'}` : 'Без окна' }}</strong>
+                  <p class="muted-text">Пустые даты означают отсутствие ограничений.</p>
+                </article>
                 <article v-if="seasonForm.playoffEnabled && seasonForm.playoffTeamCount" class="admin-season-meta-card admin-season-meta-card-accent">
                   <span class="admin-season-meta-label">Плей-офф</span>
                   <strong>{{ seasonForm.playoffTeamCount }} команд</strong>
-                  <p class="muted-text">Финальный этап включен.</p>
+                  <p class="muted-text">{{ seasonForm.thirdPlaceEnabled ? 'С матчем за 3 место.' : 'Без матча за 3 место.' }}</p>
                 </article>
               </div>
             </section>
@@ -381,6 +447,9 @@
             </section>
 
             <div class="actions-row admin-season-actions">
+              <button class="btn-ghost" type="button" @click="completeRegularSeason" :disabled="completingRegularSeason">
+                {{ completingRegularSeason ? 'Выполняется...' : seasonCompletionActionLabel }}
+              </button>
               <button class="btn-primary" type="button" @click="saveEditSeason">Сохранить изменения</button>
               <button class="btn-danger" type="button" @click="deactivateSeason(editingSeasonId)">Удалить сезон</button>
               <button class="btn-ghost" type="button" @click="cancelEditSeason(); seasonEditSelectId = ''">Отмена</button>
@@ -680,15 +749,16 @@
             Команда 2
             <select v-model="matchForm.awayTeamId">
               <option value="">— выберите —</option>
-              <option v-for="team in tourTeamsList" :key="`away-${team.id}`" :value="String(team.id)">{{ team.name }}</option>
+              <option v-for="team in availableAwayTeams" :key="`away-${team.id}`" :value="String(team.id)">{{ team.name }}</option>
             </select>
           </label>
           <label>
             Время матча
             <input v-model="matchForm.kickoffAt" type="datetime-local" class="admin-temporal-input admin-temporal-input-wide" step="60" />
           </label>
+          <p v-if="selectedTourMatchLimitMessage" class="error-text">{{ selectedTourMatchLimitMessage }}</p>
           <div class="actions-row">
-            <button class="btn-primary" type="submit">Добавить матч</button>
+            <button class="btn-primary" type="submit" :disabled="Boolean(selectedTourMatchLimitMessage)">Добавить матч</button>
           </div>
           <p class="muted-text">Публично на сайт попадут только опубликованные туры.</p>
         </form>
@@ -706,6 +776,7 @@
               <div class="tour-match-copy">
                 <strong>{{ match.homeTeamName }} - {{ match.awayTeamName }}</strong>
                 <span class="muted-text">{{ formatDateTime(match.kickoffAt) }}</span>
+                <span class="muted-text" v-if="tourMatchScoreLabel(match)">{{ tourMatchScoreLabel(match) }}</span>
                 <span class="tour-match-status-badge" :class="protocolStatusBadgeClass(match.protocolStatus)">
                   {{ matchProtocolStatusLabel(match.protocolStatus) }}
                 </span>
@@ -1143,6 +1214,7 @@ const teamsList = ref([])
 const tourTeamsList = ref([])
 const toursList = ref([])
 const tourMatchesList = ref([])
+const seasonTourMatchesList = ref([])
 const playersList = ref([])
 const refereesList = ref([])
 const usersRegistry = ref(loadFromStorage(USERS_KEY))
@@ -1165,7 +1237,12 @@ const seasonForm = reactive({
   roundsCount: '1',
   playoffEnabled: false,
   playoffTeamCount: '',
+  thirdPlaceEnabled: false,
+  status: 'DRAFT',
+  maxRosterSize: '',
   applicationDeadline: '',
+  transferWindowStartDate: '',
+  transferWindowEndDate: '',
   rankingRules: ['GOAL_DIFFERENCE', 'GOALS_FOR'],
   yellowCardsForSuspension: '0',
   redCardsForSuspension: '0',
@@ -1205,6 +1282,7 @@ const seasonEditSelectId = ref('')
 const seasonProtocolMenuOpen = ref(false)
 const downloadingSeasonProtocols = ref(false)
 const seasonProtocolProgressText = ref('')
+const completingRegularSeason = ref(false)
 const seasonTeamIds = ref([])
 const originalSeasonTeamIds = ref([])
 const seasonTeamToAddId = ref('')
@@ -1251,11 +1329,6 @@ const repSelectedTeamId = ref('')
 const repUserAccess = ref(null)
 const repSearchDebounceMs = 5000
 let repSearchDebounceTimer = null
-
-const roleForm = reactive({
-  email: '',
-  roleCode: 'USER',
-})
 
 const banForm = reactive({
   email: '',
@@ -1444,12 +1517,93 @@ const selectedSeasonEditItem = computed(() => {
   return seasonsList.value.find((season) => String(season.id) === String(editingSeasonId.value)) || null
 })
 
+const seasonCompletionActionLabel = computed(() => {
+  if (!selectedSeasonEditItem.value) {
+    return 'Завершить сезон'
+  }
+  return selectedSeasonEditItem.value.playoffEnabled
+    ? 'Завершить регулярную часть и сформировать плей-офф'
+    : 'Завершить сезон'
+})
+
 const selectedTour = computed(() => {
   return toursList.value.find((tour) => String(tour.id) === String(selectedTourId.value)) || null
 })
 
 const canPublishSelectedTour = computed(() => {
   return Boolean(selectedTour.value) && !selectedTour.value.published && tourMatchesList.value.length > 0
+})
+
+function countSeasonHeadToHeadMeetings(firstTeamId, secondTeamId) {
+  const normalizedFirstTeamId = Number(firstTeamId || 0)
+  const normalizedSecondTeamId = Number(secondTeamId || 0)
+
+  if (normalizedFirstTeamId <= 0 || normalizedSecondTeamId <= 0) {
+    return 0
+  }
+
+  return seasonTourMatchesList.value.filter((match) => {
+    const homeTeamId = Number(match.homeTeamId || 0)
+    const awayTeamId = Number(match.awayTeamId || 0)
+    return (
+      (homeTeamId === normalizedFirstTeamId && awayTeamId === normalizedSecondTeamId)
+      || (homeTeamId === normalizedSecondTeamId && awayTeamId === normalizedFirstTeamId)
+    )
+  }).length
+}
+
+const availableAwayTeams = computed(() => {
+  const season = selectedTourSeason.value
+  const homeTeamId = Number(matchForm.homeTeamId || 0)
+
+  if (!season || homeTeamId <= 0) {
+    return tourTeamsList.value
+  }
+
+  const allowedMeetings = Math.max(Number(season.roundsCount || 1), 1)
+
+  return tourTeamsList.value.filter((team) => {
+    const awayTeamId = Number(team.id || 0)
+    if (awayTeamId <= 0 || awayTeamId === homeTeamId) {
+      return false
+    }
+    return countSeasonHeadToHeadMeetings(homeTeamId, awayTeamId) < allowedMeetings
+  })
+})
+
+const selectedTourMatchLimitMessage = computed(() => {
+  const season = selectedTourSeason.value
+  const homeTeamId = Number(matchForm.homeTeamId || 0)
+  const awayTeamId = Number(matchForm.awayTeamId || 0)
+
+  if (!season || homeTeamId <= 0 || awayTeamId <= 0 || homeTeamId === awayTeamId) {
+    return ''
+  }
+
+  const allowedMeetings = Math.max(Number(season.roundsCount || 1), 1)
+  const existingMeetings = countSeasonHeadToHeadMeetings(homeTeamId, awayTeamId)
+
+  if (existingMeetings < allowedMeetings) {
+    return ''
+  }
+
+  const homeTeam = tourTeamsList.value.find((team) => Number(team.id) === homeTeamId)
+  const awayTeam = tourTeamsList.value.find((team) => Number(team.id) === awayTeamId)
+  const homeTeamName = String(homeTeam?.name || 'Команда 1')
+  const awayTeamName = String(awayTeam?.name || 'Команда 2')
+
+  return `Пара ${homeTeamName} - ${awayTeamName} уже исчерпала лимит очных встреч для сезона: ${allowedMeetings} круг(а).`
+})
+
+watch(availableAwayTeams, (teams) => {
+  if (!matchForm.awayTeamId) {
+    return
+  }
+
+  const isStillAvailable = teams.some((team) => String(team.id) === String(matchForm.awayTeamId))
+  if (!isStillAvailable) {
+    matchForm.awayTeamId = ''
+  }
 })
 
 watch(rolesSearch, (rawValue) => {
@@ -1530,12 +1684,21 @@ watch(playerEditSelectId, () => {
 })
 
 watch(activeTab, (tabId) => {
-  if (tabId === 'representatives' && !repUsersList.value.length) {
-    void loadRepresentativeUsers({ pagenum: 0, pagesize: 20 })
+  if (tabId === 'representatives') {
+    const emailFilter = String(repSearch.value || '').trim()
+    void loadRepresentativeUsers({
+      email: emailFilter,
+      pagenum: 0,
+      pagesize: emailFilter ? 50 : 20,
+    })
   }
   if (tabId === 'tours' && !tourSeasonId.value && seasonsList.value.length) {
     tourSeasonId.value = String(seasonsList.value[0].id)
     void onTourSeasonChange()
+    return
+  }
+  if (tabId === 'tours' && tourSeasonId.value) {
+    void refreshToursTabData()
   }
 })
 
@@ -1643,7 +1806,12 @@ async function startEditSeason(item) {
   seasonForm.roundsCount = String(item.roundsCount || 1)
   seasonForm.playoffEnabled = Boolean(item.playoffEnabled)
   seasonForm.playoffTeamCount = item.playoffTeamCount ? String(item.playoffTeamCount) : ''
+  seasonForm.thirdPlaceEnabled = Boolean(item.thirdPlaceEnabled)
+  seasonForm.status = item.status || 'ACTIVE'
+  seasonForm.maxRosterSize = item.maxRosterSize ? String(item.maxRosterSize) : ''
   seasonForm.applicationDeadline = item.applicationDeadline || ''
+  seasonForm.transferWindowStartDate = item.transferWindowStartDate || ''
+  seasonForm.transferWindowEndDate = item.transferWindowEndDate || ''
   seasonForm.rankingRules = normalizeSeasonRankingRulesForForm(item.rankingRules)
   seasonForm.yellowCardsForSuspension = String(item.yellowCardsForSuspension || 0)
   seasonForm.redCardsForSuspension = String(item.redCardsForSuspension || 0)
@@ -1756,6 +1924,37 @@ async function saveEditSeason() {
   }
 }
 
+async function completeRegularSeason() {
+  if (!editingSeasonId.value || completingRegularSeason.value) {
+    return
+  }
+
+  resetMessages()
+  completingRegularSeason.value = true
+
+  try {
+    const updatedSeason = await authorizedApiRequest(`/api/seasons/${editingSeasonId.value}/complete-regular-season`, {
+      method: 'POST',
+    })
+    await loadSeasonRegistry()
+    await loadSeasons()
+    const actualSeason = seasonsList.value.find((item) => String(item.id) === String(updatedSeason?.id || editingSeasonId.value))
+    if (actualSeason) {
+      await startEditSeason(actualSeason)
+    }
+    if (String(tourSeasonId.value || '') === String(editingSeasonId.value)) {
+      await onTourSeasonChange()
+    }
+    messageOk.value = updatedSeason?.playoffEnabled
+      ? 'Регулярный этап завершен, сетка плей-офф сформирована.'
+      : 'Сезон завершен.'
+  } catch (error) {
+    showSeasonOperationError(error.message || 'Не удалось завершить регулярный этап сезона.')
+  } finally {
+    completingRegularSeason.value = false
+  }
+}
+
 async function onSeasonSelectChange() {
   seasonProtocolMenuOpen.value = false
   if (!seasonEditSelectId.value) {
@@ -1850,7 +2049,12 @@ function resetSeasonForm() {
   seasonForm.roundsCount = '1'
   seasonForm.playoffEnabled = false
   seasonForm.playoffTeamCount = ''
+  seasonForm.thirdPlaceEnabled = false
+  seasonForm.status = 'DRAFT'
+  seasonForm.maxRosterSize = ''
   seasonForm.applicationDeadline = ''
+  seasonForm.transferWindowStartDate = ''
+  seasonForm.transferWindowEndDate = ''
   seasonForm.rankingRules = ['GOAL_DIFFERENCE', 'GOALS_FOR']
   seasonForm.yellowCardsForSuspension = '0'
   seasonForm.redCardsForSuspension = '0'
@@ -2276,6 +2480,7 @@ async function onTourSeasonChange() {
 async function loadTours() {
   if (!tourSeasonId.value) {
     toursList.value = []
+    seasonTourMatchesList.value = []
     return
   }
 
@@ -2284,10 +2489,27 @@ async function loadTours() {
       method: 'GET',
     })
     toursList.value = Array.isArray(payload) ? payload : []
+    await loadSeasonTourMatchesSnapshot()
   } catch (error) {
     toursList.value = []
+    seasonTourMatchesList.value = []
     messageError.value = error.message || 'Не удалось загрузить туры.'
   }
+}
+
+async function loadSeasonTourMatchesSnapshot() {
+  if (!toursList.value.length) {
+    seasonTourMatchesList.value = []
+    return
+  }
+
+  const payloads = await Promise.all(
+    toursList.value.map((tour) => authorizedApiRequest(`/api/tours/${tour.id}/matches?active_flag=1`, {
+      method: 'GET',
+    }))
+  )
+
+  seasonTourMatchesList.value = payloads.flatMap((payload) => Array.isArray(payload) ? payload : [])
 }
 
 async function loadTeamsForTourSeason() {
@@ -2324,6 +2546,17 @@ async function onTourSelectChange() {
   } catch (error) {
     tourMatchesList.value = []
     messageError.value = error.message || 'Не удалось загрузить матчи тура.'
+  }
+}
+
+async function refreshToursTabData() {
+  if (!tourSeasonId.value) {
+    return
+  }
+
+  await Promise.all([loadTours(), loadTeamsForTourSeason()])
+  if (selectedTourId.value) {
+    await onTourSelectChange()
   }
 }
 
@@ -2373,6 +2606,10 @@ async function createTourMatch() {
     messageError.value = 'Укажите дату и время матча.'
     return
   }
+  if (selectedTourMatchLimitMessage.value) {
+    messageError.value = selectedTourMatchLimitMessage.value
+    return
+  }
 
   try {
     await authorizedApiRequest(`/api/tours/${selectedTourId.value}/matches`, {
@@ -2383,6 +2620,7 @@ async function createTourMatch() {
         kickoffAt: new Date(matchForm.kickoffAt).toISOString(),
       }),
     })
+    await loadSeasonTourMatchesSnapshot()
     await onTourSelectChange()
     resetMatchForm()
     messageOk.value = 'Матч добавлен в тур.'
@@ -2411,6 +2649,7 @@ async function deleteTourMatch(matchId) {
     await authorizedApiRequest(`/api/tours/${selectedTourId.value}/matches/${matchId}`, {
       method: 'DELETE',
     })
+    await loadSeasonTourMatchesSnapshot()
     await Promise.all([loadTours(), onTourSelectChange()])
     messageOk.value = 'Матч удален из тура.'
   } catch (error) {
@@ -2426,6 +2665,15 @@ function resetMatchForm() {
 
 function canDeleteTourMatch(match) {
   return String(match?.protocolStatus || 'SCHEDULED') === 'SCHEDULED'
+}
+
+function tourMatchScoreLabel(match) {
+  const homeScore = Number.isInteger(match?.homeScore) ? match.homeScore : null
+  const awayScore = Number.isInteger(match?.awayScore) ? match.awayScore : null
+  if (homeScore === null || awayScore === null) {
+    return ''
+  }
+  return `Счет: ${homeScore}:${awayScore}`
 }
 
 function tourMatchDeleteTitle(match) {
@@ -2493,7 +2741,12 @@ function buildSeasonPayload() {
     roundsCount,
     playoffEnabled,
     playoffTeamCount,
+    thirdPlaceEnabled: playoffEnabled ? Boolean(seasonForm.thirdPlaceEnabled) : false,
     applicationDeadline: seasonForm.applicationDeadline || null,
+    status: seasonForm.status || 'ACTIVE',
+    maxRosterSize: seasonForm.maxRosterSize ? Number(seasonForm.maxRosterSize) : null,
+    transferWindowStartDate: seasonForm.transferWindowStartDate || null,
+    transferWindowEndDate: seasonForm.transferWindowEndDate || null,
     rankingRules: buildSeasonRankingRulesPayload(),
     refereeIds: seasonRefereeIds.value,
     yellowCardsForSuspension: Number(seasonForm.yellowCardsForSuspension || 0),
@@ -2503,8 +2756,22 @@ function buildSeasonPayload() {
 
 function validateSeasonForm() {
   const rankingRules = normalizedSeasonTieBreakers()
+  const playoffEnabled = Boolean(seasonForm.playoffEnabled)
+  const playoffTeamCount = playoffEnabled && seasonForm.playoffTeamCount
+    ? Number(seasonForm.playoffTeamCount)
+    : 0
+
   if (rankingRules.length !== new Set(rankingRules).size) {
     return 'Правила таблицы не должны повторяться.'
+  }
+  if (playoffEnabled && playoffTeamCount > 0 && playoffTeamCount < 4 && seasonForm.thirdPlaceEnabled) {
+    return 'Матч за 3 место можно включить только для плей-офф на 4 команды и больше.'
+  }
+  if (seasonForm.maxRosterSize && Number(seasonForm.maxRosterSize) < 1) {
+    return 'Максимальный размер заявки должен быть не меньше 1.'
+  }
+  if (seasonForm.transferWindowStartDate && seasonForm.transferWindowEndDate && seasonForm.transferWindowStartDate > seasonForm.transferWindowEndDate) {
+    return 'Дата начала окна трансферов не может быть позже даты окончания.'
   }
   return ''
 }
@@ -2865,33 +3132,6 @@ function normalizePositiveIdList(values) {
     .filter((value) => Number.isFinite(value) && value > 0))]
 }
 
-function assignRole() {
-  resetMessages()
-
-  const email = String(roleForm.email || '').trim().toLowerCase()
-  if (!email) {
-    messageError.value = 'Укажите email пользователя.'
-    return
-  }
-
-  const user = ensureUser(email)
-  if (!user) {
-    messageError.value = 'Не удалось подготовить профиль пользователя.'
-    return
-  }
-
-  if (!user.roles.includes(roleForm.roleCode)) {
-    user.roles.push(roleForm.roleCode)
-  }
-  user.updatedAt = new Date().toISOString()
-
-  saveToStorage(USERS_KEY, usersRegistry.value)
-
-  roleForm.email = ''
-  roleForm.roleCode = 'USER'
-  messageOk.value = 'Роль назначена.'
-}
-
 function banUser() {
   resetMessages()
 
@@ -2918,17 +3158,6 @@ function banUser() {
   banForm.email = ''
   banForm.reason = ''
   messageOk.value = 'Пользователь заблокирован.'
-}
-
-function removeRole(email, roleCode) {
-  resetMessages()
-  const user = userByEmail.value.get(String(email || '').trim().toLowerCase())
-  if (!user) return
-
-  user.roles = user.roles.filter((r) => r !== roleCode)
-  user.updatedAt = new Date().toISOString()
-  saveToStorage(USERS_KEY, usersRegistry.value)
-  messageOk.value = `Роль ${roleCode} снята.`
 }
 
 function findUserForRoles() {
@@ -2982,7 +3211,8 @@ async function confirmReplaceRole() {
     await authorizedApiRequest(`/api/admin/access/users/${user.id}/roles/${replaceRoleNewCode.value}`, {
       method: 'POST',
     })
-    await refreshFoundUserAccess()
+    const payload = await refreshFoundUserAccess()
+    await syncRepresentativeUsersAfterRoleChange(payload)
     replaceRoleTarget.value = ''
     messageOk.value = 'Роль заменена.'
   } catch (error) {
@@ -2999,7 +3229,8 @@ async function removeRoleFromFound(role) {
     await authorizedApiRequest(`/api/admin/access/users/${user.id}/roles/${role}`, {
       method: 'DELETE',
     })
-    await refreshFoundUserAccess()
+    const payload = await refreshFoundUserAccess()
+    await syncRepresentativeUsersAfterRoleChange(payload)
     messageOk.value = 'Роль снята.'
   } catch (error) {
     messageError.value = error.message || 'Не удалось снять роль.'
@@ -3019,7 +3250,8 @@ async function assignRoleToFound() {
     await authorizedApiRequest(`/api/admin/access/users/${user.id}/roles/${assignRoleCode.value}`, {
       method: 'POST',
     })
-    await refreshFoundUserAccess()
+    const payload = await refreshFoundUserAccess()
+    await syncRepresentativeUsersAfterRoleChange(payload)
     messageOk.value = 'Роль добавлена.'
   } catch (error) {
     messageError.value = error.message || 'Не удалось добавить роль.'
@@ -3253,7 +3485,7 @@ async function unassignRepresentativeTeam() {
 
 async function refreshFoundUserAccess() {
   const user = rolesFoundUser.value
-  if (!user) return
+  if (!user) return null
 
   const payload = await authorizedApiRequest(`/api/admin/access/users/${user.id}`, {
     method: 'GET',
@@ -3270,6 +3502,38 @@ async function refreshFoundUserAccess() {
       roles: Array.isArray(payload.roles) ? payload.roles : [],
       mustChangePassword: Boolean(payload.mustChangePassword),
     }
+  }
+
+  return payload
+}
+
+async function syncRepresentativeUsersAfterRoleChange(payload) {
+  const normalizedEmail = String(payload?.email || '').toLowerCase()
+  const roles = Array.isArray(payload?.roles) ? payload.roles : []
+  const hasTeamRepRole = roles.includes('TEAM_REP')
+  const currentSearch = String(repSearch.value || '').trim()
+  const isCurrentRepresentativeTarget =
+    String(repSelectedEmail.value || '').toLowerCase() === normalizedEmail ||
+    String(repFoundEmail.value || '').toLowerCase() === normalizedEmail
+
+  if (activeTab.value === 'representatives' || hasTeamRepRole || isCurrentRepresentativeTarget) {
+    await loadRepresentativeUsers({
+      email: currentSearch,
+      pagenum: 0,
+      pagesize: currentSearch ? 50 : 20,
+    })
+  }
+
+  if (!hasTeamRepRole && isCurrentRepresentativeTarget) {
+    repSelectedEmail.value = ''
+    repFoundEmail.value = ''
+    repUserAccess.value = null
+    repSelectedTeamId.value = ''
+    return
+  }
+
+  if (hasTeamRepRole && currentSearch && normalizedEmail.includes(currentSearch.toLowerCase())) {
+    repSelectedEmail.value = normalizedEmail
   }
 }
 

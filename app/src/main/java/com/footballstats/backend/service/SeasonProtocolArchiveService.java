@@ -140,6 +140,7 @@ public class SeasonProtocolArchiveService {
     private int drawMeta(Graphics2D graphics, int topY, MatchProtocolService.SeasonProtocolExportMatchData match) {
         Font bodyFont = new Font(Font.SANS_SERIF, Font.PLAIN, 20);
         Font scoreFont = new Font(Font.SANS_SERIF, Font.BOLD, 32);
+        Font noteFont = new Font(Font.SANS_SERIF, Font.PLAIN, 18);
         graphics.setFont(bodyFont);
         graphics.setColor(TEXT_COLOR);
         FontMetrics bodyMetrics = graphics.getFontMetrics(bodyFont);
@@ -157,7 +158,18 @@ public class SeasonProtocolArchiveService {
         int scoreY = topY + bodyMetrics.getHeight() + 24 + scoreMetrics.getAscent();
         graphics.drawString(scoreLine, Math.max(PAGE_MARGIN, scoreX), scoreY);
 
-        return scoreY + scoreMetrics.getDescent();
+        int bottomY = scoreY + scoreMetrics.getDescent();
+        String technicalLabel = buildTechnicalLabel(match);
+        if (technicalLabel != null) {
+            graphics.setFont(noteFont);
+            FontMetrics noteMetrics = graphics.getFontMetrics(noteFont);
+            int noteX = (PAGE_WIDTH - noteMetrics.stringWidth(technicalLabel)) / 2;
+            int noteY = bottomY + 10 + noteMetrics.getAscent();
+            graphics.drawString(technicalLabel, Math.max(PAGE_MARGIN, noteX), noteY);
+            bottomY = noteY + noteMetrics.getDescent();
+        }
+
+        return bottomY;
     }
 
     private int drawSectionTitle(Graphics2D graphics, int topY, String text) {
@@ -335,12 +347,16 @@ public class SeasonProtocolArchiveService {
     }
 
     private String buildScoreLabel(MatchProtocolService.SeasonProtocolExportMatchData match) {
-        if (match.homeTechnicalDefeat() || match.awayTechnicalDefeat()) {
-            return "тех. пор.";
-        }
         int homeScore = match.homeScore() == null ? 0 : match.homeScore();
         int awayScore = match.awayScore() == null ? 0 : match.awayScore();
         return homeScore + ":" + awayScore;
+    }
+
+    private String buildTechnicalLabel(MatchProtocolService.SeasonProtocolExportMatchData match) {
+        if (match.homeTechnicalDefeat() || match.awayTechnicalDefeat()) {
+            return "Тех. пор.";
+        }
+        return null;
     }
 
     private String sanitizeFileName(String fileName, String fallback) {

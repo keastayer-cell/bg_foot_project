@@ -47,13 +47,11 @@
 
       <article class="card team-profile-controls">
         <div class="team-profile-controls-copy">
-          <p class="eyebrow">Статистика</p>
-          <h2 class="section-title">Сезонный срез</h2>
+          <p class="eyebrow team-profile-controls-kicker">Статистика</p>
         </div>
 
         <div class="team-profile-controls-actions">
           <label class="team-profile-select-wrap">
-            <span class="muted">Сезон</span>
             <select v-model="selectedSeasonKey">
               <option value="all">Все сезоны</option>
               <option v-for="season in teamProfile.seasons" :key="season.id" :value="String(season.id)">
@@ -61,31 +59,19 @@
               </option>
             </select>
           </label>
-
-          <button
-            v-if="selectedSeason"
-            class="team-profile-roster-btn"
-            type="button"
-            @click="openSeasonRosterModal"
-          >
-            Посмотреть заявку на сезон
-          </button>
         </div>
       </article>
 
       <article class="card team-profile-section team-profile-matches">
         <div class="section-head team-profile-section-head team-profile-match-head">
-          <div>
-            <p class="eyebrow">Хронология</p>
-            <h2 class="section-title">Последние матчи</h2>
+          <div class="team-profile-match-head-line">
+            <h2 class="section-title team-profile-match-title">Последние матчи</h2>
           </div>
-          <div class="team-profile-match-head-meta muted">Страница {{ currentPage }} из {{ totalPages }}</div>
         </div>
 
         <div v-if="paginatedMatches.length" class="team-profile-history-table">
           <div class="team-profile-history-head muted">
-            <span>Дата</span>
-            <span>Турнир</span>
+            <span>Когда</span>
             <span>Матч</span>
             <span>Счёт</span>
             <span>Статус</span>
@@ -102,8 +88,10 @@
             }"
             class="team-profile-history-row"
           >
-            <span class="team-profile-history-date">{{ formatDateTime(match.kickoffAt) }}</span>
-            <span class="team-profile-history-tournament">{{ match.seasonName }} · {{ match.tourName }}</span>
+            <span class="team-profile-history-meta">
+              <span class="team-profile-history-date">{{ formatHistoryDate(match.kickoffAt) }}</span>
+              <span class="team-profile-history-tournament">{{ match.seasonName }}</span>
+            </span>
             <span class="team-profile-history-matchup">
               <strong>{{ teamProfile.shortName || teamProfile.name }}</strong>
               <span class="muted">vs</span>
@@ -235,7 +223,7 @@ const selectedSummary = computed(() => {
   return summary
 })
 
-const selectedForm = computed(() => selectedMatches.value.slice(0, 5).map((match) => match.resultCode))
+const selectedForm = computed(() => selectedMatches.value.slice(0, 6).map((match) => match.resultCode))
 const totalPages = computed(() => Math.max(1, Math.ceil(chronologyMatches.value.length / PAGE_SIZE)))
 const paginatedMatches = computed(() => {
   const startIndex = (currentPage.value - 1) * PAGE_SIZE
@@ -320,6 +308,17 @@ function formatDateTime(value) {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+  }).format(date)
+}
+
+function formatHistoryDate(value) {
+  if (!value) return 'Дата не указана'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Дата не указана'
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
   }).format(date)
 }
 
@@ -460,16 +459,20 @@ watch(selectedSeasonKey, () => {
 
 .team-profile-controls {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
 }
 
 .team-profile-controls-actions {
   display: flex;
-  align-items: end;
+  align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.team-profile-controls-kicker {
+  margin: 0;
 }
 
 .team-profile-roster-btn {
@@ -506,7 +509,7 @@ watch(selectedSeasonKey, () => {
 
 .team-profile-select-wrap {
   display: grid;
-  gap: 6px;
+  gap: 0;
 }
 
 .team-profile-select-wrap select {
@@ -515,11 +518,23 @@ watch(selectedSeasonKey, () => {
 
 .team-profile-section {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .team-profile-match-head {
-  align-items: end;
+  align-items: center;
+  margin-bottom: -6px;
+}
+
+.team-profile-match-head-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  flex-wrap: wrap;
+}
+
+.team-profile-match-title {
+  margin: 0;
 }
 
 .team-profile-history-table {
@@ -530,7 +545,7 @@ watch(selectedSeasonKey, () => {
 .team-profile-history-head,
 .team-profile-history-row {
   display: grid;
-  grid-template-columns: 168px minmax(180px, 1.15fr) minmax(260px, 1.2fr) 88px 180px;
+  grid-template-columns: minmax(220px, 1.1fr) minmax(260px, 1.25fr) 88px 180px;
   gap: 14px;
   align-items: center;
 }
@@ -558,12 +573,41 @@ watch(selectedSeasonKey, () => {
   box-shadow: 0 16px 28px rgba(3, 8, 24, 0.22);
 }
 
+.team-profile-history-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.team-profile-history-date {
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.team-profile-history-tournament {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
 .team-profile-history-matchup,
 .team-profile-history-statusline {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.team-profile-history-statusline {
+  display: grid;
+  grid-template-columns: 132px auto;
+  justify-items: start;
+  gap: 12px;
+}
+
+.team-profile-history-statusline .team-profile-result-pill {
+  min-width: 132px;
+  white-space: nowrap;
 }
 
 .team-profile-history-score {
@@ -703,7 +747,7 @@ watch(selectedSeasonKey, () => {
 @media (max-width: 1100px) {
   .team-profile-history-head,
   .team-profile-history-row {
-    grid-template-columns: 148px minmax(160px, 1fr) minmax(200px, 1.1fr) 72px 148px;
+    grid-template-columns: minmax(188px, 1fr) minmax(200px, 1.1fr) 72px 148px;
   }
 }
 

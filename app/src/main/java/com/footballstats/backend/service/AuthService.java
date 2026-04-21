@@ -15,6 +15,7 @@ import io.jsonwebtoken.Claims;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -32,7 +33,9 @@ public class AuthService {
     private final AppUserRepository appUserRepository;
     private final JwtService jwtService;
     private final AccessControlService accessControlService;
+    private final NotificationEventService notificationEventService;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final String publicWebUrl;
     private final SecureRandom secureRandom = new SecureRandom();
     private static final int PASSWORD_RESET_TTL_MINUTES = 30;
 
@@ -40,14 +43,19 @@ public class AuthService {
         AppUserRepository appUserRepository,
         JwtService jwtService,
         AccessControlService accessControlService,
-        BCryptPasswordEncoder passwordEncoder
+        NotificationEventService notificationEventService,
+        BCryptPasswordEncoder passwordEncoder,
+        @org.springframework.beans.factory.annotation.Value("${app.public-web-url:http://127.0.0.1:4173}") String publicWebUrl
     ) {
         this.appUserRepository = appUserRepository;
         this.jwtService = jwtService;
         this.accessControlService = accessControlService;
+        this.notificationEventService = notificationEventService;
         this.passwordEncoder = passwordEncoder;
+        this.publicWebUrl = publicWebUrl;
     }
 
+    @Transactional
     public AuthResponse register(RegisterRequest request) {
         String email = normalizeEmail(request.getEmail());
         if (appUserRepository.existsByEmailIgnoreCase(email)) {
@@ -64,6 +72,7 @@ public class AuthService {
 
         AppUser saved = appUserRepository.save(user);
         accessControlService.assignDefaultUserRole(saved.getId());
+        notificationEventService.enqueueUserRegistered(saved);
         return buildAuthResponse(saved);
     }
 
@@ -132,7 +141,11 @@ public class AuthService {
         targetUser.setPasswordResetExpiresAt(expiresAt);
         AppUser saved = appUserRepository.save(targetUser);
 
-        return new PasswordResetResponse(saved.getId(), saved.getEmail(), "/reset-password?token=" + resetToken, expiresAt);
+        String resetPath = "/reset-password?token=" + resetToken;
+        String resetLink = buildPublicResetLink(resetPath);
+        notificationEventService.enqueuePasswordResetRequested(saved, resetLink, expiresAt);
+
+        return new PasswordResetResponse(saved.getId(), saved.getEmail(), resetPath, expiresAt);
     }
 
     public void completePasswordReset(String rawToken, String newPassword) {
@@ -298,5 +311,13 @@ public class AuthService {
     private void clearPasswordResetState(AppUser user) {
         user.setPasswordResetTokenHash(null);
         user.setPasswordResetExpiresAt(null);
+    }
+
+    private String buildPublicResetLink(String resetPath) {
+        String normalizedBase = StringUtils.trimTrailingCharacter(String.valueOf(publicWebUrl == null ? "" : publicWebUrl).trim(), '/');
+        if (!StringUtils.hasText(normalizedBase)) {
+            return resetPath;
+        }
+        return normalizedBase + resetPath;
     }
 }

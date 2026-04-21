@@ -3,6 +3,7 @@ package com.footballstats.backend.service;
 import com.footballstats.backend.domain.Player;
 import com.footballstats.backend.domain.PlayerTeam;
 import com.footballstats.backend.domain.Season;
+import com.footballstats.backend.domain.SeasonStatus;
 import com.footballstats.backend.domain.SeasonPlayer;
 import com.footballstats.backend.domain.UserTeamScope;
 import com.footballstats.backend.repository.PlayerRepository;
@@ -54,6 +55,10 @@ public class TeamRepService {
                 season.getId(),
                 season.getName(),
                 season.getApplicationDeadline(),
+                season.getStatus(),
+                season.getMaxRosterSize(),
+                season.getTransferWindowStartDate(),
+                season.getTransferWindowEndDate(),
                 isApplicationOpen(season),
                 rosterCount,
                 seasonPlayerService.countActiveSeasonPlayers(context.teamId(), season.getId())
@@ -142,6 +147,10 @@ public class TeamRepService {
             season.getId(),
             season.getName(),
             season.getApplicationDeadline(),
+            season.getStatus(),
+            season.getMaxRosterSize(),
+            season.getTransferWindowStartDate(),
+            season.getTransferWindowEndDate(),
             isApplicationOpen(season),
             context.teamId(),
             context.teamName(),
@@ -339,7 +348,8 @@ public class TeamRepService {
     }
 
     private boolean isApplicationOpen(Season season) {
-        return season.getApplicationDeadline() == null || !LocalDate.now().isAfter(season.getApplicationDeadline());
+        return season.getStatus() == SeasonStatus.ACTIVE
+            && (season.getApplicationDeadline() == null || !LocalDate.now().isAfter(season.getApplicationDeadline()));
     }
 
     private String normalizeOptional(String value) {
@@ -361,6 +371,10 @@ public class TeamRepService {
         Long id,
         String name,
         LocalDate applicationDeadline,
+        SeasonStatus status,
+        Integer maxRosterSize,
+        LocalDate transferWindowStartDate,
+        LocalDate transferWindowEndDate,
         boolean applicationOpen,
         long rosterPlayersCount,
         long selectedPlayersCount
@@ -384,6 +398,10 @@ public class TeamRepService {
         Long seasonId,
         String seasonName,
         LocalDate applicationDeadline,
+        SeasonStatus status,
+        Integer maxRosterSize,
+        LocalDate transferWindowStartDate,
+        LocalDate transferWindowEndDate,
         boolean applicationOpen,
         Long teamId,
         String teamName,

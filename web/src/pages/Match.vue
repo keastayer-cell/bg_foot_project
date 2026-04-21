@@ -146,9 +146,10 @@
         <p class="error-text" v-if="protocolError">{{ protocolError }}</p>
         <p class="muted-text" v-else-if="protocolNotice">{{ protocolNotice }}</p>
 
-        <p class="empty-text" v-if="!hasSubmittedLineups">Администратор может сам сформировать составы обеих команд выше, а затем заполнить протокол.</p>
+        <p class="empty-text" v-if="!hasSubmittedLineups && !canBypassLineupsForProtocol">Администратор может сам сформировать составы обеих команд выше, а затем заполнить протокол.</p>
+        <p class="muted-text" v-else-if="!hasSubmittedLineups">Тестовый режим SUPER_ADMIN: можно сохранить протокол, изменив только счет матча, без составов и статистики игроков.</p>
 
-        <template v-else>
+        <template v-if="hasSubmittedLineups || canBypassLineupsForProtocol">
           <div class="protocol-referee-grid">
             <label class="protocol-referee-field">
               <span class="protocol-referee-label">Главный арбитр</span>
@@ -211,7 +212,7 @@
             </article>
           </div>
 
-          <p class="muted-text">Если тех.поражение не включено, сумма голов по игрокам должна совпадать со счетом матча.</p>
+          <p class="muted-text">{{ protocolScoreHint }}</p>
 
           <div class="admin-protocol-grid">
             <article class="protocol-team-card" v-for="team in adminProtocolTeams" :key="team.teamId">
@@ -394,6 +395,8 @@ const hasSubmittedLineups = computed(() => {
   return lineupCards.value.length === 2 && lineupCards.value.every((lineup) => Boolean(lineup.submittedAt))
 })
 
+const canBypassLineupsForProtocol = computed(() => hasRole('SUPER_ADMIN'))
+
 const isVerifiedProtocol = computed(() => {
   return match.value?.protocol?.status === 'VERIFIED'
 })
@@ -410,6 +413,16 @@ const showProtocolEditor = computed(() => {
 
 const isTechnicalDefeatDraft = computed(() => {
   return Boolean(protocolDraft.value.homeTechnicalDefeat || protocolDraft.value.awayTechnicalDefeat)
+})
+
+const protocolScoreHint = computed(() => {
+  if (!hasSubmittedLineups.value && canBypassLineupsForProtocol.value) {
+    return 'Тестовый режим SUPER_ADMIN: счет можно сохранить без голов по игрокам и без поданных заявок.'
+  }
+  if (isTechnicalDefeatDraft.value) {
+    return 'При тех. поражении счет выставляется автоматически: 0:3.'
+  }
+  return 'Если тех.поражение не включено, сумма голов по игрокам должна совпадать со счетом матча.'
 })
 
 const adminProtocolTeams = computed(() => {
@@ -714,7 +727,7 @@ function resetProtocolDraft() {
 
 async function saveProtocol(asVerified) {
   if (!match.value) return
-  if (!hasSubmittedLineups.value) {
+  if (!hasSubmittedLineups.value && !canBypassLineupsForProtocol.value) {
     protocolError.value = 'Сначала нужно подать обе заявки на матч.'
     return
   }
@@ -770,6 +783,7 @@ function buildProtocolPayload(asVerified) {
     yellowCards: normalizeNonNegative(playerStat.yellowCards),
     redCards: normalizeNonNegative(playerStat.redCards),
   }))
+  const hasRecordedPlayerStats = normalizedStats.some((playerStat) => hasAnyProtocolStats(playerStat))
 
   let homeScore = normalizeNonNegative(protocolDraft.value.homeScore)
   let awayScore = normalizeNonNegative(protocolDraft.value.awayScore)
@@ -784,9 +798,10 @@ function buildProtocolPayload(asVerified) {
   }
 
   if (!homeTechnicalDefeat && !awayTechnicalDefeat) {
+    const canSaveScoreOnly = canBypassLineupsForProtocol.value && !hasRecordedPlayerStats
     const homeGoals = sumGoals(match.value.homeTeam.id)
     const awayGoals = sumGoals(match.value.awayTeam.id)
-    if (homeGoals !== homeScore || awayGoals !== awayScore) {
+    if (!canSaveScoreOnly && (homeGoals !== homeScore || awayGoals !== awayScore)) {
       throw new Error('Сумма голов по игрокам должна совпадать со счетом матча.')
     }
   }
@@ -835,6 +850,12 @@ function toggleTechnicalDefeat(side, checked) {
   }
 
   protocolDraft.value = nextDraft
+}
+
+function hasAnyProtocolStats(playerStat) {
+  return Number(playerStat?.goals || 0) > 0
+    || Number(playerStat?.yellowCards || 0) > 0
+    || Number(playerStat?.redCards || 0) > 0
 }
 
 function findOrCreateDraftPlayerStat(lineup, player) {
@@ -950,8 +971,7 @@ function matchScoreLabel(protocol) {
 
 function protocolResultLabel(protocol) {
   if (!match.value || !protocol) return ''
-  if (protocol.homeTechnicalDefeat) return `Тех. пор. ${match.value.homeTeam.name}`
-  if (protocol.awayTechnicalDefeat) return `Тех. пор. ${match.value.awayTeam.name}`
+  if (protocol.homeTechnicalDefeat || protocol.awayTechnicalDefeat) return 'Тех. пор.'
   return ''
 }
 

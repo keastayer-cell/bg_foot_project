@@ -118,13 +118,13 @@
 
           <div class="history-section">
             <div class="section-head history-head">
-              <div>
-                <h4>История команд</h4>
-                <p class="muted history-copy">Все актуальные и архивные привязки игрока к командам.</p>
-              </div>
+              <button class="btn-ghost history-toggle-btn" type="button" @click="historyExpanded = !historyExpanded">
+                {{ historyExpanded ? 'Скрыть команды игрока' : historyToggleLabel }}
+              </button>
+              <button class="btn-ghost" type="button" @click="closePlayerModal">Закрыть</button>
             </div>
 
-            <div v-if="playerHistory.length" class="teams-history">
+            <div v-if="historyExpanded && playerHistory.length" class="teams-history">
               <div class="team-season" v-for="entry in playerHistory" :key="historyKey(entry)">
                 <div class="history-line">
                   <strong>{{ entry.teamName }}</strong>
@@ -137,11 +137,7 @@
                 </div>
               </div>
             </div>
-            <p v-else class="empty-text">История переходов пока не заполнена.</p>
-          </div>
-
-          <div class="modal-actions">
-            <button class="btn-ghost" type="button" @click="closePlayerModal">Закрыть</button>
+            <p v-else-if="historyExpanded" class="empty-text">История переходов пока не заполнена.</p>
           </div>
         </template>
       </article>
@@ -174,8 +170,16 @@ const modalLoading = ref(false)
 const modalErrorText = ref('')
 const playerDetails = ref(null)
 const playerHistory = ref([])
+const historyExpanded = ref(false)
 
 const modalTitle = computed(() => playerDetails.value?.fullName || selectedPlayerName.value || 'Игрок')
+const historyToggleLabel = computed(() => {
+  const count = playerHistory.value.length
+  if (!count) {
+    return 'Показать команды игрока'
+  }
+  return `Показать команды игрока (${count})`
+})
 
 async function loadPlayers(nameQuery = '', requestedPage = 0) {
   loading.value = true
@@ -261,6 +265,7 @@ function openPlayerModal(player) {
   showPlayerModal.value = true
   playerDetails.value = null
   playerHistory.value = []
+  historyExpanded.value = false
   fetchPlayerModalData(player.id)
 }
 
@@ -270,6 +275,7 @@ function closePlayerModal() {
   selectedPlayerName.value = ''
   playerDetails.value = null
   playerHistory.value = []
+  historyExpanded.value = false
   modalErrorText.value = ''
   modalLoading.value = false
 }
@@ -604,19 +610,14 @@ onMounted(async () => {
 
 .history-head {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 0;
 }
 
-.history-head h4 {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
-.history-copy {
-  margin: 6px 0 0;
+.history-toggle-btn {
+  white-space: nowrap;
 }
 
 .teams-history {

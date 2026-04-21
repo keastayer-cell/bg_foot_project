@@ -69,6 +69,7 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
                 WHERE sp.player.id = p.id
                   AND sp.active = TRUE
                   AND season.active = TRUE
+                  AND season.status = com.footballstats.backend.domain.SeasonStatus.ACTIVE
                   AND sp.team.id <> :teamId
           )
           AND NOT EXISTS (
