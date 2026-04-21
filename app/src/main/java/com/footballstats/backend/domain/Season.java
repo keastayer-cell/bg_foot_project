@@ -2,6 +2,8 @@ package com.footballstats.backend.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -32,6 +34,19 @@ public class Season {
 
     @Column(name = "application_deadline")
     private LocalDate applicationDeadline;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private SeasonStatus status = SeasonStatus.DRAFT;
+
+    @Column(name = "max_roster_size")
+    private Integer maxRosterSize;
+
+    @Column(name = "transfer_window_start_date")
+    private LocalDate transferWindowStartDate;
+
+    @Column(name = "transfer_window_end_date")
+    private LocalDate transferWindowEndDate;
 
     @Column(name = "created_by_user_id")
     private Long createdByUserId;
@@ -94,6 +109,38 @@ public class Season {
 
     public void setApplicationDeadline(LocalDate applicationDeadline) {
         this.applicationDeadline = applicationDeadline;
+    }
+
+    public SeasonStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(SeasonStatus status) {
+        this.status = status;
+    }
+
+    public Integer getMaxRosterSize() {
+        return maxRosterSize;
+    }
+
+    public void setMaxRosterSize(Integer maxRosterSize) {
+        this.maxRosterSize = maxRosterSize;
+    }
+
+    public LocalDate getTransferWindowStartDate() {
+        return transferWindowStartDate;
+    }
+
+    public void setTransferWindowStartDate(LocalDate transferWindowStartDate) {
+        this.transferWindowStartDate = transferWindowStartDate;
+    }
+
+    public LocalDate getTransferWindowEndDate() {
+        return transferWindowEndDate;
+    }
+
+    public void setTransferWindowEndDate(LocalDate transferWindowEndDate) {
+        this.transferWindowEndDate = transferWindowEndDate;
     }
 
     public void setCreatedByUserId(Long createdByUserId) {

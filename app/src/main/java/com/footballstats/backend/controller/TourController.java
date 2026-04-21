@@ -124,6 +124,8 @@ public class TourController {
     }
 
     private TourMatchResponse toMatchResponse(TourMatch match) {
+        Integer homeScore = match.getProtocol() == null ? null : match.getProtocol().getHomeScore();
+        Integer awayScore = match.getProtocol() == null ? null : match.getProtocol().getAwayScore();
         MatchProtocolStatus protocolStatus = match.getProtocol() == null || match.getProtocol().getStatus() == null
             ? MatchProtocolStatus.SCHEDULED
             : match.getProtocol().getStatus();
@@ -136,7 +138,9 @@ public class TourController {
             match.getAwayTeam().getName(),
             match.getKickoffAt(),
             match.isActive(),
-            protocolStatus
+            protocolStatus,
+            homeScore,
+            awayScore
         );
     }
 
@@ -163,7 +167,9 @@ public class TourController {
         String awayTeamName,
         OffsetDateTime kickoffAt,
         boolean active,
-        MatchProtocolStatus protocolStatus
+        MatchProtocolStatus protocolStatus,
+        Integer homeScore,
+        Integer awayScore
     ) {}
 
     public record TourCreateRequest(

@@ -140,6 +140,8 @@ public class TourService {
         Team homeTeam = getExistingTeam(homeTeamId);
         Team awayTeam = getExistingTeam(awayTeamId);
 
+        validateHeadToHeadLimit(tour, homeTeam, awayTeam);
+
         TourMatch match = new TourMatch();
         match.setTour(tour);
         match.setHomeTeam(homeTeam);
@@ -209,6 +211,33 @@ public class TourService {
     private Team getExistingTeam(Long teamId) {
         return teamRepository.findById(teamId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда не найдена."));
+    }
+
+    private void validateHeadToHeadLimit(Tour tour, Team homeTeam, Team awayTeam) {
+        if (!SeasonStructureService.REGULAR_STAGE.equalsIgnoreCase(tour.getStageType())) {
+            return;
+        }
+
+        Season season = tour.getSeason();
+        int allowedMeetings = Math.max(season.getRoundsCount(), 1);
+        long existingMeetings = tourMatchRepository.countActiveHeadToHeadMatchesInSeasonStage(
+            season.getId(),
+            SeasonStructureService.REGULAR_STAGE,
+            homeTeam.getId(),
+            awayTeam.getId()
+        );
+
+        if (existingMeetings >= allowedMeetings) {
+            throw new IllegalArgumentException(
+                "Нельзя добавить матч: команды "
+                    + homeTeam.getName()
+                    + " и "
+                    + awayTeam.getName()
+                    + " уже сыграют между собой максимальное число раз для сезона ("
+                    + allowedMeetings
+                    + " круг(а))."
+            );
+        }
     }
 
     public record SeasonOverviewData(

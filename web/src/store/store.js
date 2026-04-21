@@ -446,7 +446,7 @@ async function loadSeasons() {
     const payload = await response.json().catch(() => [])
     const seasonNames = Array.isArray(payload)
       ? payload
-          .filter((item) => item && item.active)
+          .filter((item) => item && item.active && String(item.status || '') === 'ACTIVE')
           .map((item) => String(item.name || '').trim())
           .filter(Boolean)
       : []

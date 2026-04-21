@@ -5,9 +5,6 @@
         <div>
           <p class="eyebrow">Сезонный обзор</p>
           <h1 class="section-title home-title">Туры и таблица сезона</h1>
-          <p class="muted-text home-subtitle">
-            Выберите сезон, чтобы посмотреть турнирную таблицу и структуру туров.
-          </p>
         </div>
 
         <label class="season-box season-box-wide">
@@ -41,15 +38,16 @@
       <p v-if="pageError" class="error-text">{{ pageError }}</p>
     </article>
 
-    <div class="home-main-grid" :class="{ 'home-main-grid-matrix': seasonViewMode === 'matrix' }">
+    <div class="home-main-grid" :class="{ 'home-main-grid-wide': seasonViewMode === 'matrix' || seasonViewMode === 'playoff' }">
       <article class="card standings-card">
         <div class="section-head standings-head">
           <div>
-            <h2 class="section-title">Таблица сезона</h2>
+            <h2 class="section-title">{{ mainPanelTitle }}</h2>
           </div>
           <div class="standings-toolbar">
             <div class="standings-toolbar-actions" v-if="selectedSeason">
               <button
+                v-if="seasonViewMode !== 'playoff'"
                 class="btn-ghost toolbar-stats-button"
                 type="button"
                 :class="{ 'is-active': sidePanelMode === 'stats' && seasonViewMode !== 'matrix' }"
@@ -74,6 +72,15 @@
                 >
                   Шахматка
                 </button>
+                <button
+                  class="btn-ghost"
+                  type="button"
+                  :class="{ 'is-active': seasonViewMode === 'playoff' }"
+                  :disabled="!selectedSeason?.playoffEnabled"
+                  @click="seasonViewMode = 'playoff'"
+                >
+                  Сетка
+                </button>
               </div>
             </div>
             <span class="muted-text" v-if="loadingSeasonData">Загрузка...</span>
@@ -81,7 +88,138 @@
           </div>
         </div>
 
-        <table class="stats-table standings-table-desktop" v-if="seasonViewMode === 'table' && seasonStandings.length">
+        <div class="playoff-bracket-wrap" v-if="seasonViewMode === 'playoff' && selectedSeason?.playoffEnabled && playoffBracketColumns.length">
+          <div class="playoff-stage-shell">
+            <div class="playoff-stage-side playoff-stage-side-left">
+              <section
+                v-for="column in playoffLeftColumns"
+                :key="`left-${column.key}`"
+                class="playoff-side-column playoff-side-column-left"
+                :class="playoffRoundClass(column)"
+                :style="playoffSideColumnStyle(column)"
+              >
+                <header class="playoff-round-head">
+                  <div>
+                    <h3>{{ column.label }}</h3>
+                  </div>
+                </header>
+                <div class="playoff-side-cards">
+                  <component
+                    v-for="card in column.cards"
+                    :key="card.key"
+                    :is="card.matchId ? 'router-link' : 'article'"
+                    :to="card.matchId ? `/match/${card.matchId}` : undefined"
+                    class="playoff-match-card"
+                    :class="{ 'is-placeholder': !card.matchId }"
+                  >
+                    <div class="playoff-match-card-head">
+                      <span class="playoff-match-card-badge">{{ card.badge }}</span>
+                      <span v-if="card.dateLabel" class="playoff-match-card-date">{{ card.dateLabel }}</span>
+                    </div>
+                    <div class="playoff-match-card-body">
+                      <div class="playoff-team-slot">
+                        <strong>{{ card.homeTeamName }}</strong>
+                        <span class="playoff-team-score">{{ card.homeScoreLabel }}</span>
+                      </div>
+                      <div class="playoff-team-slot">
+                        <strong>{{ card.awayTeamName }}</strong>
+                        <span class="playoff-team-score">{{ card.awayScoreLabel }}</span>
+                      </div>
+                    </div>
+                    <div v-if="card.statusLabel || card.tourLabel" class="playoff-match-card-footer">
+                      <span class="muted-text">{{ card.statusLabel }}</span>
+                      <span class="muted-text" v-if="card.tourLabel">{{ card.tourLabel }}</span>
+                    </div>
+                  </component>
+                </div>
+              </section>
+            </div>
+
+            <div class="playoff-stage-center">
+              <section class="playoff-center-stack">
+                <div class="playoff-center-card-wrap" v-for="card in playoffCenterCards" :key="card.key">
+                  <header class="playoff-round-head playoff-round-head-center">
+                    <div>
+                      <h3>{{ card.roundLabel }}</h3>
+                    </div>
+                  </header>
+                  <component
+                    :is="card.matchId ? 'router-link' : 'article'"
+                    :to="card.matchId ? `/match/${card.matchId}` : undefined"
+                    class="playoff-match-card playoff-match-card-center"
+                    :class="{ 'is-placeholder': !card.matchId, 'is-third-place': card.roundKey === 'THIRD_PLACE' }"
+                  >
+                    <div class="playoff-match-card-head">
+                      <span class="playoff-match-card-badge">{{ card.badge }}</span>
+                      <span v-if="card.dateLabel" class="playoff-match-card-date">{{ card.dateLabel }}</span>
+                    </div>
+                    <div class="playoff-match-card-body">
+                      <div class="playoff-team-slot">
+                        <strong>{{ card.homeTeamName }}</strong>
+                        <span class="playoff-team-score">{{ card.homeScoreLabel }}</span>
+                      </div>
+                      <div class="playoff-team-slot">
+                        <strong>{{ card.awayTeamName }}</strong>
+                        <span class="playoff-team-score">{{ card.awayScoreLabel }}</span>
+                      </div>
+                    </div>
+                    <div v-if="card.statusLabel || card.tourLabel" class="playoff-match-card-footer">
+                      <span class="muted-text">{{ card.statusLabel }}</span>
+                      <span class="muted-text" v-if="card.tourLabel">{{ card.tourLabel }}</span>
+                    </div>
+                  </component>
+                </div>
+              </section>
+            </div>
+
+            <div class="playoff-stage-side playoff-stage-side-right">
+              <section
+                v-for="column in playoffRightColumns"
+                :key="`right-${column.key}`"
+                class="playoff-side-column playoff-side-column-right"
+                :class="playoffRoundClass(column)"
+                :style="playoffSideColumnStyle(column)"
+              >
+                <header class="playoff-round-head">
+                  <div>
+                    <h3>{{ column.label }}</h3>
+                  </div>
+                </header>
+                <div class="playoff-side-cards">
+                  <component
+                    v-for="card in column.cards"
+                    :key="card.key"
+                    :is="card.matchId ? 'router-link' : 'article'"
+                    :to="card.matchId ? `/match/${card.matchId}` : undefined"
+                    class="playoff-match-card"
+                    :class="{ 'is-placeholder': !card.matchId }"
+                  >
+                    <div class="playoff-match-card-head">
+                      <span class="playoff-match-card-badge">{{ card.badge }}</span>
+                      <span v-if="card.dateLabel" class="playoff-match-card-date">{{ card.dateLabel }}</span>
+                    </div>
+                    <div class="playoff-match-card-body">
+                      <div class="playoff-team-slot">
+                        <strong>{{ card.homeTeamName }}</strong>
+                        <span class="playoff-team-score">{{ card.homeScoreLabel }}</span>
+                      </div>
+                      <div class="playoff-team-slot">
+                        <strong>{{ card.awayTeamName }}</strong>
+                        <span class="playoff-team-score">{{ card.awayScoreLabel }}</span>
+                      </div>
+                    </div>
+                    <div v-if="card.statusLabel || card.tourLabel" class="playoff-match-card-footer">
+                      <span class="muted-text">{{ card.statusLabel }}</span>
+                      <span class="muted-text" v-if="card.tourLabel">{{ card.tourLabel }}</span>
+                    </div>
+                  </component>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <table class="stats-table standings-table-desktop" v-else-if="seasonViewMode === 'table' && seasonStandings.length">
           <thead>
             <tr>
               <th>Место</th>
@@ -110,7 +248,7 @@
           </tbody>
         </table>
 
-        <table class="stats-table standings-table-mobile" v-if="seasonViewMode === 'table' && seasonStandings.length">
+        <table class="stats-table standings-table-mobile" v-else-if="seasonViewMode === 'table' && seasonStandings.length">
           <thead>
             <tr>
               <th>Место</th>
@@ -247,12 +385,13 @@
           </article>
         </div>
 
+        <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData && seasonViewMode === 'playoff' && !selectedSeason?.playoffEnabled">Для этого сезона плей-офф выключен.</p>
+        <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData && seasonViewMode === 'playoff'">Сетка плей-офф пока не заполнена матчами, но формат сезона уже учтен.</p>
         <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData && seasonViewMode === 'table'">Подтвержденных матчей в опубликованных турах пока нет.</p>
         <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData && seasonViewMode === 'matrix'">В выбранном сезоне пока нет данных для шахматки.</p>
-        <p class="empty-text" v-else>Выберите сезон, чтобы посмотреть таблицу.</p>
       </article>
 
-      <article class="card tours-card" v-if="seasonViewMode !== 'matrix' && sidePanelMode === 'tours'">
+      <article class="card tours-card" v-if="seasonViewMode !== 'matrix' && seasonViewMode !== 'playoff' && sidePanelMode === 'tours'">
         <div class="section-head">
           <h2 class="section-title">Туры сезона</h2>
           <span class="muted-text" v-if="loadingSeasonData">Загрузка...</span>
@@ -291,10 +430,9 @@
           </article>
         </div>
         <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData">Для выбранного сезона пока нет туров с назначенными матчами.</p>
-        <p class="empty-text" v-else>Выберите сезон, чтобы посмотреть туры.</p>
       </article>
 
-      <article class="card player-stats-card" v-else-if="sidePanelMode === 'stats'">
+      <article class="card player-stats-card" v-else-if="seasonViewMode !== 'playoff' && sidePanelMode === 'stats'">
         <div class="section-head player-stats-head">
           <div>
             <h2 class="section-title">Статистика игроков сезона</h2>
@@ -367,6 +505,7 @@
         <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData">{{ statsEmptyText }}</p>
         <p class="empty-text" v-else>Выберите сезон, чтобы посмотреть статистику игроков.</p>
       </article>
+
     </div>
   </section>
 </template>
@@ -383,6 +522,7 @@ const seasonTeams = ref([])
 const seasonTours = ref([])
 const seasonStandings = ref([])
 const seasonPlayerStats = ref([])
+const playoffBracket = ref(null)
 const standingsConfig = ref(null)
 const expandedTourId = ref('')
 const seasonViewMode = ref('table')
@@ -396,9 +536,194 @@ const selectedSeason = computed(() => {
   return seasons.value.find((item) => String(item.id) === String(selectedSeasonId.value)) || null
 })
 
+const mainPanelTitle = computed(() => {
+  if (seasonViewMode.value === 'matrix') return 'Шахматка сезона'
+  if (seasonViewMode.value === 'playoff') return 'Сетка'
+  return 'Таблица сезона'
+})
+
 const playoffLabel = computed(() => {
   if (!selectedSeason.value?.playoffEnabled) return 'Нет'
-  return `${selectedSeason.value.playoffTeamCount || '—'} команд`
+  return `${selectedSeason.value.playoffTeamCount || '—'} команд${selectedSeason.value.thirdPlaceEnabled ? ' · 3 место' : ''}`
+})
+
+const playoffBracketTies = computed(() => {
+  return Array.isArray(playoffBracket.value?.ties) ? playoffBracket.value.ties : []
+})
+
+const playoffTours = computed(() => {
+  return [...seasonTours.value]
+    .filter((tour) => String(tour.stageType || '').toUpperCase() === 'PLAYOFF')
+    .map((tour) => ({
+      ...tour,
+      matches: [...(Array.isArray(tour.matches) ? tour.matches : [])].sort((left, right) => {
+        const leftTime = new Date(left.kickoffAt || 0).getTime()
+        const rightTime = new Date(right.kickoffAt || 0).getTime()
+        return leftTime - rightTime || Number(left.id) - Number(right.id)
+      }),
+    }))
+    .sort((left, right) => {
+      const leftOrder = Number(left.sortOrder || 0)
+      const rightOrder = Number(right.sortOrder || 0)
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder
+      return Number(left.id) - Number(right.id)
+    })
+})
+
+const playoffRoundBlueprint = computed(() => {
+  const teamCount = Number(playoffBracket.value?.teamCount || selectedSeason.value?.playoffTeamCount || 0)
+  const rounds = []
+
+  if (teamCount >= 16) {
+    rounds.push({ key: 'ROUND_OF_16', label: '1/8 финала', expectedTieCount: 8 })
+  }
+  if (teamCount >= 8) {
+    rounds.push({ key: 'QUARTERFINAL', label: '1/4 финала', expectedTieCount: 4 })
+  }
+  if (teamCount >= 4) {
+    rounds.push({ key: 'SEMIFINAL', label: '1/2 финала', expectedTieCount: 2 })
+  }
+  if (teamCount >= 2) {
+    rounds.push({ key: 'FINAL', label: 'Финал', expectedTieCount: 1 })
+  }
+
+  if (Boolean(playoffBracket.value?.thirdPlaceEnabled) && teamCount >= 4) {
+    rounds.push({ key: 'THIRD_PLACE', label: 'Матч за 3 место', expectedTieCount: 1 })
+  }
+
+  return rounds
+})
+
+const playoffBracketColumns = computed(() => {
+  const blueprint = playoffRoundBlueprint.value
+  const blueprintKeys = blueprint.map((round) => round.key)
+
+  if (playoffBracketTies.value.length) {
+    const groupedTies = new Map()
+
+    for (const tie of playoffBracketTies.value) {
+      const roundKey = String(tie.roundCode || '')
+      if (!roundKey) continue
+
+      const existingGroup = groupedTies.get(roundKey)
+      if (existingGroup) {
+        existingGroup.ties.push(tie)
+        continue
+      }
+
+      groupedTies.set(roundKey, {
+        key: roundKey,
+        label: roundLabelByKey(roundKey),
+        expectedTieCount: blueprint.find((round) => round.key === roundKey)?.expectedTieCount || 1,
+        ties: [tie],
+        tours: [],
+        matchCount: 0,
+        order: Number(tie.roundOrder || 999),
+      })
+    }
+
+    return [...groupedTies.values()].sort((left, right) => left.order - right.order)
+  }
+
+  const groups = new Map()
+  let fallbackIndex = 0
+
+  for (const tour of playoffTours.value) {
+    let roundKey = detectPlayoffRoundKey(tour)
+    if (!roundKey) {
+      roundKey = blueprintKeys[fallbackIndex] || `PLAYOFF_${fallbackIndex + 1}`
+      fallbackIndex += 1
+    } else if (roundKey !== 'THIRD_PLACE') {
+      const explicitIndex = blueprintKeys.indexOf(roundKey)
+      if (explicitIndex >= 0 && explicitIndex >= fallbackIndex) {
+        fallbackIndex = explicitIndex + 1
+      }
+    }
+
+    const blueprintRound = blueprint.find((round) => round.key === roundKey)
+    const existingGroup = groups.get(roundKey)
+    const preparedTour = {
+      ...tour,
+      key: `${roundKey}-${tour.id}`,
+    }
+
+    if (existingGroup) {
+      existingGroup.tours.push(preparedTour)
+      existingGroup.matchCount += preparedTour.matches.length
+      continue
+    }
+
+    groups.set(roundKey, {
+      key: roundKey,
+      label: roundKey === 'THIRD_PLACE' ? 'Матч за 3 место' : roundLabelByKey(roundKey, tour.name),
+      expectedTieCount: blueprintRound?.expectedTieCount || Math.max(preparedTour.matches.length, 1),
+      tours: [preparedTour],
+      matchCount: preparedTour.matches.length,
+      order: roundKey === 'THIRD_PLACE'
+        ? 999
+        : blueprintKeys.indexOf(roundKey) >= 0
+          ? blueprintKeys.indexOf(roundKey)
+          : blueprint.length + groups.size,
+    })
+  }
+
+  const columns = blueprint.map((round, index) => {
+    const existingGroup = groups.get(round.key)
+    return {
+      key: round.key,
+      label: round.label,
+      expectedTieCount: round.expectedTieCount,
+      tours: existingGroup?.tours || [],
+      matchCount: existingGroup?.matchCount || 0,
+      order: index,
+    }
+  })
+
+  if (groups.has('THIRD_PLACE')) {
+    columns.push(groups.get('THIRD_PLACE'))
+  }
+
+  return columns.sort((left, right) => left.order - right.order)
+})
+
+const playoffCompetitiveColumns = computed(() => {
+  return playoffBracketColumns.value.filter((round) => round.key !== 'FINAL' && round.key !== 'THIRD_PLACE')
+})
+
+const playoffLeftColumns = computed(() => {
+  return playoffCompetitiveColumns.value.map((round) => {
+    const cards = playoffRoundCards(round)
+    const splitIndex = Math.ceil(cards.length / 2)
+    return {
+      ...round,
+      cards: cards.slice(0, splitIndex),
+    }
+  })
+})
+
+const playoffRightColumns = computed(() => {
+  return [...playoffCompetitiveColumns.value]
+    .reverse()
+    .map((round) => {
+      const cards = playoffRoundCards(round)
+      const splitIndex = Math.ceil(cards.length / 2)
+      return {
+        ...round,
+        cards: cards.slice(splitIndex),
+      }
+    })
+})
+
+const playoffCenterCards = computed(() => {
+  const centerRounds = playoffBracketColumns.value.filter((round) => round.key === 'FINAL' || round.key === 'THIRD_PLACE')
+  return centerRounds.flatMap((round) =>
+    playoffRoundCards(round).map((card) => ({
+      ...card,
+      roundKey: round.key,
+      roundLabel: round.label,
+      roundSubtitle: playoffRoundSubtitle(round),
+    }))
+  )
 })
 
 const scorersStats = computed(() => {
@@ -465,6 +790,12 @@ const formattedTours = computed(() => {
     })
 })
 
+watch(selectedSeason, (season) => {
+  if (!season?.playoffEnabled && seasonViewMode.value === 'playoff') {
+    seasonViewMode.value = 'table'
+  }
+})
+
 const regularSeasonMatches = computed(() => {
   return seasonTours.value
     .filter((tour) => String(tour.stageType || '').toUpperCase() !== 'PLAYOFF')
@@ -478,6 +809,10 @@ const regularSeasonMatches = computed(() => {
 
 const standingsMap = computed(() => {
   return new Map(seasonStandings.value.map((row) => [String(row.teamId), row]))
+})
+
+const teamPositionMap = computed(() => {
+  return new Map(seasonStandings.value.map((row) => [String(row.teamId), Number(row.position || 0)]))
 })
 
 const matrixSummaryMap = computed(() => {
@@ -639,6 +974,7 @@ watch(selectedSeasonId, async (seasonId) => {
     seasonTours.value = []
     seasonStandings.value = []
     seasonPlayerStats.value = []
+    playoffBracket.value = null
     standingsConfig.value = null
     return
   }
@@ -661,13 +997,228 @@ function openStatsPanel() {
   sidePanelMode.value = sidePanelMode.value === 'stats' ? 'tours' : 'stats'
 }
 
+function detectPlayoffRoundKey(tour) {
+  const title = String(tour?.name || '').toLowerCase()
+
+  if (/треть|3\s*мест|бронз/.test(title)) {
+    return 'THIRD_PLACE'
+  }
+  if (/1\s*[\/\\-]\s*8|1\/8|восьм|round\s*of\s*16/.test(title)) {
+    return 'ROUND_OF_16'
+  }
+  if (/1\s*[\/\\-]\s*4|1\/4|четверт|quarter/.test(title)) {
+    return 'QUARTERFINAL'
+  }
+  if (/1\s*[\/\\-]\s*2|1\/2|полуфин|semi/.test(title)) {
+    return 'SEMIFINAL'
+  }
+  if (/финал|final/.test(title)) {
+    return 'FINAL'
+  }
+
+  return ''
+}
+
+function roundLabelByKey(roundKey, fallbackName = '') {
+  switch (roundKey) {
+    case 'ROUND_OF_16':
+      return '1/8 финала'
+    case 'QUARTERFINAL':
+      return '1/4 финала'
+    case 'SEMIFINAL':
+      return '1/2 финала'
+    case 'FINAL':
+      return 'Финал'
+    case 'THIRD_PLACE':
+      return 'Матч за 3 место'
+    default:
+      return fallbackName || 'Плей-офф'
+  }
+}
+
+function playoffRoundSubtitle(round) {
+  return ''
+}
+
+function playoffRoundClass(round) {
+  return {
+    'is-round-of-16': round.key === 'ROUND_OF_16',
+    'is-quarterfinal': round.key === 'QUARTERFINAL',
+    'is-semifinal': round.key === 'SEMIFINAL',
+    'is-final': round.key === 'FINAL',
+    'is-third-place': round.key === 'THIRD_PLACE',
+  }
+}
+
+function playoffRoundStyle(round) {
+  const tieCount = Math.max(Number(round.expectedTieCount || 1), 1)
+  if (round.key === 'THIRD_PLACE') {
+    return {
+      '--playoff-gap': '18px',
+      '--playoff-padding-top': '36px',
+    }
+  }
+
+  const depth = Math.max(Math.log2(tieCount), 0)
+  const gap = 18 + (depth * 28)
+  const paddingTop = depth * 22
+
+  return {
+    '--playoff-gap': `${gap}px`,
+    '--playoff-padding-top': `${paddingTop}px`,
+  }
+}
+
+function playoffSideColumnStyle(round) {
+  const tieCount = Math.max(Number(round?.expectedTieCount || round?.cards?.length || 1), 1)
+  const depth = Math.max(Math.log2(tieCount), 0)
+
+  return {
+    '--playoff-side-gap': `${18 + depth * 30}px`,
+    '--playoff-side-padding-top': `${Math.max(depth * 26, 0)}px`,
+  }
+}
+
+function playoffTourHeading(tour, round) {
+  if (tour.matches.length <= 1) {
+    return tour.name || round.label
+  }
+  return tour.name && tour.name !== round.label ? tour.name : `${round.label} · ${tour.matches.length} матч${matchesWord(tour.matches.length)}`
+}
+
+function playoffRoundCards(round) {
+  if (Array.isArray(round?.ties) && round.ties.length) {
+    return round.ties.map((tie, index) => ({
+      key: `${round.key}-tie-${tie.id || index + 1}`,
+      matchId: null,
+      badge: round.ties.length > 1 ? `Пара ${tie.slotOrder || index + 1}` : (tie.title || round.label),
+      dateLabel: playoffTieDateLabel(tie),
+      homeTeamName: playoffTieParticipantLabel(tie, 'home', round.key),
+      awayTeamName: playoffTieParticipantLabel(tie, 'away', round.key),
+      homeScoreLabel: Number.isInteger(tie.aggregateHomeScore) ? String(tie.aggregateHomeScore) : '—',
+      awayScoreLabel: Number.isInteger(tie.aggregateAwayScore) ? String(tie.aggregateAwayScore) : '—',
+      statusLabel: playoffTieStatusLabel(tie),
+      tourLabel: '',
+    }))
+  }
+
+  if (!round?.tours?.length) {
+    return Array.from({ length: Number(round?.expectedTieCount || 0) }, (_, index) => ({
+      key: `${round.key}-placeholder-${index + 1}`,
+      matchId: null,
+      badge: `Пара ${index + 1}`,
+      dateLabel: '',
+      homeTeamName: seededPlaceholderLabel(round, index * 2 + 1),
+      awayTeamName: seededPlaceholderLabel(round, index * 2 + 2),
+      homeScoreLabel: '—',
+      awayScoreLabel: '—',
+      statusLabel: '',
+      tourLabel: '',
+    }))
+  }
+
+  return round.tours.flatMap((tour) => {
+    if (!Array.isArray(tour.matches) || !tour.matches.length) {
+      return [{
+        key: `${tour.key}-empty`,
+        matchId: null,
+        badge: playoffTourHeading(tour, round),
+        dateLabel: '',
+        homeTeamName: 'Команда A',
+        awayTeamName: 'Команда B',
+        homeScoreLabel: '—',
+        awayScoreLabel: '—',
+        statusLabel: '',
+        tourLabel: tour.name || round.label,
+      }]
+    }
+
+    return tour.matches.map((match, index) => ({
+      key: `${tour.key}-match-${match.id}`,
+      matchId: match.id,
+      badge: tour.matches.length > 1 ? `Пара ${index + 1}` : playoffTourHeading(tour, round),
+      dateLabel: compactMatchDateTime(match.kickoffAt),
+      homeTeamName: match.homeTeamName || 'Команда 1',
+      awayTeamName: match.awayTeamName || 'Команда 2',
+      homeScoreLabel: Number.isInteger(match.homeScore) ? String(match.homeScore) : '—',
+      awayScoreLabel: Number.isInteger(match.awayScore) ? String(match.awayScore) : '—',
+      statusLabel: matchStatusLabel(match.status),
+      tourLabel: tour.matches.length > 1 ? (tour.name || round.label) : '',
+    }))
+  })
+}
+
+function seededPlaceholderLabel(round, seedNumber) {
+  if (round.key === 'ROUND_OF_16' || round.key === 'QUARTERFINAL') {
+    return `Команда (${seedNumber})`
+  }
+  if (round.key === 'SEMIFINAL') {
+    return seedNumber % 2 === 1 ? 'Победитель пары' : 'Победитель пары'
+  }
+  if (round.key === 'FINAL') {
+    return seedNumber % 2 === 1 ? 'Победитель 1/2' : 'Победитель 1/2'
+  }
+  if (round.key === 'THIRD_PLACE') {
+    return seedNumber % 2 === 1 ? 'Проигравший 1/2' : 'Проигравший 1/2'
+  }
+  return `Команда ${seedNumber}`
+}
+
+function playoffTieDateLabel(tie) {
+  if (Number.isInteger(tie.aggregateHomeScore) && Number.isInteger(tie.aggregateAwayScore)) {
+    return 'Сыграно'
+  }
+  return ''
+}
+
+function playoffTieParticipantLabel(tie, side, roundKey) {
+  const teamNameKey = side === 'home' ? 'homeTeamName' : 'awayTeamName'
+  const teamIdKey = side === 'home' ? 'homeTeamId' : 'awayTeamId'
+  const seedKey = side === 'home' ? 'homeSeed' : 'awaySeed'
+  const sourceResultKey = side === 'home' ? 'homeSourceResult' : 'awaySourceResult'
+  const sourceTieIdKey = side === 'home' ? 'homeSourceTieId' : 'awaySourceTieId'
+
+  if (tie?.[teamNameKey]) {
+    const position = teamPositionMap.value.get(String(tie?.[teamIdKey] || '')) || tie?.[seedKey] || null
+    return position ? `${tie[teamNameKey]} (${position})` : tie[teamNameKey]
+  }
+  if (tie?.[seedKey]) {
+    return `Команда (${tie[seedKey]})`
+  }
+  if (tie?.[sourceTieIdKey]) {
+    if (String(tie[sourceResultKey] || '').toUpperCase() === 'LOSER') {
+      return roundKey === 'THIRD_PLACE' ? 'Проигравший 1/2' : 'Проигравший пары'
+    }
+    return roundKey === 'FINAL' ? 'Победитель 1/2' : 'Победитель пары'
+  }
+  return seededPlaceholderLabel({ key: roundKey }, side === 'home' ? 1 : 2)
+}
+
+function playoffTieStatusLabel(tie) {
+  return ''
+}
+
+function compactMatchDateTime(value) {
+  if (!value) return 'Дата не назначена'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Дата не назначена'
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
 async function loadSeasons() {
   loadingSeasons.value = true
   resetError()
 
   try {
     const payload = await optionalAuthApiRequest('/api/seasons?active_flag=1', { method: 'GET' })
-    seasons.value = Array.isArray(payload) ? payload : []
+    seasons.value = Array.isArray(payload)
+      ? payload.filter((item) => String(item?.status || '') === 'ACTIVE')
+      : []
     if (!selectedSeasonId.value && seasons.value.length) {
       selectedSeasonId.value = String(seasons.value[0].id)
     }
@@ -693,12 +1244,14 @@ async function loadSeasonData(seasonId) {
     seasonTours.value = Array.isArray(overviewPayload?.tours) ? overviewPayload.tours : []
     seasonStandings.value = Array.isArray(overviewPayload?.standings) ? overviewPayload.standings : []
     seasonPlayerStats.value = Array.isArray(playerStatsPayload) ? playerStatsPayload : []
+    playoffBracket.value = overviewPayload?.playoffBracket || null
     standingsConfig.value = overviewPayload?.standingsConfig || null
   } catch (error) {
     seasonTeams.value = []
     seasonTours.value = []
     seasonStandings.value = []
     seasonPlayerStats.value = []
+    playoffBracket.value = null
     standingsConfig.value = null
     pageError.value = error.message || 'Не удалось загрузить данные выбранного сезона.'
   } finally {
@@ -842,11 +1395,16 @@ onMounted(async () => {
 .standings-card {
   display: grid;
   gap: 14px;
+  align-self: start;
+  height: fit-content;
 }
 
+.tours-card,
 .player-stats-card {
   display: grid;
   gap: 14px;
+  align-self: start;
+  height: fit-content;
 }
 
 .player-stats-head {
@@ -870,6 +1428,7 @@ onMounted(async () => {
 .player-stats-table-wrap {
   width: 100%;
 }
+
 
 .player-stats-table {
   width: 100%;
@@ -978,6 +1537,11 @@ onMounted(async () => {
   color: var(--text);
 }
 
+.view-switcher .btn-ghost:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+}
+
 .toolbar-stats-button.is-active,
 .player-stats-tab.is-active {
   border-color: rgba(97, 232, 162, 0.28);
@@ -1011,7 +1575,7 @@ onMounted(async () => {
   gap: 24px;
 }
 
-.home-main-grid-matrix {
+.home-main-grid-wide {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -1305,6 +1869,278 @@ onMounted(async () => {
   color: var(--text);
 }
 
+.playoff-bracket-wrap {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  padding: 10px 0 14px;
+}
+
+.playoff-stage-shell {
+  display: grid;
+  grid-template-columns: max-content max-content max-content;
+  justify-content: center;
+  gap: 44px;
+  align-items: center;
+  min-width: 0;
+}
+
+.playoff-stage-side {
+  display: grid;
+  gap: 12px;
+  align-content: center;
+  justify-content: center;
+}
+
+.playoff-stage-side-left,
+.playoff-stage-side-right {
+  grid-template-columns: repeat(auto-fit, minmax(168px, max-content));
+}
+
+.playoff-side-column {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  align-content: start;
+  padding-top: var(--playoff-side-padding-top, 0);
+}
+
+.playoff-side-column-right {
+  justify-items: center;
+}
+
+.playoff-side-cards {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--playoff-side-gap, 12px);
+  position: relative;
+}
+
+.playoff-side-column-left .playoff-side-cards::after,
+.playoff-side-column-right .playoff-side-cards::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: calc(100% - 36px);
+  border-top: 1px solid rgba(178, 224, 255, 0.24);
+  border-bottom: 1px solid rgba(178, 224, 255, 0.24);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.playoff-side-column-left .playoff-side-cards::after {
+  right: -8px;
+  border-right: 1px solid rgba(178, 224, 255, 0.24);
+}
+
+.playoff-side-column-right .playoff-side-cards::after {
+  left: -8px;
+  border-left: 1px solid rgba(178, 224, 255, 0.24);
+}
+
+.playoff-round-head {
+  padding: 6px 10px;
+  width: min(100%, 168px);
+  border-radius: 999px;
+  border: 1px solid rgba(126, 191, 255, 0.16);
+  background: linear-gradient(180deg, rgba(72, 107, 191, 0.34), rgba(25, 34, 74, 0.72));
+  backdrop-filter: blur(10px);
+  text-align: center;
+}
+
+.playoff-round-head h3 {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.playoff-match-card {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  min-height: 78px;
+  width: min(100%, 168px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06)),
+    linear-gradient(135deg, rgba(84, 136, 214, 0.24), rgba(16, 24, 56, 0.88));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 18px 42px rgba(3, 8, 24, 0.22);
+  text-decoration: none;
+  color: inherit;
+  justify-self: center;
+}
+
+.playoff-match-card::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(178, 224, 255, 0.46), rgba(178, 224, 255, 0.12));
+}
+
+.playoff-side-column-left .playoff-match-card::after {
+  right: -16px;
+}
+
+.playoff-side-column-right .playoff-match-card::after {
+  left: -16px;
+  background: linear-gradient(90deg, rgba(178, 224, 255, 0.12), rgba(178, 224, 255, 0.46));
+}
+
+.playoff-match-card-center::after,
+.playoff-stage-center .playoff-match-card::after {
+  display: none;
+}
+
+.playoff-match-card:hover {
+  border-color: rgba(123, 214, 177, 0.34);
+  transform: translateY(-1px);
+}
+
+.playoff-match-card.is-placeholder {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
+    linear-gradient(135deg, rgba(59, 83, 137, 0.18), rgba(12, 17, 42, 0.82));
+}
+
+.playoff-match-card.is-third-place {
+  border-color: rgba(245, 189, 92, 0.2);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05)),
+    linear-gradient(135deg, rgba(155, 110, 56, 0.26), rgba(20, 18, 36, 0.88));
+}
+
+.playoff-stage-center {
+  display: grid;
+  align-items: center;
+  position: relative;
+}
+
+.playoff-stage-center::before,
+.playoff-stage-center::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 36px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(178, 224, 255, 0.2), rgba(178, 224, 255, 0.48));
+  transform: translateY(18px);
+  pointer-events: none;
+}
+
+.playoff-stage-center::before {
+  left: -36px;
+}
+
+.playoff-stage-center::after {
+  right: -36px;
+  background: linear-gradient(90deg, rgba(178, 224, 255, 0.48), rgba(178, 224, 255, 0.2));
+}
+
+.playoff-center-stack {
+  display: grid;
+  gap: 14px;
+  align-content: center;
+}
+
+.playoff-center-card-wrap {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.playoff-round-head-center {
+  justify-self: center;
+  min-width: min(100%, 180px);
+}
+
+.playoff-match-card-center {
+  min-height: 92px;
+  width: min(100%, 184px);
+}
+
+.playoff-match-card-head,
+.playoff-match-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.playoff-match-card-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #eef5ff;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.playoff-match-card-date {
+  font-size: 0.64rem;
+  color: rgba(239, 245, 255, 0.82);
+  white-space: nowrap;
+}
+
+.playoff-match-card-body {
+  display: grid;
+  gap: 5px;
+}
+
+.playoff-team-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #17203d;
+}
+
+.playoff-team-slot strong {
+  min-width: 0;
+  max-width: 112px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+}
+
+.playoff-team-score {
+  font-weight: 900;
+  font-size: 0.82rem;
+  color: #1f315e;
+}
+
+.playoff-match-card-footer {
+  align-items: end;
+  min-height: 0;
+  font-size: 0.62rem;
+}
+
+.playoff-stage-center .playoff-match-card {
+  min-height: 92px;
+}
+
+.playoff-stage-center .playoff-team-slot {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 247, 255, 0.96));
+}
+
+.playoff-stage-center .playoff-match-card-badge {
+  background: rgba(97, 232, 162, 0.18);
+  color: #d9ffec;
+}
+
 .team-cell-mobile {
   gap: 8px;
   min-width: 0;
@@ -1331,6 +2167,123 @@ onMounted(async () => {
   .standings-head {
     align-items: start;
     grid-template-columns: 1fr;
+  }
+
+  .playoff-bracket-wrap {
+    overflow-x: visible;
+    padding: 6px 0 10px;
+  }
+
+  .playoff-stage-shell {
+    min-width: 0;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+    gap: 14px;
+  }
+
+  .playoff-stage-side,
+  .playoff-stage-center,
+  .playoff-center-stack,
+  .playoff-center-card-wrap,
+  .playoff-side-cards {
+    width: 100%;
+  }
+
+  .playoff-stage-side-left,
+  .playoff-stage-side-right {
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .playoff-stage-center {
+    order: 1;
+  }
+
+  .playoff-stage-side-left {
+    order: 2;
+  }
+
+  .playoff-stage-side-right {
+    order: 3;
+  }
+
+  .playoff-stage-center::before,
+  .playoff-stage-center::after {
+    display: none;
+  }
+
+  .playoff-side-column {
+    justify-items: stretch;
+    gap: 10px;
+    padding-top: 0;
+  }
+
+  .playoff-side-cards {
+    gap: 10px;
+  }
+
+  .playoff-side-column-left .playoff-side-cards::after,
+  .playoff-side-column-right .playoff-side-cards::after,
+  .playoff-match-card::after {
+    display: none;
+  }
+
+  .playoff-round-head,
+  .playoff-round-head-center,
+  .playoff-match-card,
+  .playoff-match-card-center {
+    width: 100%;
+    max-width: none;
+  }
+
+  .playoff-round-head,
+  .playoff-round-head-center {
+    justify-self: stretch;
+  }
+
+  .playoff-match-card,
+  .playoff-match-card-center {
+    justify-self: stretch;
+    min-height: 0;
+    padding: 10px 12px;
+  }
+
+  .playoff-match-card-head,
+  .playoff-match-card-footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .playoff-match-card-body {
+    gap: 6px;
+  }
+
+  .playoff-team-slot {
+    grid-template-columns: minmax(0, 1fr) 22px;
+    padding: 7px 9px;
+  }
+
+  .playoff-team-slot strong {
+    max-width: none;
+    font-size: 0.84rem;
+  }
+
+  .playoff-team-score {
+    font-size: 0.9rem;
+  }
+
+  .playoff-match-card-badge {
+    font-size: 0.68rem;
+  }
+
+  .playoff-match-card-date,
+  .playoff-match-card-footer {
+    font-size: 0.7rem;
+  }
+
+  .playoff-round-head-center {
+    min-width: 0;
   }
 
   .standings-toolbar {
@@ -1411,6 +2364,23 @@ onMounted(async () => {
     align-items: start;
   }
 
+  .playoff-tour-head,
+  .playoff-match-meta,
+  .playoff-match-copy {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .playoff-match-card-head {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .playoff-match-card-footer {
+    align-items: start;
+    flex-direction: column;
+  }
+
   .tour-card {
     flex-direction: column;
   }
@@ -1452,6 +2422,48 @@ onMounted(async () => {
 
   .standings-toolbar {
     justify-items: start;
+  }
+
+  .playoff-stage-shell {
+    gap: 12px;
+  }
+
+  .playoff-round-head,
+  .playoff-round-head-center {
+    padding: 5px 9px;
+  }
+
+  .playoff-round-head h3 {
+    font-size: 0.8rem;
+  }
+
+  .playoff-match-card,
+  .playoff-match-card-center {
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+
+  .playoff-match-card-head {
+    gap: 4px;
+  }
+
+  .playoff-match-card-badge {
+    padding: 2px 6px;
+    font-size: 0.62rem;
+  }
+
+  .playoff-team-slot {
+    grid-template-columns: minmax(0, 1fr) 18px;
+    gap: 5px;
+    padding: 6px 8px;
+  }
+
+  .playoff-team-slot strong {
+    font-size: 0.76rem;
+  }
+
+  .playoff-team-score {
+    font-size: 0.82rem;
   }
 
   .standings-table-mobile th,

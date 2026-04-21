@@ -1,6 +1,7 @@
 package com.footballstats.backend.service;
 
 import com.footballstats.backend.domain.Season;
+import com.footballstats.backend.domain.SeasonStatus;
 import com.footballstats.backend.domain.Referee;
 import com.footballstats.backend.domain.SeasonReferee;
 import com.footballstats.backend.domain.SeasonStandingsConfig;
@@ -35,6 +36,7 @@ public class SeasonService {
     private final SeasonStandingsConfigRepository seasonStandingsConfigRepository;
     private final SeasonStructureService seasonStructureService;
     private final SeasonPlayerService seasonPlayerService;
+    private final SeasonPlayoffService seasonPlayoffService;
     private final SeasonStandingsService seasonStandingsService;
     private final ObjectMapper objectMapper;
 
@@ -47,6 +49,7 @@ public class SeasonService {
         SeasonStandingsConfigRepository seasonStandingsConfigRepository,
         SeasonStructureService seasonStructureService,
         SeasonPlayerService seasonPlayerService,
+        SeasonPlayoffService seasonPlayoffService,
         SeasonStandingsService seasonStandingsService,
         ObjectMapper objectMapper
     ) {
@@ -58,6 +61,7 @@ public class SeasonService {
         this.seasonStandingsConfigRepository = seasonStandingsConfigRepository;
         this.seasonStructureService = seasonStructureService;
         this.seasonPlayerService = seasonPlayerService;
+        this.seasonPlayoffService = seasonPlayoffService;
         this.seasonStandingsService = seasonStandingsService;
         this.objectMapper = objectMapper;
     }
@@ -79,6 +83,11 @@ public class SeasonService {
         Boolean playoffEnabled,
         Integer playoffTeamCount,
         LocalDate applicationDeadline,
+        SeasonStatus status,
+        Integer maxRosterSize,
+        LocalDate transferWindowStartDate,
+        LocalDate transferWindowEndDate,
+        Boolean thirdPlaceEnabled,
         List<String> rankingRules,
         List<Long> refereeIds,
         Integer yellowCardsForSuspension,
@@ -92,6 +101,7 @@ public class SeasonService {
         season.setName(normalizedName);
         applyFormat(season, roundsCount, playoffEnabled, playoffTeamCount, false);
         season.setApplicationDeadline(applicationDeadline);
+        applyRosterRules(season, status == null ? SeasonStatus.DRAFT : status, maxRosterSize, transferWindowStartDate, transferWindowEndDate);
         season.setCreatedByUserId(actorUserId);
         season.setUpdatedByUserId(actorUserId);
         season.setActive(true);
@@ -99,6 +109,7 @@ public class SeasonService {
         Season savedSeason = seasonRepository.save(season);
         seasonStandingsService.initializeSeasonStandings(savedSeason.getId(), actorUserId);
         updateStandingsConfig(savedSeason.getId(), rankingRules, yellowCardsForSuspension, redCardsForSuspension, actorUserId);
+        seasonPlayoffService.syncSeasonPlayoffConfig(savedSeason.getId(), savedSeason.isPlayoffEnabled(), savedSeason.getPlayoffTeamCount(), Boolean.TRUE.equals(thirdPlaceEnabled), actorUserId);
         replaceSeasonReferees(savedSeason, refereeIds, actorUserId);
         return savedSeason;
     }
@@ -111,6 +122,11 @@ public class SeasonService {
         Boolean playoffEnabled,
         Integer playoffTeamCount,
         LocalDate applicationDeadline,
+        SeasonStatus status,
+        Integer maxRosterSize,
+        LocalDate transferWindowStartDate,
+        LocalDate transferWindowEndDate,
+        Boolean thirdPlaceEnabled,
         List<String> rankingRules,
         List<Long> refereeIds,
         Integer yellowCardsForSuspension,
@@ -132,11 +148,13 @@ public class SeasonService {
 
         season.setName(normalizedName);
         applyFormat(season, roundsCount, playoffEnabled, playoffTeamCount, true);
-    season.setApplicationDeadline(applicationDeadline);
+        season.setApplicationDeadline(applicationDeadline);
+        applyRosterRules(season, status == null ? season.getStatus() : status, maxRosterSize, transferWindowStartDate, transferWindowEndDate);
         season.setUpdatedByUserId(actorUserId);
         season.setUpdatedAt(OffsetDateTime.now());
         Season savedSeason = seasonRepository.save(season);
         updateStandingsConfig(seasonId, rankingRules, yellowCardsForSuspension, redCardsForSuspension, actorUserId);
+        seasonPlayoffService.syncSeasonPlayoffConfig(savedSeason.getId(), savedSeason.isPlayoffEnabled(), savedSeason.getPlayoffTeamCount(), Boolean.TRUE.equals(thirdPlaceEnabled), actorUserId);
         replaceSeasonReferees(savedSeason, refereeIds, actorUserId);
         if (!hasRegularMatches) {
             seasonStructureService.syncRegularToursForSeason(savedSeason, actorUserId);
@@ -269,6 +287,27 @@ public class SeasonService {
         season.setRoundsCount(normalizedRoundsCount);
         season.setPlayoffEnabled(normalizedPlayoffEnabled);
         season.setPlayoffTeamCount(normalizedPlayoffTeamCount);
+    }
+
+    private void applyRosterRules(
+        Season season,
+        SeasonStatus status,
+        Integer maxRosterSize,
+        LocalDate transferWindowStartDate,
+        LocalDate transferWindowEndDate
+    ) {
+        SeasonStatus normalizedStatus = status == null ? SeasonStatus.DRAFT : status;
+        if (transferWindowStartDate != null && transferWindowEndDate != null && transferWindowStartDate.isAfter(transferWindowEndDate)) {
+            throw new IllegalArgumentException("Дата начала окна трансферов не может быть позже даты окончания.");
+        }
+        if (maxRosterSize != null && maxRosterSize < 1) {
+            throw new IllegalArgumentException("Максимальный размер заявки должен быть не меньше 1.");
+        }
+
+        season.setStatus(normalizedStatus);
+        season.setMaxRosterSize(maxRosterSize);
+        season.setTransferWindowStartDate(transferWindowStartDate);
+        season.setTransferWindowEndDate(transferWindowEndDate);
     }
 
     private void updateStandingsConfig(

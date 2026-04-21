@@ -32,19 +32,22 @@ public class AccessControlService {
     private final UserRoleRepository userRoleRepository;
     private final TeamRepository teamRepository;
     private final UserTeamScopeRepository userTeamScopeRepository;
+    private final NotificationEventService notificationEventService;
 
     public AccessControlService(
         AppUserRepository appUserRepository,
         RoleRepository roleRepository,
         UserRoleRepository userRoleRepository,
         TeamRepository teamRepository,
-        UserTeamScopeRepository userTeamScopeRepository
+        UserTeamScopeRepository userTeamScopeRepository,
+        NotificationEventService notificationEventService
     ) {
         this.appUserRepository = appUserRepository;
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
         this.teamRepository = teamRepository;
         this.userTeamScopeRepository = userTeamScopeRepository;
+        this.notificationEventService = notificationEventService;
     }
 
     @Transactional
@@ -53,9 +56,9 @@ public class AccessControlService {
     }
 
     @Transactional
-    public void ensureRole(Long userId, RoleCode roleCode, Long grantedByUserId) {
+    public boolean ensureRole(Long userId, RoleCode roleCode, Long grantedByUserId) {
         if (userRoleRepository.existsByUser_IdAndRole_CodeAndActiveTrue(userId, roleCode)) {
-            return;
+            return false;
         }
 
         AppUser user = appUserRepository.findById(userId)
@@ -69,6 +72,7 @@ public class AccessControlService {
         userRole.setGrantedByUserId(grantedByUserId);
         userRole.setActive(true);
         userRoleRepository.save(userRole);
+        return true;
     }
 
     @Transactional(readOnly = true)
@@ -101,7 +105,12 @@ public class AccessControlService {
 
     @Transactional
     public void assignRole(Long actorUserId, Long targetUserId, RoleCode roleCode) {
-        ensureRole(targetUserId, roleCode, actorUserId);
+        boolean assigned = ensureRole(targetUserId, roleCode, actorUserId);
+        if (assigned && roleCode == RoleCode.REFEREE) {
+            AppUser user = appUserRepository.findById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден."));
+            notificationEventService.enqueueRefereeRoleGranted(user);
+        }
     }
 
     @Transactional
@@ -133,6 +142,7 @@ public class AccessControlService {
         userTeamScopeRepository.save(scope);
 
         ensureRole(targetUserId, RoleCode.TEAM_REP, actorUserId);
+        notificationEventService.enqueueTeamRepRoleGranted(user, team);
     }
 
     @Transactional

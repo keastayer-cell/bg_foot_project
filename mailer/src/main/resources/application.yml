@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: football-stats-mailer
+
+  config:
+    import: optional:file:.env[.properties],optional:file:mailer/.env[.properties]
+
+  datasource:
+    url: jdbc:postgresql://${MAILER_DB_HOST:${DB_HOST:localhost}}:${MAILER_DB_PORT:${DB_PORT:5432}}/${MAILER_DB_NAME:${DB_NAME:football_db}}
+    username: ${MAILER_DB_USER:${DB_USER:football_app}}
+    password: ${MAILER_DB_PASSWORD:${DB_PASSWORD:change-me-in-your-local-env}}
+
+  mail:
+    host: ${MAILER_SMTP_HOST:smtp.yandex.ru}
+    port: ${MAILER_SMTP_PORT:465}
+    username: ${MAILER_SMTP_USERNAME:}
+    password: ${MAILER_SMTP_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        mime:
+          charset: UTF-8
+          allowutf8: false
+        smtp:
+          auth: ${MAILER_SMTP_AUTH:true}
+          ssl:
+            enable: ${MAILER_SMTP_SSL_ENABLE:true}
+          starttls:
+            enable: ${MAILER_SMTP_STARTTLS:false}
+          connectiontimeout: ${MAILER_SMTP_CONNECTION_TIMEOUT_MS:10000}
+          timeout: ${MAILER_SMTP_TIMEOUT_MS:10000}
+          writetimeout: ${MAILER_SMTP_WRITE_TIMEOUT_MS:10000}
+
+server:
+  port: ${MAILER_PORT:8090}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+mailer:
+  poll-interval-ms: ${MAILER_POLL_INTERVAL_MS:600000}
+  batch-size: ${MAILER_BATCH_SIZE:20}
+  retry-limit: ${MAILER_RETRY_LIMIT:5}
+  retry-delay-seconds: ${MAILER_RETRY_DELAY_SECONDS:60}
+  stale-lock-seconds: ${MAILER_STALE_LOCK_SECONDS:300}
+  transport:
+    type: ${MAILER_TRANSPORT_TYPE:log}
+    from-email: ${MAILER_FROM_EMAIL:no-reply@football.local}
+    from-name: ${MAILER_FROM_NAME:Football Stats}
+
+logging:
+  level:
+    com.footballstats.mailer: info

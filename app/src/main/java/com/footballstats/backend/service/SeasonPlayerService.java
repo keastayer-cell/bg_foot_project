@@ -4,6 +4,7 @@ import com.footballstats.backend.domain.Player;
 import com.footballstats.backend.domain.PlayerTeam;
 import com.footballstats.backend.domain.Season;
 import com.footballstats.backend.domain.SeasonPlayer;
+import com.footballstats.backend.domain.SeasonStatus;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.repository.PlayerRepository;
 import com.footballstats.backend.repository.PlayerTeamRepository;
@@ -94,7 +95,11 @@ public class SeasonPlayerService {
 
     @Transactional(readOnly = true)
     public ActiveSeasonAssignment getLatestActiveSeasonAssignment(Long playerId) {
-        return mapActiveSeasonAssignment(seasonPlayerRepository.findAllActiveDetailedByPlayerId(playerId).stream().findFirst().orElse(null));
+        return seasonPlayerRepository.findAllActiveDetailedByPlayerId(playerId).stream()
+            .filter(item -> item.getSeason().getStatus() == SeasonStatus.ACTIVE)
+            .findFirst()
+            .map(this::mapActiveSeasonAssignment)
+            .orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -105,6 +110,9 @@ public class SeasonPlayerService {
 
         Map<Long, ActiveSeasonAssignment> result = new LinkedHashMap<>();
         for (SeasonPlayer assignment : seasonPlayerRepository.findAllActiveDetailedByPlayerIds(playerIds)) {
+            if (assignment.getSeason().getStatus() != SeasonStatus.ACTIVE) {
+                continue;
+            }
             result.putIfAbsent(assignment.getPlayer().getId(), mapActiveSeasonAssignment(assignment));
         }
         return result;
@@ -113,6 +121,7 @@ public class SeasonPlayerService {
     @Transactional(readOnly = true)
     public ActiveSeasonAssignment getBlockingActiveSeasonAssignment(Long playerId, Long targetTeamId) {
         return seasonPlayerRepository.findAllActiveDetailedByPlayerId(playerId).stream()
+            .filter(item -> item.getSeason().getStatus() == SeasonStatus.ACTIVE)
             .filter(item -> !item.getTeam().getId().equals(targetTeamId))
             .findFirst()
             .map(this::mapActiveSeasonAssignment)
@@ -131,13 +140,19 @@ public class SeasonPlayerService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сезон не найден."));
     }
 
+    @Transactional(readOnly = true)
+    public SeasonPlayer getActiveAssignmentForSeason(Long seasonId, Long playerId) {
+        return seasonPlayerRepository.findBySeason_IdAndPlayer_IdAndActiveTrue(seasonId, playerId).orElse(null);
+    }
+
     @Transactional
     public void replaceSeasonPlayers(Long teamId, Long seasonId, List<Long> playerIds, Long actorUserId) {
-        validateSeasonMembership(teamId, seasonId);
+        Season season = requireSeasonForMutation(teamId, seasonId);
         Set<Long> targetPlayerIds = new LinkedHashSet<>(playerIds == null ? List.of() : playerIds.stream().filter(id -> id != null).toList());
 
         validateRosterMembership(teamId, targetPlayerIds);
         validateSeasonUniqueness(teamId, seasonId, targetPlayerIds);
+        validateSeasonRosterCapacity(season, teamId, (long) targetPlayerIds.size(), null);
 
         List<SeasonPlayer> activeAssignments = seasonPlayerRepository.findBySeason_IdAndTeam_IdAndActiveTrue(seasonId, teamId);
         OffsetDateTime now = OffsetDateTime.now();
@@ -158,7 +173,7 @@ public class SeasonPlayerService {
 
     @Transactional
     public void addSeasonPlayer(Long teamId, Long seasonId, Long playerId, Long actorUserId) {
-        validateSeasonMembership(teamId, seasonId);
+        requireSeasonForMutation(teamId, seasonId);
         validateRosterMembership(teamId, Set.of(playerId));
         validateSeasonUniqueness(teamId, seasonId, Set.of(playerId));
         activateSeasonPlayer(teamId, seasonId, playerId, actorUserId, OffsetDateTime.now());
@@ -166,7 +181,7 @@ public class SeasonPlayerService {
 
     @Transactional
     public void attachAvailablePlayerToTeamAndSeason(Long teamId, Long seasonId, Long playerId, Long actorUserId) {
-        validateSeasonMembership(teamId, seasonId);
+        requireSeasonForMutation(teamId, seasonId);
         validateSeasonUniqueness(teamId, seasonId, Set.of(playerId));
         ensurePlayerAssignedToTeam(teamId, playerId, actorUserId);
 
@@ -192,11 +207,12 @@ public class SeasonPlayerService {
         Team team = teamRepository.findById(teamId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда не найдена."));
 
-        reassignPlayerToTeam(player, team, actorUserId);
+        reassignPlayerToTeam(player, team, actorUserId, true);
     }
 
     @Transactional
     public void removeSeasonPlayer(Long teamId, Long seasonId, Long playerId, Long actorUserId) {
+        requireSeasonForMutation(teamId, seasonId);
         SeasonPlayer seasonPlayer = seasonPlayerRepository.findBySeason_IdAndTeam_IdAndPlayer_IdAndActiveTrue(seasonId, teamId, playerId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Игрок не найден в заявке сезона."));
         seasonPlayer.setActive(false);
@@ -237,11 +253,57 @@ public class SeasonPlayerService {
         }
     }
 
+    @Transactional
+    public void transferSeasonPlayer(Long seasonId, Long playerId, Long fromTeamId, Long toTeamId, Long actorUserId) {
+        Season season = requireSeasonForMutation(toTeamId, seasonId);
+        validateSeasonMembership(fromTeamId, seasonId);
+        validateSeasonRosterCapacity(season, toTeamId, 1L, playerId);
+
+        SeasonPlayer seasonPlayer = seasonPlayerRepository.findBySeason_IdAndTeam_IdAndPlayer_IdAndActiveTrue(seasonId, fromTeamId, playerId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Игрок уже не находится в заявке указанной команды."));
+        Team targetTeam = teamRepository.findById(toTeamId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда назначения не найдена."));
+
+        seasonPlayer.setTeam(targetTeam);
+        seasonPlayer.setUpdatedByUserId(actorUserId);
+        seasonPlayer.setUpdatedAt(OffsetDateTime.now());
+        seasonPlayerRepository.save(seasonPlayer);
+
+        reassignPlayerToTeam(seasonPlayer.getPlayer(), targetTeam, actorUserId, false);
+    }
+
+    @Transactional(readOnly = true)
+    public void validateSeasonRosterCapacity(Season season, Long teamId, Long requestedSize, Long ignoredPlayerId) {
+        if (season == null || season.getMaxRosterSize() == null) {
+            return;
+        }
+
+        long activePlayers = countActiveSeasonPlayers(teamId, season.getId());
+        if (ignoredPlayerId != null) {
+            SeasonPlayer existing = seasonPlayerRepository.findBySeason_IdAndTeam_IdAndPlayer_IdAndActiveTrue(season.getId(), teamId, ignoredPlayerId).orElse(null);
+            if (existing != null) {
+                return;
+            }
+        }
+        if (activePlayers + requestedSize > season.getMaxRosterSize()) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Нельзя превысить максимальный размер заявки сезона: " + season.getMaxRosterSize() + "."
+            );
+        }
+    }
+
     private void activateSeasonPlayer(Long teamId, Long seasonId, Long playerId, Long actorUserId, OffsetDateTime now) {
         validateSeasonUniqueness(teamId, seasonId, Set.of(playerId));
 
+        Season season = seasonRepository.findById(seasonId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сезон не найден."));
+
         SeasonPlayer existing = seasonPlayerRepository.findBySeason_IdAndTeam_IdAndPlayer_Id(seasonId, teamId, playerId).orElse(null);
         if (existing != null) {
+            if (!existing.isActive()) {
+                validateSeasonRosterCapacity(season, teamId, 1L, playerId);
+            }
             existing.setActive(true);
             existing.setUpdatedByUserId(actorUserId);
             existing.setUpdatedAt(now);
@@ -249,8 +311,7 @@ public class SeasonPlayerService {
             return;
         }
 
-        Season season = seasonRepository.findById(seasonId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сезон не найден."));
+        validateSeasonRosterCapacity(season, teamId, 1L, playerId);
         Team team = teamRepository.findById(teamId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда не найдена."));
         Player player = playerRepository.findById(playerId)
@@ -268,7 +329,7 @@ public class SeasonPlayerService {
         seasonPlayerRepository.save(seasonPlayer);
     }
 
-    private void reassignPlayerToTeam(Player player, Team team, Long actorUserId) {
+    private void reassignPlayerToTeam(Player player, Team team, Long actorUserId, boolean deactivateSeasonAssignments) {
         LocalDate today = LocalDate.now();
         boolean alreadyInTargetTeam = false;
 
@@ -276,7 +337,9 @@ public class SeasonPlayerService {
             if (membership.getTeam().getId().equals(team.getId())) {
                 return;
             }
-            deactivateActiveAssignmentsForPlayerInTeam(membership.getTeam().getId(), player.getId(), actorUserId);
+            if (deactivateSeasonAssignments) {
+                deactivateActiveAssignmentsForPlayerInTeam(membership.getTeam().getId(), player.getId(), actorUserId);
+            }
             membership.setActive(false);
             membership.setValidTo(today.minusDays(1));
             playerTeamRepository.save(membership);
@@ -293,6 +356,16 @@ public class SeasonPlayerService {
         newMembership.setValidFrom(today);
         newMembership.setActive(true);
         playerTeamRepository.save(newMembership);
+    }
+
+    private Season requireSeasonForMutation(Long teamId, Long seasonId) {
+        validateSeasonMembership(teamId, seasonId);
+        Season season = seasonRepository.findById(seasonId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сезон не найден."));
+        if (season.getStatus() != SeasonStatus.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Изменять заявку можно только в активном сезоне.");
+        }
+        return season;
     }
 
     private void validateSeasonMembership(Long teamId, Long seasonId) {

@@ -155,15 +155,26 @@ public class MatchProtocolService {
         }
         MatchProtocolStatus previousStatus = protocol.getStatus();
         MatchProtocolStatus nextStatus = status == null ? MatchProtocolStatus.SCHEDULED : status;
+        boolean allowSuperAdminScoreOnlyProtocol = canUseSuperAdminScoreOnlyProtocol(superAdmin, playerStatDrafts);
 
-        validateRequiredLineupsForProtocolStatus(match, nextStatus);
+        validateRequiredLineupsForProtocolStatus(match, nextStatus, allowSuperAdminScoreOnlyProtocol);
 
         boolean homeTech = Boolean.TRUE.equals(homeTechnicalDefeat);
         boolean awayTech = Boolean.TRUE.equals(awayTechnicalDefeat);
         validateTechnicalDefeat(homeTech, awayTech);
 
-        List<PlayerProtocolStatDraft> normalizedPlayerStats = normalizePlayerStats(match, playerStatDrafts);
-        ProtocolScoreData scoreData = resolveProtocolScore(match, homeScore, awayScore, homeTech, awayTech, normalizedPlayerStats);
+        List<PlayerProtocolStatDraft> normalizedPlayerStats = allowSuperAdminScoreOnlyProtocol
+            ? List.of()
+            : normalizePlayerStats(match, playerStatDrafts);
+        ProtocolScoreData scoreData = resolveProtocolScore(
+            match,
+            homeScore,
+            awayScore,
+            homeTech,
+            awayTech,
+            normalizedPlayerStats,
+            allowSuperAdminScoreOnlyProtocol
+        );
 
         matchEventRepository.deleteByMatch_Id(matchId);
 
@@ -709,8 +720,11 @@ public class MatchProtocolService {
         matchProtocolRepository.save(protocol);
     }
 
-    private void validateRequiredLineupsForProtocolStatus(TourMatch match, MatchProtocolStatus status) {
+    private void validateRequiredLineupsForProtocolStatus(TourMatch match, MatchProtocolStatus status, boolean allowMissingLineups) {
         if (status != MatchProtocolStatus.FINISHED && status != MatchProtocolStatus.VERIFIED) {
+            return;
+        }
+        if (allowMissingLineups) {
             return;
         }
 
@@ -736,7 +750,8 @@ public class MatchProtocolService {
         Integer awayScore,
         boolean homeTechnicalDefeat,
         boolean awayTechnicalDefeat,
-        List<PlayerProtocolStatDraft> playerStats
+        List<PlayerProtocolStatDraft> playerStats,
+        boolean allowManualScoreWithoutPlayerStats
     ) {
         if (homeTechnicalDefeat) {
             validateEmptyPlayerStatsForTechnicalDefeat(playerStats);
@@ -749,6 +764,10 @@ public class MatchProtocolService {
 
         int normalizedHomeScore = homeScore == null ? 0 : Math.max(0, homeScore);
         int normalizedAwayScore = awayScore == null ? 0 : Math.max(0, awayScore);
+        if (allowManualScoreWithoutPlayerStats) {
+            return new ProtocolScoreData(normalizedHomeScore, normalizedAwayScore);
+        }
+
         int generatedHomeGoals = countGoals(match.getHomeTeam().getId(), playerStats);
         int generatedAwayGoals = countGoals(match.getAwayTeam().getId(), playerStats);
 
@@ -760,6 +779,15 @@ public class MatchProtocolService {
         }
 
         return new ProtocolScoreData(normalizedHomeScore, normalizedAwayScore);
+    }
+
+    private boolean canUseSuperAdminScoreOnlyProtocol(boolean superAdmin, List<PlayerProtocolStatDraft> playerStatDrafts) {
+        if (!superAdmin) {
+            return false;
+        }
+
+        List<PlayerProtocolStatDraft> source = playerStatDrafts == null ? List.of() : playerStatDrafts;
+        return source.stream().noneMatch(this::hasAnyStats);
     }
 
     private List<PlayerProtocolStatDraft> normalizePlayerStats(TourMatch match, List<PlayerProtocolStatDraft> playerStatDrafts) {

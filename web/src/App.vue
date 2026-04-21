@@ -19,6 +19,7 @@
       <div class="topbar-right">
         <nav class="topnav">
           <router-link to="/">Туры</router-link>
+          <router-link to="/transfers">Трансферы</router-link>
           <router-link to="/players">Игроки</router-link>
           <router-link to="/teams">Команды</router-link>
           <router-link v-if="canSeeAdmin()" to="/admin">Админ-панель</router-link>

@@ -16,6 +16,23 @@ public interface TourMatchRepository extends JpaRepository<TourMatch, Long> {
 
     long countByTour_IdAndActiveTrue(Long tourId);
 
+    @Query("""
+      SELECT COUNT(tm)
+      FROM TourMatch tm
+      JOIN tm.tour tour
+      WHERE tour.season.id = :seasonId
+        AND tour.stageType = :stageType
+        AND tm.active = TRUE
+        AND ((tm.homeTeam.id = :firstTeamId AND tm.awayTeam.id = :secondTeamId)
+        OR (tm.homeTeam.id = :secondTeamId AND tm.awayTeam.id = :firstTeamId))
+      """)
+    long countActiveHeadToHeadMatchesInSeasonStage(
+      @Param("seasonId") Long seasonId,
+      @Param("stageType") String stageType,
+      @Param("firstTeamId") Long firstTeamId,
+      @Param("secondTeamId") Long secondTeamId
+    );
+
     Optional<TourMatch> findByIdAndTour_Id(Long matchId, Long tourId);
 
     @Query("""
