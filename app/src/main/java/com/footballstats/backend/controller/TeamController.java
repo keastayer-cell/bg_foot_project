@@ -66,7 +66,7 @@ public class TeamController {
     }
 
     @GetMapping("/{teamId}/seasons/{seasonId}/roster")
-    public ResponseEntity<List<TeamProfileService.TeamSeasonRosterPlayerData>> getSeasonRoster(
+    public ResponseEntity<TeamProfileService.TeamSeasonRosterViewData> getSeasonRoster(
         @PathVariable Long teamId,
         @PathVariable Long seasonId
     ) {

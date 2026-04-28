@@ -46,19 +46,29 @@
       </article>
 
       <article class="card team-profile-controls">
-        <div class="team-profile-controls-copy">
-          <p class="eyebrow team-profile-controls-kicker">Статистика</p>
-        </div>
-
-        <div class="team-profile-controls-actions">
-          <label class="team-profile-select-wrap">
-            <select v-model="selectedSeasonKey">
-              <option value="all">Все сезоны</option>
-              <option v-for="season in teamProfile.seasons" :key="season.id" :value="String(season.id)">
-                {{ season.name }}
-              </option>
-            </select>
-          </label>
+        <div class="team-profile-controls-actions team-profile-controls-actions-wide">
+          <div class="team-profile-controls-primary">
+            <button
+              v-if="selectedSeason && seasonRosterStatus === 'APPROVED' && seasonRoster.length"
+              class="team-profile-roster-btn"
+              type="button"
+              @click="openSeasonRosterModal"
+            >
+              Показать заявку
+            </button>
+            <label class="team-profile-select-wrap">
+              <select v-model="selectedSeasonKey">
+                <option value="all">Все сезоны</option>
+                <option v-for="season in teamProfile.seasons" :key="season.id" :value="String(season.id)">
+                  {{ season.name }}
+                </option>
+              </select>
+            </label>
+          </div>
+          <div v-if="selectedSeason" class="team-profile-season-contact">
+            <span class="team-profile-season-contact-label">Представитель</span>
+            <strong>{{ seasonRepresentativeName || 'Не указан' }}</strong>
+          </div>
         </div>
       </article>
 
@@ -143,38 +153,34 @@
           <span v-else class="muted">Нет завершенных матчей</span>
         </article>
       </div>
+
+      <div v-if="seasonRosterModalOpen" class="team-profile-modal-backdrop" @click.self="closeSeasonRosterModal">
+        <article class="card team-profile-modal">
+          <div class="team-profile-modal-head">
+            <div>
+              <p class="eyebrow">Состав на сезон</p>
+              <h3 class="section-title">{{ selectedSeason?.name }}</h3>
+            </div>
+            <button class="btn-ghost" type="button" @click="closeSeasonRosterModal">Закрыть</button>
+          </div>
+
+          <div v-if="seasonRoster.length" class="team-profile-modal-list">
+            <div class="team-profile-season-roster-headline muted">
+              <span>ФИО</span>
+              <span>Дата рождения</span>
+              <span>Город</span>
+            </div>
+            <article v-for="player in seasonRoster" :key="player.id" class="team-profile-season-roster-row">
+              <strong>{{ player.fullName }}</strong>
+              <span class="muted">{{ formatBirthDate(player.birthDate) }}</span>
+              <span class="muted">{{ player.residence || '—' }}</span>
+            </article>
+          </div>
+          <p v-else class="muted-text">Состав пока недоступен.</p>
+        </article>
+      </div>
     </template>
 
-    <div v-if="seasonRosterModalOpen" class="team-profile-modal-backdrop" @click.self="closeSeasonRosterModal">
-      <article class="card team-profile-modal">
-        <div class="team-profile-modal-head">
-          <div>
-            <p class="eyebrow">Заявка на сезон</p>
-            <h3 class="section-title">{{ selectedSeason?.name }}</h3>
-          </div>
-          <button class="btn-ghost" type="button" @click="closeSeasonRosterModal">Закрыть</button>
-        </div>
-
-        <div v-if="seasonRosterLoading" class="team-profile-modal-state muted">Загружаем состав...</div>
-        <div v-else-if="seasonRosterError" class="team-profile-modal-state error-text">{{ seasonRosterError }}</div>
-        <div v-else-if="seasonRoster.length" class="team-profile-modal-list">
-          <div class="team-profile-modal-row" v-for="player in seasonRoster" :key="player.id">
-            <div class="team-profile-modal-player">
-              <div class="team-profile-modal-avatar" :class="{ 'is-empty': !player.photoDataUrl }">
-                <img v-if="player.photoDataUrl" :src="player.photoDataUrl" :alt="player.fullName" />
-                <span v-else>{{ initials(player.fullName) }}</span>
-              </div>
-              <div>
-                <strong>{{ player.fullName }}</strong>
-                <div v-if="player.birthDate" class="muted">{{ formatDate(player.birthDate) }}</div>
-              </div>
-            </div>
-            <span v-if="player.goalkeeper" class="team-profile-role-badge">Вратарь</span>
-          </div>
-        </div>
-        <p v-else class="empty-text">В выбранном сезоне нет активной заявки.</p>
-      </article>
-    </div>
   </section>
 </template>
 
@@ -197,6 +203,8 @@ const seasonRosterModalOpen = ref(false)
 const seasonRosterLoading = ref(false)
 const seasonRosterError = ref('')
 const seasonRoster = ref([])
+const seasonRosterStatus = ref('WAITING_FILL')
+const seasonRepresentativeName = ref('')
 
 const selectedSeason = computed(() => {
   if (selectedSeasonKey.value === 'all') return null
@@ -242,10 +250,11 @@ async function loadTeamProfile() {
   errorText.value = ''
   selectedSeasonKey.value = 'all'
   currentPage.value = 1
-  closeSeasonRosterModal()
+  resetSeasonRoster()
 
   try {
     teamProfile.value = await optionalAuthApiRequest(`/api/teams/${encodeURIComponent(teamId)}`, { method: 'GET' })
+    applySeasonSelectionFromRoute()
   } catch (error) {
     errorText.value = error.message || 'Не удалось загрузить профиль команды.'
     teamProfile.value = null
@@ -254,19 +263,39 @@ async function loadTeamProfile() {
   }
 }
 
-async function openSeasonRosterModal() {
-  if (!selectedSeason.value) return
+function applySeasonSelectionFromRoute() {
+  const requestedSeasonId = String(route.query.seasonId || '').trim()
+  if (!requestedSeasonId) {
+    selectedSeasonKey.value = 'all'
+    return
+  }
 
-  seasonRosterModalOpen.value = true
+  const hasRequestedSeason = (teamProfile.value?.seasons || []).some(
+    (season) => String(season.id) === requestedSeasonId
+  )
+  selectedSeasonKey.value = hasRequestedSeason ? requestedSeasonId : 'all'
+}
+
+async function loadSeasonRoster() {
+  if (!selectedSeason.value) {
+    resetSeasonRoster()
+    return
+  }
+
   seasonRosterLoading.value = true
   seasonRosterError.value = ''
   seasonRoster.value = []
+  seasonRosterStatus.value = 'WAITING_FILL'
+  seasonRepresentativeName.value = ''
 
   try {
-    seasonRoster.value = await optionalAuthApiRequest(
+    const payload = await optionalAuthApiRequest(
       `/api/teams/${encodeURIComponent(route.params.id)}/seasons/${encodeURIComponent(selectedSeason.value.id)}/roster`,
       { method: 'GET' }
     )
+    seasonRoster.value = Array.isArray(payload?.players) ? payload.players : []
+    seasonRosterStatus.value = payload?.status || 'WAITING_FILL'
+    seasonRepresentativeName.value = String(payload?.representativeName || '').trim()
   } catch (error) {
     seasonRosterError.value = error.message || 'Не удалось загрузить заявку сезона.'
   } finally {
@@ -274,11 +303,24 @@ async function openSeasonRosterModal() {
   }
 }
 
-function closeSeasonRosterModal() {
+function openSeasonRosterModal() {
+  if (seasonRosterStatus.value !== 'APPROVED' || !seasonRoster.value.length) {
+    return
+  }
+  seasonRosterModalOpen.value = true
+}
+
+function resetSeasonRoster() {
   seasonRosterModalOpen.value = false
   seasonRosterLoading.value = false
   seasonRosterError.value = ''
   seasonRoster.value = []
+  seasonRosterStatus.value = 'WAITING_FILL'
+  seasonRepresentativeName.value = ''
+}
+
+function closeSeasonRosterModal() {
+  seasonRosterModalOpen.value = false
 }
 
 function initials(value) {
@@ -288,12 +330,23 @@ function initials(value) {
 }
 
 function formatDate(value) {
-  if (!value) return 'дата не указана'
+  if (!value) return '-'
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'дата не указана'
+  if (Number.isNaN(date.getTime())) return '-'
   return new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
     month: 'long',
+    year: 'numeric',
+  }).format(date)
+}
+
+function formatBirthDate(value) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
     year: 'numeric',
   }).format(date)
 }
@@ -337,8 +390,11 @@ function resultShortLabel(result) {
 }
 
 watch(() => route.params.id, loadTeamProfile, { immediate: true })
-watch(selectedSeasonKey, () => {
-  closeSeasonRosterModal()
+watch(() => route.query.seasonId, () => {
+  applySeasonSelectionFromRoute()
+})
+watch(selectedSeasonKey, async () => {
+  await loadSeasonRoster()
 })
 </script>
 
@@ -355,6 +411,63 @@ watch(selectedSeasonKey, () => {
 
 .team-profile-back {
   min-height: 42px;
+}
+
+.team-profile-season-roster-card {
+  display: block;
+}
+
+.team-profile-season-roster-inline {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.team-profile-season-roster-label {
+  margin: 0;
+}
+
+.team-profile-season-roster-title {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.2vw, 1.9rem);
+}
+
+.team-profile-season-roster-list {
+  display: grid;
+  gap: 10px;
+}
+
+.team-profile-season-roster-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.team-profile-season-roster-headline,
+.team-profile-season-roster-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) 100px minmax(160px, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.team-profile-season-roster-headline {
+  padding: 0 14px;
+  text-align: center;
+}
+
+.team-profile-season-roster-headline > :first-child,
+.team-profile-season-roster-row > :first-child {
+  text-align: left;
+}
+
+.team-profile-season-roster-row {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .team-profile-state {
@@ -460,7 +573,6 @@ watch(selectedSeasonKey, () => {
 .team-profile-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
 }
 
@@ -471,13 +583,39 @@ watch(selectedSeasonKey, () => {
   flex-wrap: wrap;
 }
 
-.team-profile-controls-kicker {
-  margin: 0;
+.team-profile-controls-primary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.team-profile-controls-actions-wide {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.team-profile-season-contact {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  text-align: right;
+}
+
+.team-profile-season-contact-label {
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.team-profile-season-contact strong {
+  font-size: 1rem;
 }
 
 .team-profile-roster-btn {
-  min-height: 52px;
-  padding: 0 22px;
+  min-height: 44px;
+  padding: 0 18px;
   border: 1px solid rgba(97, 232, 162, 0.24);
   border-radius: 18px;
   background:
@@ -613,6 +751,13 @@ watch(selectedSeasonKey, () => {
 .team-profile-history-score {
   font-size: 1.3rem;
   font-weight: 800;
+}
+
+@media (max-width: 720px) {
+  .team-profile-season-contact {
+    justify-items: start;
+    text-align: left;
+  }
 }
 
 .team-profile-pagination {
@@ -768,6 +913,11 @@ watch(selectedSeasonKey, () => {
   .team-profile-history-row {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .team-profile-season-roster-inline {
+    align-items: flex-start;
+    gap: 10px 14px;
   }
 }
 

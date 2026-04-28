@@ -2,14 +2,18 @@
   <section class="section-wrap team-rep-page">
     <article class="card team-rep-profile-card">
       <div class="toolbar team-rep-card-head">
-        <h2 class="section-title">Личный кабинет представителя команды</h2>
+        <h2 class="section-title">Кабинет сезонных заявок команды</h2>
         <div class="actions-row">
-          <button class="btn-ghost" type="button" @click="router.push('/team-rep-transfers')">Трансферы</button>
-          <button class="btn-primary" type="button" @click="openCreatePlayerModal()">Создать игрока</button>
+          <button v-if="canOpenTransfers" class="btn-ghost" type="button" @click="router.push('/team-rep-transfers')">Трансферы</button>
+          <button v-if="canManagePlayers" class="btn-primary" type="button" @click="openCreatePlayerModal()">Создать игрока</button>
         </div>
       </div>
 
       <div class="team-rep-profile-grid">
+        <div v-if="isSuperAdminEditor">
+          <span class="team-rep-label">Режим</span>
+          <div class="team-rep-value">SUPER_ADMIN</div>
+        </div>
         <div>
           <span class="team-rep-label">Имя</span>
           <div class="team-rep-value">{{ profile.name }}</div>
@@ -20,14 +24,22 @@
         </div>
         <div>
           <span class="team-rep-label">Команда</span>
-          <div class="team-rep-value team-rep-team">{{ profile.teamName }}</div>
+          <div v-if="!isSuperAdminEditor" class="team-rep-value team-rep-team">{{ profile.teamName }}</div>
+          <label v-else class="team-rep-admin-team-picker">
+            <select v-model="selectedAdminTeamId">
+              <option value="">— выберите команду —</option>
+              <option v-for="team in adminTeams" :key="team.id" :value="String(team.id)">
+                {{ team.name }}
+              </option>
+            </select>
+          </label>
         </div>
       </div>
 
       <p class="error-text" v-if="pageError">{{ pageError }}</p>
       <p class="success-text" v-if="pageSuccess">{{ pageSuccess }}</p>
 
-      <div v-if="incomingTransfersSummary.totalPendingCount > 0" class="team-rep-transfer-alert">
+      <div v-if="canOpenTransfers && incomingTransfersSummary.totalPendingCount > 0" class="team-rep-transfer-alert">
         <button class="btn-primary team-rep-transfer-alert-btn" type="button" @click="openIncomingTransfersModal">
           У вас новая заявка на трансфер · {{ incomingTransfersSummary.totalPendingCount }}
         </button>
@@ -41,7 +53,8 @@
       </div>
 
       <p v-if="dashboardLoading" class="muted-text">Загрузка данных...</p>
-      <p v-else-if="!teamSeasons.length" class="muted-text">Для вашей команды пока нет доступных сезонов.</p>
+      <p v-else-if="isSuperAdminEditor && !selectedAdminTeamId" class="muted-text">Выберите команду, чтобы открыть сезонные заявки.</p>
+      <p v-else-if="!teamSeasons.length" class="muted-text">Для выбранной команды пока нет доступных сезонов.</p>
 
       <div v-else class="team-rep-form">
         <label>
@@ -57,10 +70,13 @@
         <template v-if="selectedSeasonSummary">
           <div class="toolbar team-rep-card-head team-rep-season-actions">
             <div class="team-rep-badge-row">
-              <span class="team-rep-season-chip">В заявке: {{ selectedSeasonSummary.selectedPlayersCount }}</span>
-              <span class="team-rep-season-chip" v-if="selectedSeasonSummary.maxRosterSize">Лимит: {{ selectedSeasonSummary.selectedPlayersCount }} / {{ selectedSeasonSummary.maxRosterSize }}</span>
+              <span class="team-rep-season-chip">
+                В заявке:
+                {{ `${selectedSeasonSummary.selectedPlayersCount} из ${selectedSeasonSummary.maxRosterSize || '∞'}` }}
+              </span>
               <span class="team-rep-season-chip">{{ selectedSeasonSummary.applicationDeadline ? `Дедлайн: ${formatDateOnly(selectedSeasonSummary.applicationDeadline)}` : 'Дедлайн не задан' }}</span>
               <span class="team-rep-season-chip">Статус: {{ formatSeasonStatus(selectedSeasonSummary.status) }}</span>
+              <span class="team-rep-season-chip" :class="applicationStatusChipClass(selectedSeasonSummary.applicationStatus)">Заявка: {{ formatApplicationStatus(selectedSeasonSummary.applicationStatus) }}</span>
               <span class="team-rep-season-chip" :class="selectedSeasonSummary.applicationOpen ? 'team-rep-season-chip-open' : 'team-rep-season-chip-closed'">
                 {{ selectedSeasonSummary.applicationOpen ? 'Добавление открыто' : 'Добавление закрыто' }}
               </span>
@@ -73,13 +89,23 @@
               >
                 {{ showSelectedSeasonPlayersOnly ? 'Показать весь состав' : 'Показать игроков в заявке' }}
               </button>
-              <button class="btn-primary" type="button" @click="openAddPlayerModal(selectedSeasonSummary.id)" :disabled="!selectedSeasonSummary.applicationOpen">Добавить игрока</button>
+              <button class="btn-ghost" type="button" @click="submitSeasonApplication" :disabled="seasonLoading || !selectedSeasonSummary.applicationSubmittable">
+                {{ selectedSeasonSummary.applicationStatus === 'RETURNED' ? 'Отправить повторно' : 'Отправить на проверку' }}
+              </button>
+              <button class="btn-primary" type="button" @click="openAddPlayerModal(selectedSeasonSummary.id)" :disabled="!canEditSelectedSeasonApplication">Добавить игрока</button>
             </div>
+          </div>
+          <div v-if="selectedSeasonSummary.applicationDecisionComment" class="team-rep-review-note" :class="applicationReviewNoteClass(selectedSeasonSummary.applicationStatus)">
+            <strong>{{ selectedSeasonSummary.applicationStatus === 'APPROVED' ? 'Решение по заявке' : 'Комментарий проверяющего' }}</strong>
+            <p>{{ selectedSeasonSummary.applicationDecisionComment }}</p>
           </div>
           <p v-if="!selectedSeasonSummary.applicationOpen" class="muted-text">
             {{ selectedSeasonSummary.status !== 'ACTIVE'
               ? 'Изменения заявки закрыты, потому что сезон не находится в активном статусе.'
-              : 'Дедлайн добавления игроков в заявку сезона истек. Удалять игроков из заявки по-прежнему можно.' }}
+              : 'Дедлайн изменений сезонной заявки истек.' }}
+          </p>
+          <p v-else-if="selectedSeasonSummary.applicationStatus === 'SUBMITTED'" class="muted-text">
+            Заявка отправлена на проверку. Дождитесь решения рефери или администратора.
           </p>
         </template>
 
@@ -96,9 +122,13 @@
             Показаны только игроки, относящиеся к сезону «{{ selectedSeasonSummary.name }}».
           </p>
         </div>
+        <button class="btn-ghost" type="button" @click="toggleTeamRosterVisibility">
+          {{ isTeamRosterVisible ? 'Скрыть состав' : 'Показать состав' }}
+        </button>
       </div>
 
       <p v-if="dashboardLoading" class="muted-text">Загрузка состава...</p>
+      <p v-else-if="!isTeamRosterVisible" class="muted-text">Состав скрыт. Нажмите «Показать состав», чтобы открыть список игроков.</p>
       <p v-else-if="!displayedTeamPlayers.length" class="muted-text">
         {{ showSelectedSeasonPlayersOnly ? 'Для выбранного сезона в текущем составе нет игроков.' : 'В текущем составе команды пока нет игроков.' }}
       </p>
@@ -115,17 +145,17 @@
             class="team-rep-player-photo"
           />
           <div class="actions-row team-rep-player-row-actions">
-            <button class="btn-ghost" type="button" @click="openEditPlayerModal(player)">Редактировать</button>
+            <button v-if="canManagePlayers" class="btn-ghost" type="button" @click="openEditPlayerModal(player)">Редактировать</button>
             <button
               v-if="selectedSeasonId && playerHasSelectedSeason(player)"
               class="btn-danger btn-compact"
               type="button"
               @click="removeFromSelectedSeason(player.id)"
-              :disabled="selectedSeasonSummary?.status !== 'ACTIVE'"
+              :disabled="!canEditSelectedSeasonApplication"
             >
               Убрать из сезона
             </button>
-            <button class="btn-danger btn-compact" type="button" @click="removeFromTeam(player.id)">Удалить из команды</button>
+            <button v-if="canManagePlayers" class="btn-danger btn-compact" type="button" @click="removeFromTeam(player.id)">Удалить из команды</button>
           </div>
         </article>
       </div>
@@ -268,11 +298,12 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
 import SearchableSelect from '../components/SearchableSelect.vue'
 
 const { user, isAuthenticated, hasRole, loadCurrentUser, authorizedApiRequest } = useAuth()
+const route = useRoute()
 const router = useRouter()
 
 const dashboardLoading = ref(false)
@@ -295,13 +326,16 @@ const incomingTransfersSummary = ref({
 })
 const incomingDecisionComments = reactive({})
 
+const adminTeams = ref([])
 const teamSeasons = ref([])
 const teamPlayers = ref([])
 const seasonView = ref(null)
+const selectedAdminTeamId = ref('')
 const selectedSeasonId = ref('')
 const selectedAvailablePlayerIds = ref([])
 const addPlayerModalOpen = ref(false)
 const showSelectedSeasonPlayersOnly = ref(false)
+const isTeamRosterVisible = ref(false)
 
 const playerModalOpen = ref(false)
 const editingPlayerId = ref(null)
@@ -313,25 +347,99 @@ const playerForm = reactive({
   isGoalkeeper: false,
   photoDataUrl: '',
 })
+let suspendSeasonSelectionWatch = false
+
+const isSuperAdminEditor = computed(() => hasRole('SUPER_ADMIN'))
+const canOpenDashboard = computed(() => isAuthenticated.value && (hasRole('TEAM_REP') || hasRole('SUPER_ADMIN')))
+const canOpenTransfers = computed(() => hasRole('TEAM_REP'))
+const canManagePlayers = computed(() => hasRole('TEAM_REP'))
+
+const activeTeamName = computed(() => {
+  if (!isSuperAdminEditor.value) {
+    return user.value?.teamName || 'Не назначена'
+  }
+  return adminTeams.value.find((team) => String(team.id) === String(selectedAdminTeamId.value))?.name || 'Не выбрана'
+})
 
 const profile = computed(() => ({
   id: user.value?.id || 0,
   name: user.value?.name || 'Неизвестный пользователь',
   email: user.value?.email || '-',
-  teamName: user.value?.teamName || 'Не назначена',
+  teamName: activeTeamName.value,
 }))
 
 const selectedSeasonSummary = computed(() => {
-  return teamSeasons.value.find((season) => String(season.id) === String(selectedSeasonId.value)) || null
+  const summary = teamSeasons.value.find((season) => String(season.id) === String(selectedSeasonId.value)) || null
+  if (!summary) {
+    return null
+  }
+  if (!seasonView.value || String(seasonView.value.seasonId) !== String(selectedSeasonId.value)) {
+    return summary
+  }
+
+  const liveSelectedPlayersCount = Array.isArray(seasonView.value.players)
+    ? seasonView.value.players.filter((player) => player.selectedForSeason).length
+    : summary.selectedPlayersCount
+
+  return {
+    ...summary,
+    applicationDeadline: seasonView.value.applicationDeadline ?? summary.applicationDeadline,
+    status: seasonView.value.status ?? summary.status,
+    maxRosterSize: seasonView.value.maxRosterSize ?? summary.maxRosterSize,
+    transferWindowStartDate: seasonView.value.transferWindowStartDate ?? summary.transferWindowStartDate,
+    transferWindowEndDate: seasonView.value.transferWindowEndDate ?? summary.transferWindowEndDate,
+    applicationOpen: Boolean(seasonView.value.applicationOpen),
+    selectedPlayersCount: liveSelectedPlayersCount,
+    applicationStatus: seasonView.value.applicationStatus ?? summary.applicationStatus,
+    applicationSubmittedAt: seasonView.value.applicationSubmittedAt ?? summary.applicationSubmittedAt,
+    applicationDecisionAt: seasonView.value.applicationDecisionAt ?? summary.applicationDecisionAt,
+    applicationDecisionComment: seasonView.value.applicationDecisionComment ?? summary.applicationDecisionComment,
+    applicationSubmittable: Boolean(seasonView.value.applicationSubmittable),
+  }
+})
+
+const canEditSelectedSeasonApplication = computed(() => {
+  if (!selectedSeasonSummary.value) {
+    return false
+  }
+  const status = String(selectedSeasonSummary.value.applicationStatus || 'DRAFT')
+  return selectedSeasonSummary.value.applicationOpen && (status === 'DRAFT' || status === 'RETURNED' || status === 'APPROVED')
 })
 
 const displayedTeamPlayers = computed(() => {
-  const players = Array.isArray(teamPlayers.value) ? teamPlayers.value : []
+  const rosterPlayers = Array.isArray(teamPlayers.value) ? teamPlayers.value : []
+  const hasLiveSeasonView = seasonView.value && String(seasonView.value.seasonId) === String(selectedSeasonId.value)
+
+  if (!hasLiveSeasonView) {
+    if (!showSelectedSeasonPlayersOnly.value || !selectedSeasonId.value) {
+      return rosterPlayers
+    }
+    return rosterPlayers.filter(player => playerHasSelectedSeason(player))
+  }
+
+  const mergedPlayers = new Map()
+
+  for (const player of rosterPlayers) {
+    mergedPlayers.set(String(player.id), { ...player })
+  }
+
+  for (const player of seasonView.value.players || []) {
+    const key = String(player.id)
+    mergedPlayers.set(key, {
+      ...(mergedPlayers.get(key) || {}),
+      ...player,
+    })
+  }
+
+  const players = Array.from(mergedPlayers.values()).sort((left, right) =>
+    String(left.fullName || '').localeCompare(String(right.fullName || ''), 'ru', { sensitivity: 'base' })
+  )
+
   if (!showSelectedSeasonPlayersOnly.value || !selectedSeasonId.value) {
     return players
   }
 
-  return players.filter(player => playerHasSelectedSeason(player))
+  return players.filter((player) => player.selectedForSeason || playerHasSelectedSeason(player))
 })
 
 const seasonSelectablePlayers = computed(() => {
@@ -365,7 +473,7 @@ const seasonSelectablePlayerOptions = computed(() => {
 })
 
 watchEffect(() => {
-  if (isAuthenticated.value && hasRole('TEAM_REP')) {
+  if (canOpenDashboard.value) {
     return
   }
 
@@ -377,12 +485,25 @@ watchEffect(() => {
 
 onMounted(async () => {
   await loadCurrentUser().catch(() => null)
-  if (isAuthenticated.value && hasRole('TEAM_REP')) {
-    await loadDashboard()
+  if (!canOpenDashboard.value) {
+    return
   }
+  if (isSuperAdminEditor.value) {
+    await loadAdminTeams()
+    selectedAdminTeamId.value = String(route.query.teamId || '')
+    return
+  }
+  if (route.query.seasonId) {
+    selectedSeasonId.value = String(route.query.seasonId)
+  }
+  await loadDashboard()
 })
 
 watch(selectedSeasonId, async (seasonId) => {
+  if (suspendSeasonSelectionWatch) {
+    return
+  }
+  syncDashboardQuery(selectedAdminTeamId.value, seasonId)
   if (!seasonId) {
     seasonView.value = null
     seasonError.value = ''
@@ -394,18 +515,120 @@ watch(selectedSeasonId, async (seasonId) => {
   await loadSeasonView(seasonId)
 })
 
+watch(selectedAdminTeamId, async (teamId) => {
+  if (!isSuperAdminEditor.value) {
+    return
+  }
+
+  const preserveSeasonId = String(route.query.teamId || '') === String(teamId || '')
+    ? String(route.query.seasonId || '')
+    : ''
+  suspendSeasonSelectionWatch = true
+  clearDashboardState()
+  suspendSeasonSelectionWatch = false
+  syncDashboardQuery(teamId, preserveSeasonId)
+  if (!teamId) {
+    return
+  }
+
+  await loadDashboard()
+})
+
+watch(() => route.query.teamId, (teamId) => {
+  if (!isSuperAdminEditor.value) {
+    return
+  }
+  const normalized = String(teamId || '')
+  if (normalized !== String(selectedAdminTeamId.value || '')) {
+    selectedAdminTeamId.value = normalized
+  }
+})
+
+watch(() => route.query.seasonId, (seasonId) => {
+  const normalized = String(seasonId || '')
+  if (normalized !== String(selectedSeasonId.value || '')) {
+    selectedSeasonId.value = normalized
+  }
+})
+
+async function loadAdminTeams() {
+  try {
+    const payload = await authorizedApiRequest('/api/teams?active_flag=1', { method: 'GET' })
+    adminTeams.value = (Array.isArray(payload) ? payload : [])
+      .map((item) => ({
+        id: item.id,
+        name: item.name || 'Без названия',
+      }))
+      .sort((left, right) => String(left.name).localeCompare(String(right.name), 'ru', { sensitivity: 'base' }))
+  } catch (error) {
+    pageError.value = error.message || 'Не удалось загрузить список команд.'
+    adminTeams.value = []
+  }
+}
+
+function teamScopedPath(path) {
+  if (!isSuperAdminEditor.value || !selectedAdminTeamId.value) {
+    return path
+  }
+  const separator = path.includes('?') ? '&' : '?'
+  return `${path}${separator}teamId=${encodeURIComponent(selectedAdminTeamId.value)}`
+}
+
+function syncDashboardQuery(teamId, seasonId) {
+  if (!isSuperAdminEditor.value) {
+    return
+  }
+  const nextTeamId = String(teamId || '')
+  const nextSeasonId = String(seasonId || '')
+  const currentTeamId = String(route.query.teamId || '')
+  const currentSeasonId = String(route.query.seasonId || '')
+  if (nextTeamId === currentTeamId && nextSeasonId === currentSeasonId) {
+    return
+  }
+  router.replace({
+    query: {
+      ...route.query,
+      teamId: nextTeamId || undefined,
+      seasonId: nextSeasonId || undefined,
+    },
+  })
+}
+
+function clearDashboardState() {
+  teamSeasons.value = []
+  teamPlayers.value = []
+  seasonView.value = null
+  selectedSeasonId.value = ''
+  selectedAvailablePlayerIds.value = []
+  seasonError.value = ''
+  seasonSuccess.value = ''
+  showSelectedSeasonPlayersOnly.value = false
+}
+
 async function loadDashboard() {
   dashboardLoading.value = true
   pageError.value = ''
 
+  if (isSuperAdminEditor.value && !selectedAdminTeamId.value) {
+    clearDashboardState()
+    dashboardLoading.value = false
+    return
+  }
+
   try {
     const [seasonsPayload, playersPayload] = await Promise.all([
-      authorizedApiRequest('/api/team-rep/seasons', { method: 'GET' }),
-      authorizedApiRequest('/api/team-rep/players', { method: 'GET' }),
+      authorizedApiRequest(teamScopedPath('/api/team-rep/seasons'), { method: 'GET' }),
+      authorizedApiRequest(teamScopedPath('/api/team-rep/players'), { method: 'GET' }),
     ])
     teamSeasons.value = Array.isArray(seasonsPayload) ? seasonsPayload : []
     teamPlayers.value = Array.isArray(playersPayload) ? playersPayload : []
-    await loadIncomingTransfersNotifications(0)
+    if (canOpenTransfers.value) {
+      await loadIncomingTransfersNotifications(0)
+    }
+    const requestedSeasonId = String(route.query.seasonId || '')
+    if (requestedSeasonId && teamSeasons.value.some((season) => String(season.id) === requestedSeasonId)) {
+      selectedSeasonId.value = requestedSeasonId
+    }
     if (selectedSeasonId.value) {
       const stillExists = teamSeasons.value.some((season) => String(season.id) === String(selectedSeasonId.value))
       if (!stillExists) {
@@ -490,7 +713,7 @@ async function loadSeasonView(seasonId) {
   selectedAvailablePlayerIds.value = []
 
   try {
-    seasonView.value = await authorizedApiRequest(`/api/team-rep/seasons/${encodeURIComponent(seasonId)}/players`, {
+    seasonView.value = await authorizedApiRequest(teamScopedPath(`/api/team-rep/seasons/${encodeURIComponent(seasonId)}/players`), {
       method: 'GET',
     })
   } catch (error) {
@@ -504,7 +727,7 @@ async function openAddPlayerModal(seasonId) {
   seasonError.value = ''
   seasonSuccess.value = ''
   const summary = teamSeasons.value.find((season) => String(season.id) === String(seasonId)) || null
-  if (summary && !summary.applicationOpen) {
+  if (summary && !canEditApplicationSummary(summary)) {
     seasonError.value = summary.applicationDeadline
       ? `Дедлайн добавления игроков истек ${formatDateOnly(summary.applicationDeadline)}.`
       : 'Добавление игроков в заявку этого сезона закрыто.'
@@ -536,6 +759,10 @@ function toggleSelectedSeasonPlayersFilter() {
   showSelectedSeasonPlayersOnly.value = !showSelectedSeasonPlayersOnly.value
 }
 
+function toggleTeamRosterVisibility() {
+  isTeamRosterVisible.value = !isTeamRosterVisible.value
+}
+
 async function removeFromSeason(playerId) {
   await mutateSeasonPlayer(playerId, 'DELETE', 'Игрок убран из заявки сезона.')
 }
@@ -545,7 +772,7 @@ async function addAvailablePlayersToSeason() {
     seasonError.value = 'Выберите хотя бы одного игрока из списка.'
     return
   }
-  if (!seasonView.value.applicationOpen) {
+  if (!canEditApplicationSummary(seasonView.value)) {
     seasonError.value = seasonView.value.applicationDeadline
       ? `Дедлайн добавления игроков истек ${formatDateOnly(seasonView.value.applicationDeadline)}.`
       : 'Добавление игроков в заявку этого сезона закрыто.'
@@ -558,7 +785,7 @@ async function addAvailablePlayersToSeason() {
 
   try {
     seasonView.value = await authorizedApiRequest(
-      `/api/team-rep/seasons/${encodeURIComponent(seasonView.value.seasonId)}/players`,
+      teamScopedPath(`/api/team-rep/seasons/${encodeURIComponent(seasonView.value.seasonId)}/players`),
       {
         method: 'POST',
         body: JSON.stringify({
@@ -577,6 +804,29 @@ async function addAvailablePlayersToSeason() {
   }
 }
 
+async function submitSeasonApplication() {
+  if (!selectedSeasonId.value) {
+    seasonError.value = 'Сначала выберите сезон.'
+    return
+  }
+
+  seasonLoading.value = true
+  seasonError.value = ''
+  seasonSuccess.value = ''
+
+  try {
+    seasonView.value = await authorizedApiRequest(teamScopedPath(`/api/team-rep/seasons/${encodeURIComponent(selectedSeasonId.value)}/submit`), {
+      method: 'POST',
+    })
+    seasonSuccess.value = 'Сезонная заявка отправлена на проверку.'
+    await loadDashboard()
+  } catch (error) {
+    seasonError.value = error.message || 'Не удалось отправить сезонную заявку.'
+  } finally {
+    seasonLoading.value = false
+  }
+}
+
 async function mutateSeasonPlayer(playerId, method, successMessage) {
   if (!seasonView.value) {
     return
@@ -588,7 +838,7 @@ async function mutateSeasonPlayer(playerId, method, successMessage) {
 
   try {
     seasonView.value = await authorizedApiRequest(
-      `/api/team-rep/seasons/${encodeURIComponent(seasonView.value.seasonId)}/players/${encodeURIComponent(playerId)}`,
+      teamScopedPath(`/api/team-rep/seasons/${encodeURIComponent(seasonView.value.seasonId)}/players/${encodeURIComponent(playerId)}`),
       { method }
     )
     selectedAvailablePlayerIds.value = []
@@ -605,6 +855,11 @@ async function mutateSeasonPlayer(playerId, method, successMessage) {
 }
 
 function playerHasSelectedSeason(player) {
+  if (seasonView.value && String(seasonView.value.seasonId) === String(selectedSeasonId.value)) {
+    return Array.isArray(seasonView.value.players)
+      && seasonView.value.players.some((item) => String(item.id) === String(player?.id) && item.selectedForSeason)
+  }
+
   return Array.isArray(player?.seasons)
     && player.seasons.some((season) => String(season.id) === String(selectedSeasonId.value))
 }
@@ -747,11 +1002,42 @@ function formatPlayerOptionLabel(player) {
   return `${player.fullName || ''}`
 }
 
+function canEditApplicationSummary(summary) {
+  if (!summary) {
+    return false
+  }
+  const status = String(summary.applicationStatus || 'DRAFT')
+  return Boolean(summary.applicationOpen) && (status === 'DRAFT' || status === 'RETURNED' || status === 'APPROVED')
+}
+
 function formatSeasonStatus(status) {
   if (status === 'ACTIVE') return 'Активный'
   if (status === 'CLOSED') return 'Закрыт'
   if (status === 'DRAFT') return 'Черновик'
   return status || '—'
+}
+
+function formatApplicationStatus(status) {
+  if (status === 'DRAFT') return 'Черновик'
+  if (status === 'SUBMITTED') return 'На проверке'
+  if (status === 'RETURNED') return 'На доработке'
+  if (status === 'APPROVED') return 'Одобрена'
+  if (status === 'REJECTED') return 'Отклонена'
+  return status || '—'
+}
+
+function applicationStatusChipClass(status) {
+  if (status === 'APPROVED') return 'team-rep-season-chip-open'
+  if (status === 'RETURNED' || status === 'REJECTED') return 'team-rep-season-chip-closed'
+  if (status === 'SUBMITTED') return 'team-rep-season-chip-review'
+  return ''
+}
+
+function applicationReviewNoteClass(status) {
+  if (status === 'APPROVED') return 'team-rep-review-note-approved'
+  if (status === 'RETURNED') return 'team-rep-review-note-returned'
+  if (status === 'REJECTED') return 'team-rep-review-note-rejected'
+  return ''
 }
 </script>
 
@@ -840,6 +1126,36 @@ function formatSeasonStatus(status) {
 .team-rep-season-chip-closed {
   background: rgba(255, 184, 107, 0.1);
   border-color: rgba(255, 184, 107, 0.28);
+}
+
+.team-rep-season-chip-review {
+  background: rgba(123, 180, 255, 0.12);
+  border-color: rgba(123, 180, 255, 0.32);
+}
+
+.team-rep-review-note {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 184, 107, 0.25);
+  background: rgba(255, 184, 107, 0.08);
+}
+
+.team-rep-review-note p {
+  margin: 0;
+}
+
+.team-rep-review-note-approved {
+  border-color: rgba(97, 232, 162, 0.28);
+  background: rgba(97, 232, 162, 0.08);
+}
+
+.team-rep-review-note-returned,
+.team-rep-review-note-rejected {
+  border-color: rgba(255, 154, 139, 0.28);
+  background: rgba(255, 154, 139, 0.08);
 }
 
 .team-rep-filter-hint {

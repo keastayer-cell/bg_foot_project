@@ -2,10 +2,13 @@ package com.footballstats.backend.service;
 
 import com.footballstats.backend.domain.MatchProtocol;
 import com.footballstats.backend.domain.MatchProtocolStatus;
+import com.footballstats.backend.domain.SeasonApplication;
+import com.footballstats.backend.domain.SeasonApplicationStatus;
 import com.footballstats.backend.domain.SeasonPlayer;
 import com.footballstats.backend.domain.SeasonTeam;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.TourMatch;
+import com.footballstats.backend.repository.SeasonApplicationRepository;
 import com.footballstats.backend.repository.SeasonTeamRepository;
 import com.footballstats.backend.repository.TeamRepository;
 import com.footballstats.backend.repository.TourMatchRepository;
@@ -26,22 +29,26 @@ public class TeamProfileService {
     private final TourMatchRepository tourMatchRepository;
     private final MediaAssetService mediaAssetService;
     private final SeasonPlayerService seasonPlayerService;
+    private final SeasonApplicationRepository seasonApplicationRepository;
 
     public TeamProfileService(
         TeamRepository teamRepository,
         SeasonTeamRepository seasonTeamRepository,
         TourMatchRepository tourMatchRepository,
         MediaAssetService mediaAssetService,
-        SeasonPlayerService seasonPlayerService
+        SeasonPlayerService seasonPlayerService,
+        SeasonApplicationRepository seasonApplicationRepository
     ) {
         this.teamRepository = teamRepository;
         this.seasonTeamRepository = seasonTeamRepository;
         this.tourMatchRepository = tourMatchRepository;
         this.mediaAssetService = mediaAssetService;
         this.seasonPlayerService = seasonPlayerService;
+        this.seasonApplicationRepository = seasonApplicationRepository;
     }
 
     @Transactional(readOnly = true)
+    @SuppressWarnings("null")
     public TeamProfileData getTeamProfile(Long teamId) {
         Team team = teamRepository.findById(teamId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда не найдена."));
@@ -75,20 +82,37 @@ public class TeamProfileService {
     }
 
     @Transactional(readOnly = true)
-    public List<TeamSeasonRosterPlayerData> getSeasonRoster(Long teamId, Long seasonId) {
+    @SuppressWarnings("null")
+    public TeamSeasonRosterViewData getSeasonRoster(Long teamId, Long seasonId) {
         teamRepository.findById(teamId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда не найдена."));
 
-        return seasonPlayerService.listActiveSeasonPlayers(teamId, seasonId).stream()
+        SeasonApplication application = seasonApplicationRepository.findDetailedBySeasonIdAndTeamId(seasonId, teamId)
+            .orElse(null);
+        String representativeName = application != null && application.getRepresentativeUser() != null
+            ? application.getRepresentativeUser().getName()
+            : null;
+        List<TeamSeasonRosterPlayerData> activePlayers = seasonPlayerService.listActiveSeasonPlayers(teamId, seasonId).stream()
             .map(SeasonPlayer::getPlayer)
             .map(player -> new TeamSeasonRosterPlayerData(
                 player.getId(),
                 player.getFullName(),
                 player.isGoalkeeper(),
                 player.getBirthDate(),
+                player.getResidence(),
                 mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO)
             ))
             .toList();
+
+        if (!activePlayers.isEmpty()) {
+            return new TeamSeasonRosterViewData(SeasonRosterStatus.APPROVED, representativeName, activePlayers);
+        }
+
+        if (application != null && application.getStatus() == SeasonApplicationStatus.SUBMITTED) {
+            return new TeamSeasonRosterViewData(SeasonRosterStatus.UNDER_REVIEW, representativeName, List.of());
+        }
+
+        return new TeamSeasonRosterViewData(SeasonRosterStatus.WAITING_FILL, representativeName, List.of());
     }
 
     private boolean isCompletedMatch(TourMatch match) {
@@ -175,8 +199,21 @@ public class TeamProfileService {
         String fullName,
         boolean goalkeeper,
         LocalDate birthDate,
+        String residence,
         String photoDataUrl
     ) {}
+
+    public record TeamSeasonRosterViewData(
+        SeasonRosterStatus status,
+        String representativeName,
+        List<TeamSeasonRosterPlayerData> players
+    ) {}
+
+    public enum SeasonRosterStatus {
+        WAITING_FILL,
+        UNDER_REVIEW,
+        APPROVED
+    }
 
     public record TeamMatchData(
         Long matchId,

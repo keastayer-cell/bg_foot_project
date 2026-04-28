@@ -3,11 +3,14 @@ package com.footballstats.backend.service;
 import com.footballstats.backend.domain.Player;
 import com.footballstats.backend.domain.PlayerTeam;
 import com.footballstats.backend.domain.Season;
+import com.footballstats.backend.domain.SeasonApplicationStatus;
 import com.footballstats.backend.domain.SeasonStatus;
 import com.footballstats.backend.domain.SeasonPlayer;
+import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.UserTeamScope;
 import com.footballstats.backend.repository.PlayerRepository;
 import com.footballstats.backend.repository.PlayerTeamRepository;
+import com.footballstats.backend.repository.TeamRepository;
 import com.footballstats.backend.repository.UserTeamScopeRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,46 +32,50 @@ public class TeamRepService {
     private final UserTeamScopeRepository userTeamScopeRepository;
     private final PlayerRepository playerRepository;
     private final PlayerTeamRepository playerTeamRepository;
+    private final TeamRepository teamRepository;
     private final SeasonPlayerService seasonPlayerService;
     private final MediaAssetService mediaAssetService;
+    private final SeasonApplicationService seasonApplicationService;
 
     public TeamRepService(
         UserTeamScopeRepository userTeamScopeRepository,
         PlayerRepository playerRepository,
         PlayerTeamRepository playerTeamRepository,
+        TeamRepository teamRepository,
         SeasonPlayerService seasonPlayerService,
-        MediaAssetService mediaAssetService
+        MediaAssetService mediaAssetService,
+        SeasonApplicationService seasonApplicationService
     ) {
         this.userTeamScopeRepository = userTeamScopeRepository;
         this.playerRepository = playerRepository;
         this.playerTeamRepository = playerTeamRepository;
+        this.teamRepository = teamRepository;
         this.seasonPlayerService = seasonPlayerService;
         this.mediaAssetService = mediaAssetService;
+        this.seasonApplicationService = seasonApplicationService;
     }
 
     @Transactional(readOnly = true)
     public List<TeamRepSeasonData> listAvailableSeasons(Long userId) {
-        TeamScopeContext context = requireScope(userId);
-        long rosterCount = playerTeamRepository.findCurrentRosterByTeamId(context.teamId()).size();
+        return listAvailableSeasons(new TeamRepActor(userId, false), null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeamRepSeasonData> listAvailableSeasons(TeamRepActor actor, Long requestedTeamId) {
+        TeamScopeContext context = requireTeamAccess(actor, requestedTeamId);
         return seasonPlayerService.listAvailableSeasonsForTeam(context.teamId()).stream()
-            .map(season -> new TeamRepSeasonData(
-                season.getId(),
-                season.getName(),
-                season.getApplicationDeadline(),
-                season.getStatus(),
-                season.getMaxRosterSize(),
-                season.getTransferWindowStartDate(),
-                season.getTransferWindowEndDate(),
-                isApplicationOpen(season),
-                rosterCount,
-                seasonPlayerService.countActiveSeasonPlayers(context.teamId(), season.getId())
-            ))
+            .map(season -> seasonApplicationService.toSeasonSummary(actor.userId(), context.teamId(), season, context.privilegedAccess()))
             .toList();
     }
 
     @Transactional(readOnly = true)
     public List<TeamRepPlayerData> listTeamPlayers(Long userId) {
-        TeamScopeContext context = requireScope(userId);
+        return listTeamPlayers(new TeamRepActor(userId, false), null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeamRepPlayerData> listTeamPlayers(TeamRepActor actor, Long requestedTeamId) {
+        TeamScopeContext context = requireTeamAccess(actor, requestedTeamId);
         List<PlayerTeam> rosterMemberships = playerTeamRepository.findCurrentRosterByTeamId(context.teamId());
         Set<Long> rosterPlayerIds = rosterMemberships.stream()
             .map(item -> item.getPlayer().getId())
@@ -92,71 +99,13 @@ public class TeamRepService {
 
     @Transactional(readOnly = true)
     public TeamRepSeasonPlayersData getSeasonPlayers(Long userId, Long seasonId) {
-        TeamScopeContext context = requireApplicationScope(userId);
-        Set<Long> selectedPlayerIds = seasonPlayerService.getActivePlayerIds(context.teamId(), seasonId);
-        Season season = seasonPlayerService.listAvailableSeasonsForTeam(context.teamId()).stream()
-            .filter(item -> item.getId().equals(seasonId))
-            .findFirst()
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сезон команды не найден."));
+        return getSeasonPlayers(new TeamRepActor(userId, false), seasonId, null);
+    }
 
-        Map<Long, TeamRepSeasonPlayerData> playersById = new LinkedHashMap<>();
-
-        for (Player player : playerTeamRepository.findCurrentRosterByTeamId(context.teamId()).stream().map(PlayerTeam::getPlayer).toList()) {
-            playersById.put(player.getId(), new TeamRepSeasonPlayerData(
-                player.getId(),
-                player.getFullName(),
-                player.getBirthDate(),
-                player.getResidence(),
-                player.isGoalkeeper(),
-                mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
-                selectedPlayerIds.contains(player.getId()),
-                true
-            ));
-        }
-
-        for (SeasonPlayer seasonPlayer : seasonPlayerService.listActiveSeasonPlayers(context.teamId(), seasonId)) {
-            Player player = seasonPlayer.getPlayer();
-            playersById.put(player.getId(), new TeamRepSeasonPlayerData(
-                player.getId(),
-                player.getFullName(),
-                player.getBirthDate(),
-                player.getResidence(),
-                player.isGoalkeeper(),
-                mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
-                true,
-                playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(player.getId(), context.teamId()).isPresent()
-            ));
-        }
-
-        List<TeamRepSeasonPlayerData> players = playersById.values().stream()
-            .sorted(Comparator.comparing(TeamRepSeasonPlayerData::fullName, String.CASE_INSENSITIVE_ORDER))
-            .toList();
-
-        List<TeamRepAvailablePlayerData> availablePlayers = seasonPlayerService.listAvailablePlayersForSeason(context.teamId(), seasonId).stream()
-            .map(player -> new TeamRepAvailablePlayerData(
-                player.getId(),
-                player.getFullName(),
-                player.getBirthDate(),
-                player.getResidence(),
-                player.isGoalkeeper(),
-                mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO)
-            ))
-            .toList();
-
-        return new TeamRepSeasonPlayersData(
-            season.getId(),
-            season.getName(),
-            season.getApplicationDeadline(),
-            season.getStatus(),
-            season.getMaxRosterSize(),
-            season.getTransferWindowStartDate(),
-            season.getTransferWindowEndDate(),
-            isApplicationOpen(season),
-            context.teamId(),
-            context.teamName(),
-            players,
-            availablePlayers
-        );
+    @Transactional(readOnly = true)
+    public TeamRepSeasonPlayersData getSeasonPlayers(TeamRepActor actor, Long seasonId, Long requestedTeamId) {
+        TeamScopeContext context = requireApplicationAccess(actor, requestedTeamId);
+        return seasonApplicationService.getSeasonApplicationView(actor.userId(), seasonId, context.teamId(), context.privilegedAccess());
     }
 
     @Transactional
@@ -245,46 +194,71 @@ public class TeamRepService {
 
     @Transactional
     public TeamRepSeasonPlayersData replaceSeasonPlayers(Long userId, Long seasonId, List<Long> playerIds) {
-        TeamScopeContext context = requireApplicationScope(userId);
-        ensureSeasonApplicationOpenForAdditions(context.teamId(), seasonId, playerIds);
-        seasonPlayerService.replaceSeasonPlayers(context.teamId(), seasonId, playerIds, userId);
-        return getSeasonPlayers(userId, seasonId);
+        return replaceSeasonPlayers(new TeamRepActor(userId, false), seasonId, playerIds, null);
+    }
+
+    @Transactional
+    public TeamRepSeasonPlayersData replaceSeasonPlayers(TeamRepActor actor, Long seasonId, List<Long> playerIds, Long requestedTeamId) {
+        TeamRepSeasonPlayersData current = getSeasonPlayers(actor, seasonId, requestedTeamId);
+        Set<Long> targetIds = new LinkedHashSet<>(playerIds == null ? List.of() : playerIds);
+        Set<Long> currentIds = current.players().stream()
+            .filter(TeamRepSeasonPlayerData::selectedForSeason)
+            .map(TeamRepSeasonPlayerData::id)
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        for (Long currentId : currentIds) {
+            if (!targetIds.contains(currentId)) {
+                seasonApplicationService.removePlayer(actor.userId(), seasonId, currentId, current.teamId(), current.teamId() != null && actor.superAdmin());
+            }
+        }
+        Set<Long> toAdd = new LinkedHashSet<>(targetIds);
+        toAdd.removeAll(currentIds);
+        if (!toAdd.isEmpty()) {
+            seasonApplicationService.addPlayers(actor.userId(), seasonId, List.copyOf(toAdd), current.teamId(), current.teamId() != null && actor.superAdmin());
+        }
+        return getSeasonPlayers(actor, seasonId, requestedTeamId);
     }
 
     @Transactional
     public TeamRepSeasonPlayersData addSeasonPlayers(Long userId, Long seasonId, List<Long> playerIds) {
-        TeamScopeContext context = requireApplicationScope(userId);
-        ensureSeasonApplicationOpenForAdditions(context.teamId(), seasonId, playerIds);
-        java.util.LinkedHashSet<Long> ids = new java.util.LinkedHashSet<>(playerIds == null ? List.of() : playerIds.stream().filter(java.util.Objects::nonNull).toList());
-        for (Long playerId : ids) {
-            boolean alreadyInRoster = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, context.teamId()).isPresent();
-            if (alreadyInRoster) {
-                seasonPlayerService.addSeasonPlayer(context.teamId(), seasonId, playerId, userId);
-            } else {
-                seasonPlayerService.attachAvailablePlayerToTeamAndSeason(context.teamId(), seasonId, playerId, userId);
-            }
-        }
-        return getSeasonPlayers(userId, seasonId);
+        return addSeasonPlayers(new TeamRepActor(userId, false), seasonId, playerIds, null);
+    }
+
+    @Transactional
+    public TeamRepSeasonPlayersData addSeasonPlayers(TeamRepActor actor, Long seasonId, List<Long> playerIds, Long requestedTeamId) {
+        TeamScopeContext context = requireApplicationAccess(actor, requestedTeamId);
+        return seasonApplicationService.addPlayers(actor.userId(), seasonId, playerIds, context.teamId(), context.privilegedAccess());
     }
 
     @Transactional
     public TeamRepSeasonPlayersData addSeasonPlayer(Long userId, Long seasonId, Long playerId) {
-        TeamScopeContext context = requireApplicationScope(userId);
-        ensureSeasonApplicationOpenForAdditions(context.teamId(), seasonId, List.of(playerId));
-        boolean alreadyInRoster = playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, context.teamId()).isPresent();
-        if (alreadyInRoster) {
-            seasonPlayerService.addSeasonPlayer(context.teamId(), seasonId, playerId, userId);
-        } else {
-            seasonPlayerService.attachAvailablePlayerToTeamAndSeason(context.teamId(), seasonId, playerId, userId);
-        }
-        return getSeasonPlayers(userId, seasonId);
+        return addSeasonPlayer(new TeamRepActor(userId, false), seasonId, playerId, null);
+    }
+
+    @Transactional
+    public TeamRepSeasonPlayersData addSeasonPlayer(TeamRepActor actor, Long seasonId, Long playerId, Long requestedTeamId) {
+        return addSeasonPlayers(actor, seasonId, List.of(playerId), requestedTeamId);
     }
 
     @Transactional
     public TeamRepSeasonPlayersData removeSeasonPlayer(Long userId, Long seasonId, Long playerId) {
-        TeamScopeContext context = requireApplicationScope(userId);
-        seasonPlayerService.removeSeasonPlayer(context.teamId(), seasonId, playerId, userId);
-        return getSeasonPlayers(userId, seasonId);
+        return removeSeasonPlayer(new TeamRepActor(userId, false), seasonId, playerId, null);
+    }
+
+    @Transactional
+    public TeamRepSeasonPlayersData removeSeasonPlayer(TeamRepActor actor, Long seasonId, Long playerId, Long requestedTeamId) {
+        TeamScopeContext context = requireApplicationAccess(actor, requestedTeamId);
+        return seasonApplicationService.removePlayer(actor.userId(), seasonId, playerId, context.teamId(), context.privilegedAccess());
+    }
+
+    @Transactional
+    public TeamRepSeasonPlayersData submitSeasonApplication(Long userId, Long seasonId) {
+        return submitSeasonApplication(new TeamRepActor(userId, false), seasonId, null);
+    }
+
+    @Transactional
+    public TeamRepSeasonPlayersData submitSeasonApplication(TeamRepActor actor, Long seasonId, Long requestedTeamId) {
+        TeamScopeContext context = requireApplicationAccess(actor, requestedTeamId);
+        return seasonApplicationService.submit(actor.userId(), seasonId, context.teamId(), context.privilegedAccess());
     }
 
     private TeamRepPlayerData toPlayerData(Player player, List<TeamRepPlayerSeasonData> seasons) {
@@ -305,7 +279,23 @@ public class TeamRepService {
         UserTeamScope scope = userTeamScopeRepository.findByUser_IdAndActiveTrue(userId).stream()
             .findFirst()
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Для пользователя не назначена команда."));
-        return new TeamScopeContext(scope, scope.getTeam().getId(), scope.getTeam().getName());
+        return new TeamScopeContext(scope, scope.getTeam().getId(), scope.getTeam().getName(), scope.getTeam(), false);
+    }
+
+    private TeamScopeContext requirePrivilegedScope(Long requestedTeamId) {
+        if (requestedTeamId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Для режима SUPER_ADMIN нужно указать teamId.");
+        }
+        Team team = teamRepository.findById(requestedTeamId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Команда не найдена."));
+        return new TeamScopeContext(null, team.getId(), team.getName(), team, true);
+    }
+
+    private TeamScopeContext requireTeamAccess(TeamRepActor actor, Long requestedTeamId) {
+        if (actor.superAdmin()) {
+            return requirePrivilegedScope(requestedTeamId);
+        }
+        return requireScope(actor.userId());
     }
 
     private TeamScopeContext requireRosterScope(Long userId) {
@@ -322,6 +312,13 @@ public class TeamRepService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Нет прав на редактирование заявки сезона.");
         }
         return context;
+    }
+
+    private TeamScopeContext requireApplicationAccess(TeamRepActor actor, Long requestedTeamId) {
+        if (actor.superAdmin()) {
+            return requirePrivilegedScope(requestedTeamId);
+        }
+        return requireApplicationScope(actor.userId());
     }
 
     private void ensureSeasonApplicationOpenForAdditions(Long teamId, Long seasonId, List<Long> playerIds) {
@@ -365,7 +362,9 @@ public class TeamRepService {
         return normalized;
     }
 
-    private record TeamScopeContext(UserTeamScope scope, Long teamId, String teamName) {}
+    private record TeamScopeContext(UserTeamScope scope, Long teamId, String teamName, Team team, boolean privilegedAccess) {}
+
+    public record TeamRepActor(Long userId, boolean superAdmin) {}
 
     public record TeamRepSeasonData(
         Long id,
@@ -377,7 +376,12 @@ public class TeamRepService {
         LocalDate transferWindowEndDate,
         boolean applicationOpen,
         long rosterPlayersCount,
-        long selectedPlayersCount
+        long selectedPlayersCount,
+        SeasonApplicationStatus applicationStatus,
+        OffsetDateTime applicationSubmittedAt,
+        OffsetDateTime applicationDecisionAt,
+        String applicationDecisionComment,
+        boolean applicationSubmittable
     ) {}
 
     public record TeamRepPlayerData(
@@ -406,7 +410,13 @@ public class TeamRepService {
         Long teamId,
         String teamName,
         List<TeamRepSeasonPlayerData> players,
-        List<TeamRepAvailablePlayerData> availablePlayers
+        List<TeamRepAvailablePlayerData> availablePlayers,
+        Long applicationId,
+        SeasonApplicationStatus applicationStatus,
+        OffsetDateTime applicationSubmittedAt,
+        OffsetDateTime applicationDecisionAt,
+        String applicationDecisionComment,
+        boolean applicationSubmittable
     ) {}
 
     public record TeamRepSeasonPlayerData(

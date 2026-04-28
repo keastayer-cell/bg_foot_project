@@ -48,6 +48,12 @@ public class Season {
     @Column(name = "transfer_window_end_date")
     private LocalDate transferWindowEndDate;
 
+    @Column(name = "regulation_media_id")
+    private Long regulationMediaId;
+
+    @Column(name = "regulation_updated_at")
+    private OffsetDateTime regulationUpdatedAt;
+
     @Column(name = "created_by_user_id")
     private Long createdByUserId;
 
@@ -77,6 +83,22 @@ public class Season {
 
     public Long getCreatedByUserId() {
         return createdByUserId;
+    }
+
+    public Long getRegulationMediaId() {
+        return regulationMediaId;
+    }
+
+    public void setRegulationMediaId(Long regulationMediaId) {
+        this.regulationMediaId = regulationMediaId;
+    }
+
+    public OffsetDateTime getRegulationUpdatedAt() {
+        return regulationUpdatedAt;
+    }
+
+    public void setRegulationUpdatedAt(OffsetDateTime regulationUpdatedAt) {
+        this.regulationUpdatedAt = regulationUpdatedAt;
     }
 
     public int getRoundsCount() {

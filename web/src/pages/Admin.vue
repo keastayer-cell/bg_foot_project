@@ -19,7 +19,7 @@
               class="btn-ghost admin-tab-btn"
               :class="{ 'admin-tab-active': activeTab === tab.id }"
               type="button"
-              @click="activeTab = tab.id"
+              @click="handleAdminTabClick(tab.id)"
             >
               <span class="admin-tab-label">{{ tab.label }}</span>
             </button>
@@ -639,6 +639,10 @@
                 <div class="admin-team-season-summary">
                   <span class="admin-season-player-badge is-selected">В заявке: {{ teamSeasonSelectedPlayers.length }}</span>
                   <span class="admin-season-player-badge is-not-selected">Доступно: {{ teamSeasonAvailablePlayers.length }}</span>
+                  <span v-if="teamSeasonMaxRosterSize" class="admin-season-player-badge">Лимит: {{ teamSeasonMaxRosterSize }}</span>
+                  <span v-if="teamSeasonMaxRosterSize" class="admin-season-player-badge" :class="teamSeasonRemainingSlots > 0 ? 'is-not-selected' : 'is-selected'">
+                    Осталось мест: {{ teamSeasonRemainingSlots }}
+                  </span>
                 </div>
 
                 <div class="admin-team-season-action-block">
@@ -653,15 +657,21 @@
                       placeholder="Выберите игроков для заявки"
                       search-placeholder="Начните вводить ФИО игрока"
                       empty-text="Нет доступных игроков для добавления"
-                      :disabled="teamSeasonBusy || !teamSeasonAddOptions.length"
+                      :disabled="teamSeasonBusy || !teamSeasonAddOptions.length || isTeamSeasonAtLimit"
                     />
                   </label>
                   <div class="admin-team-picker-side admin-team-picker-side-inline">
                     <span class="admin-team-picker-count">Выбрано: {{ teamSeasonToAddIds.length }}</span>
-                    <button class="btn-primary btn-sm" type="button" @click="addSelectedPlayersToSeason" :disabled="teamSeasonBusy || !teamSeasonToAddIds.length">
+                    <button class="btn-primary btn-sm" type="button" @click="addSelectedPlayersToSeason" :disabled="teamSeasonBusy || !teamSeasonToAddIds.length || willSelectedPlayersExceedSeasonLimit">
                       Добавить выбранных
                     </button>
                   </div>
+                  <p v-if="teamSeasonMaxRosterSize && isTeamSeasonAtLimit" class="muted-text">
+                    Лимит заявки уже достигнут. Сначала уберите кого-то из сезона.
+                  </p>
+                  <p v-else-if="willSelectedPlayersExceedSeasonLimit" class="error-text">
+                    Нельзя добавить {{ teamSeasonToAddIds.length }} игрок(ов): будет превышен лимит {{ teamSeasonMaxRosterSize }}.
+                  </p>
                 </div>
 
                 <div class="admin-team-season-action-block" v-if="teamSeasonRemoveOptions.length">
@@ -969,6 +979,12 @@
       </div>
     </article>
 
+    <AdminLeagueContent
+      v-if="activeTab === 'league'"
+      :seasons-list="seasonsList"
+      @refresh-seasons="handleLeagueSeasonRefresh"
+    />
+
     <article class="card admin-panel" v-if="activeTab === 'roles'">
       <div class="admin-panel-head">
         <h3 class="section-title">Роли и доступ</h3>
@@ -1137,9 +1153,11 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
 import { useStore } from '../store/store'
 import SearchableSelect from '../components/SearchableSelect.vue'
+import AdminLeagueContent from '../components/AdminLeagueContent.vue'
 
 const USERS_KEY = 'football_stats_admin_users_registry'
 
@@ -1152,6 +1170,14 @@ const tabGroups = [
       {
         id: 'seasons',
         label: 'Сезоны',
+      },
+      {
+        id: 'season-applications',
+        label: 'Заявки на сезон',
+      },
+      {
+        id: 'transfers',
+        label: 'Трансферы',
       },
       {
         id: 'teams',
@@ -1181,6 +1207,10 @@ const tabGroups = [
         label: 'Роли и доступ',
       },
       {
+        id: 'league',
+        label: 'Лига',
+      },
+      {
         id: 'representatives',
         label: 'Представители',
       },
@@ -1205,6 +1235,7 @@ const visibleTabGroups = computed(() => {
 })
 
 const activeTab = ref('seasons')
+const router = useRouter()
 
 const { authorizedApiRequest, authorizedApiRequestRaw, hasRole } = useAuth()
 const { loadSeasons } = useStore()
@@ -1220,6 +1251,18 @@ const refereesList = ref([])
 const usersRegistry = ref(loadFromStorage(USERS_KEY))
 const roleUsersList = ref([])
 const repUsersList = ref([])
+
+function handleAdminTabClick(tabId) {
+  if (tabId === 'season-applications') {
+    router.push('/season-applications-review')
+    return
+  }
+  if (tabId === 'transfers') {
+    router.push('/team-rep-transfers')
+    return
+  }
+  activeTab.value = tabId
+}
 
 const messageError = ref('')
 const messageOk = ref('')
@@ -1473,6 +1516,34 @@ const teamSeasonSelectedPlayers = computed(() => {
 
 const teamSeasonAvailablePlayers = computed(() => {
   return teamSeasonPlayers.value.filter((player) => !player?.selectedForSeason)
+})
+
+const selectedAdminTeamSeason = computed(() => {
+  return teamSeasonOptions.value.find((season) => String(season.id) === String(selectedTeamSeasonId.value)) || null
+})
+
+const teamSeasonMaxRosterSize = computed(() => {
+  const rawValue = selectedAdminTeamSeason.value?.maxRosterSize
+  const normalized = Number(rawValue)
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : null
+})
+
+const teamSeasonRemainingSlots = computed(() => {
+  if (!teamSeasonMaxRosterSize.value) {
+    return null
+  }
+  return Math.max(teamSeasonMaxRosterSize.value - teamSeasonSelectedPlayers.value.length, 0)
+})
+
+const isTeamSeasonAtLimit = computed(() => {
+  return teamSeasonRemainingSlots.value === 0
+})
+
+const willSelectedPlayersExceedSeasonLimit = computed(() => {
+  if (teamSeasonRemainingSlots.value == null) {
+    return false
+  }
+  return teamSeasonToAddIds.value.length > teamSeasonRemainingSlots.value
 })
 
 const teamSeasonAddOptions = computed(() => {
@@ -1998,6 +2069,11 @@ async function loadSeasonRegistry() {
   }
 }
 
+async function handleLeagueSeasonRefresh() {
+  await loadSeasonRegistry()
+  await loadSeasons()
+}
+
 function toggleSeasonProtocolMenu() {
   if (!editingSeasonId.value || downloadingSeasonProtocols.value) return
   seasonProtocolMenuOpen.value = !seasonProtocolMenuOpen.value
@@ -2397,6 +2473,10 @@ async function addSelectedPlayersToSeason() {
   const playerIds = normalizePositiveIdList(teamSeasonToAddIds.value)
   if (!playerIds.length) {
     messageError.value = 'Выберите хотя бы одного игрока для добавления в заявку сезона.'
+    return
+  }
+  if (teamSeasonRemainingSlots.value != null && playerIds.length > teamSeasonRemainingSlots.value) {
+    messageError.value = `Нельзя превысить лимит заявки сезона: ${teamSeasonMaxRosterSize.value}.`
     return
   }
 
@@ -4345,6 +4425,40 @@ onMounted(async () => {
   .tour-publish-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .admin-team-identity-head,
+  .admin-team-management-head,
+  .admin-team-head-actions,
+  .admin-team-picker-side,
+  .admin-inline-check,
+  .tour-match-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-team-head-actions > *,
+  .admin-team-picker-side > *,
+  .admin-team-picker-side .btn-primary,
+  .admin-team-picker-side .btn-danger,
+  .admin-sticky-actions > *,
+  .tour-match-item > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-team-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-team-management-card,
+  .admin-season-section,
+  .admin-season-section-compact {
+    padding: 14px;
+  }
+
+  .admin-season-picked-item {
+    gap: 10px;
   }
 
   .admin-surface,

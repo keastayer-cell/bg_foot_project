@@ -3,6 +3,7 @@ package com.footballstats.backend.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.footballstats.backend.domain.AppUser;
+import com.footballstats.backend.domain.Season;
 import com.footballstats.backend.domain.Team;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,6 +89,41 @@ public class NotificationEventService {
         payload.put("contactEmail", "info@bgfoot.ru");
 
         return enqueueEvent("PASSWORD_RESET_REQUESTED", user.getId(), payload, user.getId(), true);
+    }
+
+    public Long enqueueSeasonApplicationSubmittedToReferee(AppUser refereeUser, Team team, Season season) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("recipientName", refereeUser.getName());
+        payload.put("recipientEmail", refereeUser.getEmail());
+        payload.put("teamName", team.getName());
+        payload.put("seasonName", season.getName());
+        return enqueueEvent("SEASON_APPLICATION_SUBMITTED_TO_REFEREE", refereeUser.getId(), payload, null, true);
+    }
+
+    public Long enqueueSeasonApplicationApproved(AppUser representativeUser, Season season) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("recipientName", representativeUser.getName());
+        payload.put("recipientEmail", representativeUser.getEmail());
+        payload.put("seasonName", season.getName());
+        return enqueueEvent("SEASON_APPLICATION_APPROVED", representativeUser.getId(), payload, representativeUser.getId(), true);
+    }
+
+    public Long enqueueSeasonApplicationReturned(AppUser representativeUser, Season season, String decisionComment) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("recipientName", representativeUser.getName());
+        payload.put("recipientEmail", representativeUser.getEmail());
+        payload.put("seasonName", season.getName());
+        payload.put("decisionComment", decisionComment == null ? "" : decisionComment);
+        return enqueueEvent("SEASON_APPLICATION_RETURNED", representativeUser.getId(), payload, representativeUser.getId(), true);
+    }
+
+    public Long enqueueSeasonApplicationRejected(AppUser representativeUser, Season season, String decisionComment) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("recipientName", representativeUser.getName());
+        payload.put("recipientEmail", representativeUser.getEmail());
+        payload.put("seasonName", season.getName());
+        payload.put("decisionComment", decisionComment == null ? "" : decisionComment);
+        return enqueueEvent("SEASON_APPLICATION_REJECTED", representativeUser.getId(), payload, representativeUser.getId(), true);
     }
 
     private Long enqueueEvent(String eventType, Long recipientUserId, Map<String, Object> payload, Long createdByUserId, boolean triggerImmediately) {
