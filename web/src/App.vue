@@ -190,7 +190,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from './store/auth'
-import bogorodskCoat from './assets/bogorodsk-coat.png'
+import bogorodskCoat from './assets/Screenshot at Apr 28 20-18-16.png'
 
 const { user, isAuthenticated, register, login, logout, changePassword, ensureSession, hasRole } = useAuth()
 const router = useRouter()
