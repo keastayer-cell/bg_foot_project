@@ -224,7 +224,7 @@ function isOptionSelected(value) {
   return String(props.modelValue || '') === String(value || '')
 }
 
-function handleDocumentPointer(event) {
+function handleDocumentClick(event) {
   if (!rootRef.value) {
     return
   }
@@ -234,12 +234,12 @@ function handleDocumentPointer(event) {
 }
 
 if (typeof document !== 'undefined') {
-  document.addEventListener('pointerdown', handleDocumentPointer)
+  document.addEventListener('click', handleDocumentClick)
 }
 
 onBeforeUnmount(() => {
   if (typeof document !== 'undefined') {
-    document.removeEventListener('pointerdown', handleDocumentPointer)
+    document.removeEventListener('click', handleDocumentClick)
   }
 })
 </script>

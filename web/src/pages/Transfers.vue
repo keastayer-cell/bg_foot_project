@@ -343,6 +343,14 @@ onMounted(async () => {
 }
 
 @media (max-width: 560px) {
+  .home-hero-head {
+    gap: 14px;
+  }
+
+  .home-hero-head > * {
+    width: 100%;
+  }
+
   .pagination-bar > * {
     width: 100%;
   }

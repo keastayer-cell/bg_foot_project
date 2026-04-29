@@ -24,7 +24,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/team-rep")
-@PreAuthorize("hasRole('TEAM_REP')")
 public class TeamRepController {
 
     private final TeamRepService teamRepService;
@@ -35,16 +34,25 @@ public class TeamRepController {
         this.teamRepTransferService = teamRepTransferService;
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN')")
     @GetMapping("/seasons")
-    public ResponseEntity<List<TeamRepService.TeamRepSeasonData>> listSeasons(Authentication authentication) {
-        return ResponseEntity.ok(teamRepService.listAvailableSeasons(currentUserId(authentication)));
+    public ResponseEntity<List<TeamRepService.TeamRepSeasonData>> listSeasons(
+        @RequestParam(required = false) Long teamId,
+        Authentication authentication
+    ) {
+        return ResponseEntity.ok(teamRepService.listAvailableSeasons(currentApplicationActor(authentication), teamId));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN')")
     @GetMapping("/players")
-    public ResponseEntity<List<TeamRepService.TeamRepPlayerData>> listPlayers(Authentication authentication) {
-        return ResponseEntity.ok(teamRepService.listTeamPlayers(currentUserId(authentication)));
+    public ResponseEntity<List<TeamRepService.TeamRepPlayerData>> listPlayers(
+        @RequestParam(required = false) Long teamId,
+        Authentication authentication
+    ) {
+        return ResponseEntity.ok(teamRepService.listTeamPlayers(currentApplicationActor(authentication), teamId));
     }
 
+    @PreAuthorize("hasRole('TEAM_REP')")
     @PostMapping("/players")
     public ResponseEntity<TeamRepService.TeamRepPlayerData> createPlayer(
         @Valid @RequestBody TeamRepPlayerUpsertRequest request,
@@ -56,6 +64,7 @@ public class TeamRepController {
         ));
     }
 
+    @PreAuthorize("hasRole('TEAM_REP')")
     @PutMapping("/players/{playerId}")
     public ResponseEntity<TeamRepService.TeamRepPlayerData> updatePlayer(
         @PathVariable Long playerId,
@@ -69,50 +78,71 @@ public class TeamRepController {
         ));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN')")
     @GetMapping("/seasons/{seasonId}/players")
     public ResponseEntity<TeamRepService.TeamRepSeasonPlayersData> getSeasonPlayers(
         @PathVariable Long seasonId,
+        @RequestParam(required = false) Long teamId,
         Authentication authentication
     ) {
-        return ResponseEntity.ok(teamRepService.getSeasonPlayers(currentUserId(authentication), seasonId));
+        return ResponseEntity.ok(teamRepService.getSeasonPlayers(currentApplicationActor(authentication), seasonId, teamId));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN')")
     @PutMapping("/seasons/{seasonId}/players")
     public ResponseEntity<TeamRepService.TeamRepSeasonPlayersData> replaceSeasonPlayers(
         @PathVariable Long seasonId,
         @Valid @RequestBody TeamRepSeasonPlayersUpsertRequest request,
+        @RequestParam(required = false) Long teamId,
         Authentication authentication
     ) {
-        return ResponseEntity.ok(teamRepService.replaceSeasonPlayers(currentUserId(authentication), seasonId, request.playerIds()));
+        return ResponseEntity.ok(teamRepService.replaceSeasonPlayers(currentApplicationActor(authentication), seasonId, request.playerIds(), teamId));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN')")
     @PostMapping("/seasons/{seasonId}/players")
     public ResponseEntity<TeamRepService.TeamRepSeasonPlayersData> addSeasonPlayers(
         @PathVariable Long seasonId,
         @Valid @RequestBody TeamRepSeasonPlayersUpsertRequest request,
+        @RequestParam(required = false) Long teamId,
         Authentication authentication
     ) {
-        return ResponseEntity.ok(teamRepService.addSeasonPlayers(currentUserId(authentication), seasonId, request.playerIds()));
+        return ResponseEntity.ok(teamRepService.addSeasonPlayers(currentApplicationActor(authentication), seasonId, request.playerIds(), teamId));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN')")
     @PostMapping("/seasons/{seasonId}/players/{playerId}")
     public ResponseEntity<TeamRepService.TeamRepSeasonPlayersData> addSeasonPlayer(
         @PathVariable Long seasonId,
         @PathVariable Long playerId,
+        @RequestParam(required = false) Long teamId,
         Authentication authentication
     ) {
-        return ResponseEntity.ok(teamRepService.addSeasonPlayer(currentUserId(authentication), seasonId, playerId));
+        return ResponseEntity.ok(teamRepService.addSeasonPlayer(currentApplicationActor(authentication), seasonId, playerId, teamId));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN')")
     @DeleteMapping("/seasons/{seasonId}/players/{playerId}")
     public ResponseEntity<TeamRepService.TeamRepSeasonPlayersData> removeSeasonPlayer(
         @PathVariable Long seasonId,
         @PathVariable Long playerId,
+        @RequestParam(required = false) Long teamId,
         Authentication authentication
     ) {
-        return ResponseEntity.ok(teamRepService.removeSeasonPlayer(currentUserId(authentication), seasonId, playerId));
+        return ResponseEntity.ok(teamRepService.removeSeasonPlayer(currentApplicationActor(authentication), seasonId, playerId, teamId));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN')")
+    @PostMapping("/seasons/{seasonId}/submit")
+    public ResponseEntity<TeamRepService.TeamRepSeasonPlayersData> submitSeasonApplication(
+        @PathVariable Long seasonId,
+        @RequestParam(required = false) Long teamId,
+        Authentication authentication
+    ) {
+        return ResponseEntity.ok(teamRepService.submitSeasonApplication(currentApplicationActor(authentication), seasonId, teamId));
+    }
+
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN','REFEREE')")
     @GetMapping("/seasons/{seasonId}/transfers")
     public ResponseEntity<TeamRepTransferService.TeamRepTransferOverviewData> getSeasonTransfers(
         @PathVariable Long seasonId,
@@ -120,9 +150,10 @@ public class TeamRepController {
         @RequestParam(defaultValue = "20") int pagesize,
         Authentication authentication
     ) {
-        return ResponseEntity.ok(teamRepTransferService.getSeasonTransfers(currentUserId(authentication), seasonId, pagenum, pagesize));
+        return ResponseEntity.ok(teamRepTransferService.getSeasonTransfers(currentTransferActor(authentication), seasonId, pagenum, pagesize));
     }
 
+    @PreAuthorize("hasRole('TEAM_REP')")
     @GetMapping("/transfers/incoming-pending")
     public ResponseEntity<TeamRepTransferService.IncomingTransferNotificationsData> getIncomingPendingTransfers(
         @RequestParam(defaultValue = "0") int pagenum,
@@ -132,15 +163,18 @@ public class TeamRepController {
         return ResponseEntity.ok(teamRepTransferService.getIncomingPendingTransfers(currentUserId(authentication), pagenum, pagesize));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN','REFEREE')")
     @GetMapping("/seasons/{seasonId}/transfer-candidates/{fromTeamId}")
     public ResponseEntity<List<TeamRepTransferService.TeamRepTransferCandidateData>> listTransferCandidates(
         @PathVariable Long seasonId,
         @PathVariable Long fromTeamId,
+        @RequestParam(required = false) Long toTeamId,
         Authentication authentication
     ) {
-        return ResponseEntity.ok(teamRepTransferService.listTransferCandidates(currentUserId(authentication), seasonId, fromTeamId));
+        return ResponseEntity.ok(teamRepTransferService.listTransferCandidates(currentTransferActor(authentication), seasonId, fromTeamId, toTeamId));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN','REFEREE')")
     @PostMapping("/seasons/{seasonId}/transfers")
     public ResponseEntity<TeamRepTransferService.TeamRepTransferOverviewData> createTransferRequest(
         @PathVariable Long seasonId,
@@ -148,14 +182,16 @@ public class TeamRepController {
         Authentication authentication
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(teamRepTransferService.createTransferRequest(
-            currentUserId(authentication),
+            currentTransferActor(authentication),
             seasonId,
             request.fromTeamId(),
+            request.toTeamId(),
             request.playerId(),
             request.requestComment()
         ));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN','REFEREE')")
     @PostMapping("/transfers/{requestId}/approve")
     public ResponseEntity<TeamRepTransferService.TeamRepTransferOverviewData> approveTransferRequest(
         @PathVariable Long requestId,
@@ -163,12 +199,13 @@ public class TeamRepController {
         Authentication authentication
     ) {
         return ResponseEntity.ok(teamRepTransferService.approveTransferRequest(
-            currentUserId(authentication),
+            currentTransferActor(authentication),
             requestId,
             request == null ? null : request.decisionComment()
         ));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN','REFEREE')")
     @PostMapping("/transfers/{requestId}/reject")
     public ResponseEntity<TeamRepTransferService.TeamRepTransferOverviewData> rejectTransferRequest(
         @PathVariable Long requestId,
@@ -176,12 +213,13 @@ public class TeamRepController {
         Authentication authentication
     ) {
         return ResponseEntity.ok(teamRepTransferService.rejectTransferRequest(
-            currentUserId(authentication),
+            currentTransferActor(authentication),
             requestId,
             request == null ? null : request.decisionComment()
         ));
     }
 
+    @PreAuthorize("hasAnyRole('TEAM_REP','SUPER_ADMIN','REFEREE')")
     @PostMapping("/transfers/{requestId}/revoke")
     public ResponseEntity<TeamRepTransferService.TeamRepTransferOverviewData> revokeTransferRequest(
         @PathVariable Long requestId,
@@ -189,10 +227,26 @@ public class TeamRepController {
         Authentication authentication
     ) {
         return ResponseEntity.ok(teamRepTransferService.revokeTransferRequest(
-            currentUserId(authentication),
+            currentTransferActor(authentication),
             requestId,
             request == null ? null : request.decisionComment()
         ));
+    }
+
+    private TeamRepTransferService.TransferActor currentTransferActor(Authentication authentication) {
+        boolean teamRep = authentication.getAuthorities().stream()
+            .anyMatch(authority -> "ROLE_TEAM_REP".equals(authority.getAuthority()));
+        boolean superAdmin = authentication.getAuthorities().stream()
+            .anyMatch(authority -> "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+        boolean referee = authentication.getAuthorities().stream()
+            .anyMatch(authority -> "ROLE_REFEREE".equals(authority.getAuthority()));
+        return new TeamRepTransferService.TransferActor(currentUserId(authentication), teamRep, superAdmin, referee);
+    }
+
+    private TeamRepService.TeamRepActor currentApplicationActor(Authentication authentication) {
+        boolean superAdmin = authentication.getAuthorities().stream()
+            .anyMatch(authority -> "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+        return new TeamRepService.TeamRepActor(currentUserId(authentication), superAdmin);
     }
 
     private Long currentUserId(Authentication authentication) {
@@ -213,7 +267,7 @@ public class TeamRepController {
 
     public record TeamRepSeasonPlayersUpsertRequest(List<Long> playerIds) {}
 
-    public record TeamRepTransferRequestCreateRequest(Long fromTeamId, Long playerId, String requestComment) {}
+    public record TeamRepTransferRequestCreateRequest(Long fromTeamId, Long toTeamId, Long playerId, String requestComment) {}
 
     public record TeamRepTransferDecisionRequest(String decisionComment) {}
 }

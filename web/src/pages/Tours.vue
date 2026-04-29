@@ -236,7 +236,17 @@
               <td>{{ row.position }}</td>
               <td>
                 <div class="team-cell">
-                  <span>{{ row.teamName }}</span>
+                  <RouterLink
+                    class="team-link"
+                    :to="{
+                      path: `/teams/${row.teamId}`,
+                      query: { seasonId: String(selectedSeasonId) },
+                    }"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {{ row.teamName }}
+                  </RouterLink>
                 </div>
               </td>
               <td>{{ row.matchesPlayed }}</td>
@@ -265,7 +275,17 @@
               <td>{{ row.position }}</td>
               <td>
                 <div class="team-cell team-cell-mobile">
-                  <span>{{ row.teamName }}</span>
+                  <RouterLink
+                    class="team-link"
+                    :to="{
+                      path: `/teams/${row.teamId}`,
+                      query: { seasonId: String(selectedSeasonId) },
+                    }"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {{ row.teamName }}
+                  </RouterLink>
                 </div>
               </td>
               <td>{{ row.matchesPlayed }}</td>
@@ -512,6 +532,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useAuth } from '../store/auth'
 
 const { optionalAuthApiRequest } = useAuth()
@@ -1591,6 +1612,18 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.team-link {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.team-link:hover {
+  color: rgba(151, 233, 194, 0.96);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .tour-list {

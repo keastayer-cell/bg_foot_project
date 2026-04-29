@@ -57,12 +57,15 @@ a {
 }
 
 #app {
-	min-height: auto;
-	gap: 8px;
+	min-height: 100vh;
 	display: grid;
 }
 
 .app-shell {
+	min-height: 100vh;
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr) auto;
+	gap: 8px;
 	max-width: 1080px;
 	margin: 0 auto;
 	padding: 14px 18px 16px;
@@ -112,30 +115,52 @@ a {
 }
 
 .brand-emblem {
-	width: 58px;
-	height: 58px;
+	width: 88px;
+	height: 88px;
 	position: relative;
 	display: grid;
 	place-items: center;
+	padding: 0;
 	background: transparent;
-	overflow: hidden;
-	border-radius: 10px 10px 2px 2px;
+	overflow: visible;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+}
+
+.brand-emblem::before {
+	content: "";
+	position: absolute;
+	inset: 8px 10px 6px;
+	border-radius: 28px;
+	background:
+		radial-gradient(70% 70% at 50% 18%, rgba(151, 176, 255, 0.18), rgba(151, 176, 255, 0) 68%),
+		linear-gradient(180deg, rgba(17, 24, 58, 0.7), rgba(8, 12, 29, 0.12));
+	filter: blur(1px);
+	box-shadow: 0 10px 26px rgba(3, 8, 23, 0.22);
 }
 
 .brand-emblem-img {
 	width: 100%;
 	height: 100%;
 	display: block;
-	transition: filter 0.18s ease, opacity 0.18s ease;
-	filter: drop-shadow(0 4px 6px rgba(4, 12, 30, 0.22));
+	object-fit: contain;
+	object-position: center;
+	transform: scale(1);
+	position: relative;
+	z-index: 1;
+	clip-path: polygon(18% 2%, 82% 2%, 96% 18%, 88% 72%, 50% 98%, 12% 72%, 4% 18%);
+	transition: transform 0.18s ease, filter 0.18s ease, opacity 0.18s ease;
+	filter: contrast(1.06) saturate(0.96) drop-shadow(0 8px 14px rgba(0, 0, 0, 0.28));
 }
 
 .brand-row:hover .brand-emblem-img {
 	filter:
-		saturate(0.82)
-		contrast(0.96)
-		brightness(0.9)
-		drop-shadow(0 5px 7px rgba(4, 12, 30, 0.26));
+		saturate(0.98)
+		contrast(1.05)
+		brightness(1.02)
+		drop-shadow(0 10px 18px rgba(0, 0, 0, 0.32));
+	transform: scale(1.03);
 }
 
 .brand-sub {
@@ -345,6 +370,50 @@ a {
 
 .content-wrap {
 	padding-top: 18px;
+	min-height: 0;
+}
+
+.global-footer-contact {
+	display: grid;
+	gap: 8px;
+	margin-top: 16px;
+	padding: 14px 4px 0;
+	border-top: 1px solid rgba(255, 255, 255, 0.05);
+	opacity: 0.82;
+}
+
+.global-footer-contact-kicker {
+	margin: 0;
+	color: rgba(208, 214, 235, 0.58);
+	font-size: 0.82rem;
+}
+
+.global-footer-contact-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, max-content));
+	gap: 20px;
+}
+
+.global-footer-contact-item {
+	display: grid;
+	gap: 1px;
+}
+
+.global-footer-contact-label {
+	color: rgba(208, 214, 235, 0.5);
+	font-size: 0.72rem;
+}
+
+.global-footer-contact-link {
+	color: rgba(208, 214, 235, 0.68);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	text-decoration-thickness: 1px;
+	font-size: 0.82rem;
+}
+
+.global-footer-contact-link:hover {
+	color: rgba(223, 255, 238, 0.82);
 }
 
 @media (max-width: 860px) {
@@ -388,6 +457,11 @@ a {
 		width: min(100%, 540px);
 	}
 
+	.global-footer-contact-grid {
+		grid-template-columns: 1fr;
+		gap: 14px;
+	}
+
 	.auth-actions-row {
 		flex-wrap: wrap;
 	}
@@ -427,8 +501,8 @@ a {
 	}
 
 	.brand-emblem {
-		width: 40px;
-		height: 46px;
+		width: 72px;
+		height: 72px;
 	}
 
 	.topnav {
@@ -523,8 +597,8 @@ a {
 	}
 
 	.brand-emblem {
-		width: 34px;
-		height: 40px;
+		width: 64px;
+		height: 64px;
 	}
 
 	.topnav {
@@ -2326,10 +2400,9 @@ select optgroup {
 	}
 
 	.brand-emblem {
-		width: 42px;
-		height: 48px;
-		opacity: 0.78;
-		border-radius: 8px 8px 2px 2px;
+		width: 68px;
+		height: 68px;
+		opacity: 0.9;
 	}
 
 	.brand-sub {
@@ -2365,6 +2438,15 @@ select optgroup {
 
 	.toolbar {
 		align-items: stretch;
+	}
+
+	.toolbar > .actions-row {
+		width: 100%;
+		justify-content: flex-start;
+	}
+
+	.toolbar > .actions-row > * {
+		flex: 1 1 180px;
 	}
 
 	.hero-layout {
@@ -2480,5 +2562,86 @@ select optgroup {
 
 	.api-index-table {
 		min-width: 640px;
+	}
+}
+
+@media (max-width: 560px) {
+	.auth-dialog {
+		padding: 18px 16px;
+		border-radius: 20px;
+	}
+
+	.auth-modal {
+		gap: 14px;
+	}
+
+	.auth-modal .section-title {
+		font-size: 1.6rem;
+	}
+
+	.auth-tabs {
+		flex-direction: column;
+	}
+
+	.auth-tab-btn,
+	.auth-submit-btn {
+		width: 100%;
+	}
+
+	.toolbar > .actions-row,
+	.actions-row.admin-bottom-actions {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.toolbar > .actions-row > *,
+	.actions-row.admin-bottom-actions > * {
+		width: 100%;
+		flex: 1 1 auto;
+	}
+
+	.select,
+	input,
+	textarea,
+	select {
+		max-width: 100%;
+	}
+
+	.card,
+	.auth-modal,
+	.auth-dialog {
+		overflow: hidden;
+	}
+
+	.btn-primary,
+	.btn-ghost,
+	.btn-danger {
+		min-height: 46px;
+	}
+}
+
+@media (max-width: 420px) {
+	.app-shell {
+		padding: 8px 10px 12px;
+	}
+
+	.brand {
+		font-size: 1.28rem;
+	}
+
+	.brand-sub {
+		font-size: 0.74rem;
+	}
+
+	.topnav {
+		gap: 10px;
+	}
+
+	.topnav a {
+		padding: 8px 10px;
+	}
+
+	.auth-dialog {
+		padding: 16px 14px;
 	}
 }

@@ -18,6 +18,7 @@
       </router-link>
       <div class="topbar-right">
         <nav class="topnav">
+          <router-link to="/league">О лиге</router-link>
           <router-link to="/">Туры</router-link>
           <router-link to="/transfers">Трансферы</router-link>
           <router-link to="/players">Игроки</router-link>
@@ -46,6 +47,20 @@
     <main class="content-wrap">
       <router-view />
     </main>
+
+    <footer class="global-footer-contact">
+      <p class="global-footer-contact-kicker">Связаться с администрацией:</p>
+      <div class="global-footer-contact-grid">
+        <div class="global-footer-contact-item">
+          <span class="global-footer-contact-label">Почта</span>
+          <a class="global-footer-contact-link" href="mailto:info@bgfoot.ru">info@bgfoot.ru</a>
+        </div>
+        <div class="global-footer-contact-item">
+          <span class="global-footer-contact-label">Телеграм</span>
+          <a class="global-footer-contact-link" href="https://t.me/tvoybatya8" target="_blank" rel="noopener noreferrer">Написать TG</a>
+        </div>
+      </div>
+    </footer>
 
     <div v-if="authModalOpen" class="modal-backdrop" @click.self="closeAuthModal">
       <article class="card auth-modal auth-dialog">
@@ -175,7 +190,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from './store/auth'
-import bogorodskCoat from './assets/bogorodsk-coat.png'
+import bogorodskCoat from './assets/Screenshot at Apr 28 20-18-16.png'
 
 const { user, isAuthenticated, register, login, logout, changePassword, ensureSession, hasRole } = useAuth()
 const router = useRouter()

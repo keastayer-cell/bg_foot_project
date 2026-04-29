@@ -1,13 +1,13 @@
 <template>
-  <section class="section-wrap team-rep-page team-rep-transfers-page">
-    <article class="card team-rep-profile-card">
+  <section :class="embedded ? 'team-rep-transfers-embedded' : 'section-wrap team-rep-page team-rep-transfers-page'">
+    <article v-if="!embedded" class="card team-rep-profile-card">
       <div class="toolbar team-rep-card-head">
         <div>
-          <h2 class="section-title">Трансферы внутри сезона</h2>
+          <h2 class="section-title">Управление трансферами внутри сезона</h2>
         </div>
         <div class="actions-row">
-          <button class="btn-ghost" type="button" @click="router.push('/team-rep-dashboard')">К заявке сезона</button>
-          <button class="btn-primary" type="button" @click="openTransferRequestModal" :disabled="!selectedSeasonId || !canCreateTransferRequest">Заявка на трансфер</button>
+          <button v-if="hasRole('TEAM_REP')" class="btn-ghost" type="button" @click="router.push('/team-rep-dashboard')">К заявке сезона</button>
+          <button class="btn-primary" type="button" @click="openTransferRequestModal" :disabled="!selectedSeasonId || !canOpenTransferRequestModal">Заявка на трансфер</button>
           <button class="btn-ghost" type="button" @click="loadSeasons" :disabled="seasonLoading || overviewLoading">Обновить</button>
         </div>
       </div>
@@ -72,16 +72,48 @@
               <span class="team-rep-season-chip" :class="statusChipClass(request.status)">{{ formatTransferStatus(request.status) }}</span>
             </span>
             <span class="transfer-cell transfer-action-cell">
-              <button
-                v-if="request.canRevoke"
-                class="btn-danger btn-compact"
-                type="button"
-                @click="revokeTransferRequest(request.id)"
-                :disabled="revokeLoadingId === request.id || overviewLoading"
-              >
-                {{ revokeLoadingId === request.id ? 'Отзываем...' : 'Отозвать трансфер' }}
-              </button>
-              <span v-else class="muted-text">—</span>
+              <span class="transfer-action-slot transfer-action-slot-left">
+                <button
+                  v-if="request.canApprove"
+                  class="transfer-action-btn transfer-action-btn-approve"
+                  type="button"
+                  @click="processTransferAction(request.id, 'approve')"
+                  :disabled="transferActionLoadingKey === `approve:${request.id}` || overviewLoading"
+                  title="Подтвердить трансфер"
+                  aria-label="Подтвердить трансфер"
+                >
+                  {{ transferActionLoadingKey === `approve:${request.id}` ? '...' : 'OK' }}
+                </button>
+                <span v-else class="transfer-action-placeholder" aria-hidden="true"></span>
+              </span>
+              <span class="transfer-action-slot transfer-action-slot-center">
+                <button
+                  v-if="request.canReject"
+                  class="transfer-action-btn transfer-action-btn-reject"
+                  type="button"
+                  @click="processTransferAction(request.id, 'reject')"
+                  :disabled="transferActionLoadingKey === `reject:${request.id}` || overviewLoading"
+                  title="Отклонить трансфер"
+                  aria-label="Отклонить трансфер"
+                >
+                  {{ transferActionLoadingKey === `reject:${request.id}` ? '...' : 'NO' }}
+                </button>
+                <span v-else class="transfer-action-placeholder" aria-hidden="true"></span>
+              </span>
+              <span class="transfer-action-slot transfer-action-slot-right">
+                <button
+                  v-if="request.canRevoke"
+                  class="transfer-action-btn transfer-action-btn-revoke"
+                  type="button"
+                  @click="processTransferAction(request.id, 'revoke')"
+                  :disabled="transferActionLoadingKey === `revoke:${request.id}` || overviewLoading"
+                  title="Отозвать трансфер"
+                  aria-label="Отозвать трансфер"
+                >
+                  {{ transferActionLoadingKey === `revoke:${request.id}` ? '...' : 'X' }}
+                </button>
+                <span v-else class="transfer-action-placeholder" aria-hidden="true"></span>
+              </span>
             </span>
           </article>
         </div>
@@ -105,11 +137,21 @@
         </div>
 
         <div class="team-rep-form team-rep-transfer-form">
+          <label v-if="overview?.privilegedAccess">
+            Команда назначения
+            <select v-model="targetTeamId" :disabled="!overview?.transferWindowOpen">
+              <option value="">— выберите —</option>
+              <option v-for="team in availableTargetTeams" :key="team.id" :value="String(team.id)">
+                {{ team.name }}
+              </option>
+            </select>
+          </label>
+
           <label>
             Команда, из которой переводим игрока
-            <select v-model="sourceTeamId" :disabled="!canCreateTransferRequest">
+            <select v-model="sourceTeamId" :disabled="!canPickSourceTeam">
               <option value="">— выберите —</option>
-              <option v-for="team in overview?.sourceTeams || []" :key="team.id" :value="String(team.id)">
+              <option v-for="team in availableSourceTeams" :key="team.id" :value="String(team.id)">
                 {{ team.name }}
               </option>
             </select>
@@ -124,7 +166,7 @@
               placeholder="Выберите игрока"
               search-placeholder="Начните вводить ФИО игрока"
               empty-text="Игрок по такому ФИО не найден"
-              :disabled="!canCreateTransferRequest || !sourceTeamId || candidatesLoading"
+              :disabled="!canPickSourceTeam || !sourceTeamId || candidatesLoading"
             />
           </label>
 
@@ -141,7 +183,7 @@
         </div>
 
         <p v-if="!overview?.transferWindowOpen" class="muted-text">Создание заявок недоступно, пока сезон не активен или окно трансферов закрыто.</p>
-        <p v-else-if="overview?.maxRosterSize && overview.selectedPlayersCount >= overview.maxRosterSize" class="muted-text">
+        <p v-else-if="!overview?.privilegedAccess && overview?.maxRosterSize && overview.selectedPlayersCount >= overview.maxRosterSize" class="muted-text">
           Лимит заявки уже достигнут. Новые входящие трансферы не будут подтверждены, пока не освободится место.
         </p>
       </article>
@@ -155,6 +197,13 @@ import { useRouter } from 'vue-router'
 import SearchableSelect from '../components/SearchableSelect.vue'
 import { useAuth } from '../store/auth'
 
+const props = defineProps({
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
+})
+
 const { isAuthenticated, hasRole, loadCurrentUser, authorizedApiRequest } = useAuth()
 const router = useRouter()
 const pageSize = 20
@@ -166,14 +215,34 @@ const seasonLoading = ref(false)
 const overviewLoading = ref(false)
 const candidatesLoading = ref(false)
 const createLoading = ref(false)
-const revokeLoadingId = ref(null)
+const transferActionLoadingKey = ref('')
 const pageError = ref('')
 const pageSuccess = ref('')
 const sourceTeamId = ref('')
+const targetTeamId = ref('')
 const selectedPlayerId = ref('')
 const requestComment = ref('')
 const candidates = ref([])
 const transferRequestModalOpen = ref(false)
+
+const isPrivilegedTransferManager = computed(() => hasRole('SUPER_ADMIN') || hasRole('REFEREE'))
+const canManageTransfers = computed(() => isAuthenticated.value && (hasRole('TEAM_REP') || isPrivilegedTransferManager.value))
+
+const availableTargetTeams = computed(() => overview.value?.targetTeams || [])
+const resolvedTargetTeamId = computed(() => {
+  if (overview.value?.privilegedAccess) {
+    return targetTeamId.value
+  }
+  return overview.value?.teamId ? String(overview.value.teamId) : ''
+})
+
+const availableSourceTeams = computed(() => {
+  const teams = overview.value?.sourceTeams || []
+  if (!overview.value?.privilegedAccess || !resolvedTargetTeamId.value) {
+    return teams
+  }
+  return teams.filter((team) => String(team.id) !== String(resolvedTargetTeamId.value))
+})
 
 const candidateOptions = computed(() => {
   return candidates.value.map((player) => ({
@@ -183,25 +252,29 @@ const candidateOptions = computed(() => {
   }))
 })
 
-const canCreateTransferRequest = computed(() => {
+const canOpenTransferRequestModal = computed(() => {
   if (!overview.value) {
     return false
   }
   if (!overview.value.transferWindowOpen) {
     return false
   }
-  if (overview.value.maxRosterSize && overview.value.selectedPlayersCount >= overview.value.maxRosterSize) {
+  if (!overview.value.privilegedAccess && overview.value.maxRosterSize && overview.value.selectedPlayersCount >= overview.value.maxRosterSize) {
     return false
   }
   return true
 })
 
+const canPickSourceTeam = computed(() => {
+  return canOpenTransferRequestModal.value && Boolean(resolvedTargetTeamId.value)
+})
+
 const canSubmitTransferRequest = computed(() => {
-  return canCreateTransferRequest.value && sourceTeamId.value && selectedPlayerId.value
+  return canPickSourceTeam.value && sourceTeamId.value && selectedPlayerId.value
 })
 
 watchEffect(() => {
-  if (isAuthenticated.value && hasRole('TEAM_REP')) {
+  if (canManageTransfers.value) {
     return
   }
   router.replace('/')
@@ -209,7 +282,7 @@ watchEffect(() => {
 
 onMounted(async () => {
   await loadCurrentUser().catch(() => null)
-  if (isAuthenticated.value && hasRole('TEAM_REP')) {
+  if (canManageTransfers.value) {
     await loadSeasons()
   }
 })
@@ -219,6 +292,7 @@ watch(selectedSeasonId, async (seasonId) => {
   pageError.value = ''
   pageSuccess.value = ''
   resetTransferDraft()
+  targetTeamId.value = ''
 
   if (!seasonId) {
     return
@@ -227,13 +301,13 @@ watch(selectedSeasonId, async (seasonId) => {
   await loadOverview(seasonId, 0)
 })
 
-watch(sourceTeamId, async (teamId) => {
+watch([sourceTeamId, resolvedTargetTeamId], async ([teamId, currentTargetTeamId]) => {
   selectedPlayerId.value = ''
   candidates.value = []
-  if (!selectedSeasonId.value || !teamId || !canCreateTransferRequest.value || !transferRequestModalOpen.value) {
+  if (!selectedSeasonId.value || !teamId || !currentTargetTeamId || !canOpenTransferRequestModal.value || !transferRequestModalOpen.value) {
     return
   }
-  await loadCandidates(selectedSeasonId.value, teamId)
+  await loadCandidates(selectedSeasonId.value, teamId, currentTargetTeamId)
 })
 
 async function loadSeasons() {
@@ -241,7 +315,10 @@ async function loadSeasons() {
   pageError.value = ''
 
   try {
-    const payload = await authorizedApiRequest('/api/team-rep/seasons', { method: 'GET' })
+    const payload = await authorizedApiRequest(
+      isPrivilegedTransferManager.value ? '/api/seasons?active_flag=0' : '/api/team-rep/seasons',
+      { method: 'GET' }
+    )
     teamSeasons.value = Array.isArray(payload) ? payload : []
     if (selectedSeasonId.value) {
       const stillExists = teamSeasons.value.some((season) => String(season.id) === String(selectedSeasonId.value))
@@ -264,6 +341,14 @@ async function loadOverview(seasonId, pageNum = 0) {
     overview.value = await authorizedApiRequest(`/api/team-rep/seasons/${encodeURIComponent(seasonId)}/transfers?pagenum=${pageNum}&pagesize=${pageSize}`, {
       method: 'GET',
     })
+    if (overview.value?.privilegedAccess) {
+      const exists = (overview.value.targetTeams || []).some((team) => String(team.id) === String(targetTeamId.value))
+      if (!exists) {
+        targetTeamId.value = ''
+      }
+    } else {
+      targetTeamId.value = overview.value?.teamId ? String(overview.value.teamId) : ''
+    }
   } catch (error) {
     pageError.value = error.message || 'Не удалось загрузить трансферы сезона.'
   } finally {
@@ -272,6 +357,7 @@ async function loadOverview(seasonId, pageNum = 0) {
 }
 
 function resetTransferDraft() {
+  targetTeamId.value = overview.value?.privilegedAccess ? '' : (overview.value?.teamId ? String(overview.value.teamId) : '')
   sourceTeamId.value = ''
   selectedPlayerId.value = ''
   requestComment.value = ''
@@ -283,7 +369,7 @@ function openTransferRequestModal() {
     pageError.value = 'Сначала выберите сезон.'
     return
   }
-  if (!canCreateTransferRequest.value) {
+  if (!canOpenTransferRequestModal.value) {
     return
   }
   transferRequestModalOpen.value = true
@@ -301,13 +387,13 @@ async function changeTransfersPage(pageNum) {
   await loadOverview(selectedSeasonId.value, pageNum)
 }
 
-async function loadCandidates(seasonId, teamId) {
+async function loadCandidates(seasonId, teamId, currentTargetTeamId) {
   candidatesLoading.value = true
   pageError.value = ''
 
   try {
     const payload = await authorizedApiRequest(
-      `/api/team-rep/seasons/${encodeURIComponent(seasonId)}/transfer-candidates/${encodeURIComponent(teamId)}`,
+      `/api/team-rep/seasons/${encodeURIComponent(seasonId)}/transfer-candidates/${encodeURIComponent(teamId)}?toTeamId=${encodeURIComponent(currentTargetTeamId)}`,
       { method: 'GET' }
     )
     candidates.value = Array.isArray(payload) ? payload : []
@@ -333,6 +419,7 @@ async function submitTransferRequest() {
       method: 'POST',
       body: JSON.stringify({
         fromTeamId: Number(sourceTeamId.value),
+        toTeamId: Number(resolvedTargetTeamId.value),
         playerId: Number(selectedPlayerId.value),
         requestComment: requestComment.value || null,
       }),
@@ -348,28 +435,40 @@ async function submitTransferRequest() {
   }
 }
 
-async function revokeTransferRequest(requestId) {
+async function processTransferAction(requestId, action) {
   if (!selectedSeasonId.value || !requestId) {
     return
   }
 
-  revokeLoadingId.value = requestId
+  transferActionLoadingKey.value = `${action}:${requestId}`
   pageError.value = ''
   pageSuccess.value = ''
 
   try {
-    await authorizedApiRequest(`/api/team-rep/transfers/${encodeURIComponent(requestId)}/revoke`, {
+    await authorizedApiRequest(`/api/team-rep/transfers/${encodeURIComponent(requestId)}/${encodeURIComponent(action)}`, {
       method: 'POST',
       body: JSON.stringify({
         decisionComment: null,
       }),
     })
-    pageSuccess.value = 'Трансфер отозван. Игрок снова доступен для новой заявки.'
+    if (action === 'approve') {
+      pageSuccess.value = 'Трансфер подтвержден.'
+    } else if (action === 'reject') {
+      pageSuccess.value = 'Трансфер отклонен.'
+    } else {
+      pageSuccess.value = 'Трансфер отозван. Если переход уже был подтвержден, игрок возвращен в исходную команду.'
+    }
     await loadOverview(selectedSeasonId.value, 0)
   } catch (error) {
-    pageError.value = error.message || 'Не удалось отозвать трансфер.'
+    if (action === 'approve') {
+      pageError.value = error.message || 'Не удалось подтвердить трансфер.'
+    } else if (action === 'reject') {
+      pageError.value = error.message || 'Не удалось отклонить трансфер.'
+    } else {
+      pageError.value = error.message || 'Не удалось отозвать трансфер.'
+    }
   } finally {
-    revokeLoadingId.value = null
+    transferActionLoadingKey.value = ''
   }
 }
 
@@ -433,6 +532,11 @@ function formatDateTime(value) {
   gap: 16px;
 }
 
+.team-rep-transfers-embedded {
+  display: grid;
+  gap: 16px;
+}
+
 .team-rep-transfer-badges {
   margin-top: 12px;
 }
@@ -450,7 +554,7 @@ function formatDateTime(value) {
 
 .team-rep-transfer-list-head,
 .team-rep-transfer-row {
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.2fr) minmax(0, 1.15fr) 140px 180px 190px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.15fr) minmax(0, 1.05fr) 140px 180px minmax(240px, 1.15fr);
   align-items: center;
 }
 
@@ -475,6 +579,7 @@ function formatDateTime(value) {
 
 .transfer-cell {
   min-width: 0;
+  display: block;
 }
 
 .transfer-line {
@@ -486,6 +591,7 @@ function formatDateTime(value) {
 }
 
 .transfer-team {
+  display: block;
   color: var(--text);
   min-width: 0;
   overflow: hidden;
@@ -494,6 +600,7 @@ function formatDateTime(value) {
 }
 
 .transfer-player {
+  display: block;
   font-weight: 600;
   min-width: 0;
   overflow: hidden;
@@ -504,12 +611,79 @@ function formatDateTime(value) {
 .transfer-status-wrap {
   display: flex;
   justify-content: flex-start;
+  min-width: 0;
+}
+
+.transfer-status-wrap .team-rep-season-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .transfer-action-cell {
-  display: flex;
-  justify-content: flex-start;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(58px, 72px));
+  justify-content: start;
   align-items: center;
+  gap: 8px;
+}
+
+.transfer-action-slot {
+  display: flex;
+}
+
+.transfer-action-slot-left {
+  justify-content: flex-start;
+}
+
+.transfer-action-slot-center {
+  justify-content: center;
+}
+
+.transfer-action-slot-right {
+  justify-content: flex-end;
+}
+
+.transfer-action-btn {
+  min-width: 58px;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.transfer-action-placeholder {
+  display: inline-block;
+  width: 58px;
+  height: 42px;
+}
+
+.transfer-action-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.transfer-action-btn-approve {
+  background: linear-gradient(180deg, #5ef0a0 0%, #30cf77 100%);
+  border-color: rgba(65, 214, 131, 0.6);
+  color: #062b17;
+}
+
+.transfer-action-btn-reject {
+  background: linear-gradient(180deg, #ffb14f 0%, #ee7c1f 100%);
+  border-color: rgba(255, 160, 66, 0.65);
+  color: #331500;
+}
+
+.transfer-action-btn-revoke {
+  background: linear-gradient(180deg, #e35b74 0%, #bb324e 100%);
+  border-color: rgba(214, 73, 103, 0.65);
 }
 
 .team-rep-season-chip-muted {
@@ -553,6 +727,32 @@ function formatDateTime(value) {
 
   .transfer-status-wrap {
     justify-content: flex-start;
+  }
+
+  .transfer-action-cell {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .transfer-action-slot,
+  .transfer-action-slot-left,
+  .transfer-action-slot-center,
+  .transfer-action-slot-right {
+    justify-content: stretch;
+  }
+
+  .transfer-action-btn,
+  .transfer-action-placeholder {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .team-rep-card-head > .actions-row {
+    width: 100%;
+  }
+
+  .team-rep-card-head > .actions-row > * {
+    width: 100%;
   }
 
   .pagination-bar > * {

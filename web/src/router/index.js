@@ -12,12 +12,15 @@ import CreateMatch from '../pages/CreateMatch.vue'
 import ResetPasswordPage from '../pages/ResetPasswordPage.vue'
 import TeamRepDashboard from '../pages/TeamRepDashboard.vue'
 import TeamRepTransfers from '../pages/TeamRepTransfers.vue'
+import SeasonApplicationsReview from '../pages/SeasonApplicationsReview.vue'
+import LeagueOverview from '../pages/LeagueOverview.vue'
 import { useAuth } from '../store/auth'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', component: Tours },
+    { path: '/league', component: LeagueOverview },
     { path: '/transfers', component: Transfers },
     { path: '/players', component: Players },
     { path: '/teams', component: Teams },
@@ -25,7 +28,8 @@ const router = createRouter({
     { path: '/create', component: CreateMatch, meta: { requiresAuth: true } },
     { path: '/admin', component: Admin, meta: { requiresAuth: true, requiresAdminPanel: true } },
     { path: '/team-rep-dashboard', component: TeamRepDashboard, meta: { requiresAuth: true, requiresTeamRep: true } },
-    { path: '/team-rep-transfers', component: TeamRepTransfers, meta: { requiresAuth: true, requiresTeamRep: true } },
+    { path: '/team-rep-transfers', component: TeamRepTransfers, meta: { requiresAuth: true, requiresTransferManager: true } },
+    { path: '/season-applications-review', component: SeasonApplicationsReview, meta: { requiresAuth: true, requiresAdminPanel: true } },
     { path: '/reset-password', component: ResetPasswordPage },
     { path: '/api-explorer', component: ApiExplorer, meta: { requiresAuth: true, requiresSuperAdmin: true } },
     { path: '/api-explorer/test/:endpointKey', component: ApiExplorerTest, meta: { requiresAuth: true, requiresSuperAdmin: true } },
@@ -47,7 +51,8 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresSuperAdmin && !hasRole('SUPER_ADMIN')) return '/'
   if (to.meta.requiresAdminPanel && !hasRole('SUPER_ADMIN') && !hasRole('REFEREE')) return '/'
-  if (to.meta.requiresTeamRep && !hasRole('TEAM_REP')) return '/'
+  if (to.meta.requiresTeamRep && !hasRole('TEAM_REP') && !hasRole('SUPER_ADMIN')) return '/'
+  if (to.meta.requiresTransferManager && !hasRole('TEAM_REP') && !hasRole('SUPER_ADMIN') && !hasRole('REFEREE')) return '/'
 
   return true
 })
