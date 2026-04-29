@@ -71,7 +71,7 @@ jobs:
           username: ${{ secrets.TEST_VPS_USER }}
           password: ${{ secrets.TEST_VPS_PASSWORD }}
           script: |
-            set -e
+            set -euo pipefail
             mv /root/app/target/football-stats-app-0.0.1-SNAPSHOT.jar /opt/football-stats-app/app.jar
             rm -rf /var/www/football-stats-web/*
             tar -xzf /root/football-stats-web-dist.tgz -C /var/www/football-stats-web
@@ -79,3 +79,29 @@ jobs:
             systemctl restart football-stats-app
             nginx -t
             systemctl reload nginx
+
+            echo "== wait for local backend health =="
+            for attempt in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8080/api/health >/dev/null 2>/dev/null; then
+                break
+              fi
+              if [[ "$attempt" -eq 30 ]]; then
+                echo "Backend health check did not become ready in time" >&2
+                systemctl status football-stats-app --no-pager -l || true
+                journalctl -u football-stats-app -n 120 --no-pager || true
+                exit 1
+              fi
+              printf 'waiting for backend... (%s/30)\n' "$attempt"
+              sleep 2
+            done
+
+            echo "== local backend health =="
+            curl -fsS http://127.0.0.1:8080/api/health
+            echo
+
+            echo "== public backend health =="
+            curl -fsS http://127.0.0.1/api/health
+            echo
+
+            echo "== public home status =="
+            curl -I -fsS http://127.0.0.1/ | head -n 1
