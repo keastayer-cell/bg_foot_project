@@ -1,0 +1,3 @@
+mailer:
+  transport:
+    type: ${MAILER_TRANSPORT_TYPE:smtp}

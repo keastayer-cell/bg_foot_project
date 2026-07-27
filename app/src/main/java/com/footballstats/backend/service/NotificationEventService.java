@@ -19,6 +19,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -55,7 +58,7 @@ public class NotificationEventService {
         payload.put("userId", user.getId());
         payload.put("userName", user.getName());
 
-        return enqueueEvent("USER_REGISTERED", user.getId(), payload, user.getId(), true);
+        return enqueueEvent("USER_REGISTERED", user.getId(), payload, user.getId(), "USER_REGISTERED:" + user.getId(), true);
     }
 
     public Long enqueueTeamRepRoleGranted(AppUser user, Team team) {
@@ -66,7 +69,10 @@ public class NotificationEventService {
         payload.put("teamName", team.getName());
         payload.put("contactEmail", "info@bgfoot.ru");
 
-        return enqueueEvent("TEAM_REP_ROLE_GRANTED", user.getId(), payload, user.getId(), true);
+        return enqueueEvent(
+            "TEAM_REP_ROLE_GRANTED", user.getId(), payload, user.getId(),
+            "TEAM_REP_ROLE_GRANTED:" + user.getId() + ":" + team.getId(), true
+        );
     }
 
     public Long enqueueRefereeRoleGranted(AppUser user) {
@@ -76,7 +82,7 @@ public class NotificationEventService {
         payload.put("userId", user.getId());
         payload.put("contactEmail", "info@bgfoot.ru");
 
-        return enqueueEvent("REFEREE_ROLE_GRANTED", user.getId(), payload, user.getId(), true);
+        return enqueueEvent("REFEREE_ROLE_GRANTED", user.getId(), payload, user.getId(), "REFEREE_ROLE_GRANTED:" + user.getId(), true);
     }
 
     public Long enqueuePasswordResetRequested(AppUser user, String resetLink, OffsetDateTime expiresAt) {
@@ -88,54 +94,100 @@ public class NotificationEventService {
         payload.put("expiresAt", expiresAt == null ? null : expiresAt.toString());
         payload.put("contactEmail", "info@bgfoot.ru");
 
-        return enqueueEvent("PASSWORD_RESET_REQUESTED", user.getId(), payload, user.getId(), true);
+        return enqueueEvent(
+            "PASSWORD_RESET_REQUESTED", user.getId(), payload, user.getId(),
+            "PASSWORD_RESET_REQUESTED:" + user.getId() + ":" + sha256(resetLink), true
+        );
     }
 
-    public Long enqueueSeasonApplicationSubmittedToReferee(AppUser refereeUser, Team team, Season season) {
+    public Long enqueueSeasonApplicationSubmittedToReferee(
+        AppUser refereeUser,
+        Team team,
+        Season season,
+        Long applicationId,
+        OffsetDateTime submittedAt
+    ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("recipientName", refereeUser.getName());
         payload.put("recipientEmail", refereeUser.getEmail());
         payload.put("teamName", team.getName());
         payload.put("seasonName", season.getName());
-        return enqueueEvent("SEASON_APPLICATION_SUBMITTED_TO_REFEREE", refereeUser.getId(), payload, null, true);
+        return enqueueEvent(
+            "SEASON_APPLICATION_SUBMITTED_TO_REFEREE", refereeUser.getId(), payload, null,
+            eventVersionKey("SEASON_APPLICATION_SUBMITTED_TO_REFEREE", applicationId, refereeUser.getId(), submittedAt), true
+        );
     }
 
-    public Long enqueueSeasonApplicationApproved(AppUser representativeUser, Season season) {
+    public Long enqueueSeasonApplicationApproved(
+        AppUser representativeUser,
+        Season season,
+        Long applicationId,
+        OffsetDateTime decisionAt
+    ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("recipientName", representativeUser.getName());
         payload.put("recipientEmail", representativeUser.getEmail());
         payload.put("seasonName", season.getName());
-        return enqueueEvent("SEASON_APPLICATION_APPROVED", representativeUser.getId(), payload, representativeUser.getId(), true);
+        return enqueueEvent(
+            "SEASON_APPLICATION_APPROVED", representativeUser.getId(), payload, representativeUser.getId(),
+            eventVersionKey("SEASON_APPLICATION_APPROVED", applicationId, representativeUser.getId(), decisionAt), true
+        );
     }
 
-    public Long enqueueSeasonApplicationReturned(AppUser representativeUser, Season season, String decisionComment) {
+    public Long enqueueSeasonApplicationReturned(
+        AppUser representativeUser,
+        Season season,
+        String decisionComment,
+        Long applicationId,
+        OffsetDateTime decisionAt
+    ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("recipientName", representativeUser.getName());
         payload.put("recipientEmail", representativeUser.getEmail());
         payload.put("seasonName", season.getName());
         payload.put("decisionComment", decisionComment == null ? "" : decisionComment);
-        return enqueueEvent("SEASON_APPLICATION_RETURNED", representativeUser.getId(), payload, representativeUser.getId(), true);
+        return enqueueEvent(
+            "SEASON_APPLICATION_RETURNED", representativeUser.getId(), payload, representativeUser.getId(),
+            eventVersionKey("SEASON_APPLICATION_RETURNED", applicationId, representativeUser.getId(), decisionAt), true
+        );
     }
 
-    public Long enqueueSeasonApplicationRejected(AppUser representativeUser, Season season, String decisionComment) {
+    public Long enqueueSeasonApplicationRejected(
+        AppUser representativeUser,
+        Season season,
+        String decisionComment,
+        Long applicationId,
+        OffsetDateTime decisionAt
+    ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("recipientName", representativeUser.getName());
         payload.put("recipientEmail", representativeUser.getEmail());
         payload.put("seasonName", season.getName());
         payload.put("decisionComment", decisionComment == null ? "" : decisionComment);
-        return enqueueEvent("SEASON_APPLICATION_REJECTED", representativeUser.getId(), payload, representativeUser.getId(), true);
+        return enqueueEvent(
+            "SEASON_APPLICATION_REJECTED", representativeUser.getId(), payload, representativeUser.getId(),
+            eventVersionKey("SEASON_APPLICATION_REJECTED", applicationId, representativeUser.getId(), decisionAt), true
+        );
     }
 
-    private Long enqueueEvent(String eventType, Long recipientUserId, Map<String, Object> payload, Long createdByUserId, boolean triggerImmediately) {
+    private Long enqueueEvent(
+        String eventType,
+        Long recipientUserId,
+        Map<String, Object> payload,
+        Long createdByUserId,
+        String deduplicationKey,
+        boolean triggerImmediately
+    ) {
         String payloadJson = toJson(payload);
 
         Long eventId = jdbcTemplate.queryForObject(
-            "select mailer.enqueue_event(?, ?, cast(? as jsonb), ?)",
+            "select mailer.enqueue_event(?, ?, cast(? as jsonb), ?, ?)",
             Long.class,
             eventType,
             recipientUserId,
             payloadJson,
-            createdByUserId
+            createdByUserId,
+            deduplicationKey
         );
 
         triggerMailerAfterCommit(triggerImmediately);
@@ -189,6 +241,20 @@ public class NotificationEventService {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Не удалось сериализовать payload уведомления.", exception);
+        }
+    }
+
+    private String eventVersionKey(String eventType, Long applicationId, Long recipientUserId, OffsetDateTime versionAt) {
+        return eventType + ":" + applicationId + ":" + recipientUserId + ":" + versionAt;
+    }
+
+    private String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(String.valueOf(value).getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 недоступен для ключа дедупликации.", exception);
         }
     }
 }

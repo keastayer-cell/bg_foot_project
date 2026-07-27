@@ -238,7 +238,7 @@ public class SeasonApplicationService {
         application.setUpdatedByUserId(userId);
         seasonApplicationRepository.save(application);
 
-        notifyReferees(season, context.team());
+        notifyReferees(application);
         return getSeasonApplicationView(userId, seasonId, requestedTeamId, privilegedAccess);
     }
 
@@ -354,11 +354,17 @@ public class SeasonApplicationService {
         return application;
     }
 
-    private void notifyReferees(Season season, com.footballstats.backend.domain.Team team) {
+    private void notifyReferees(SeasonApplication application) {
         for (UserRole role : userRoleRepository.findByRole_CodeAndActiveTrue(RoleCode.REFEREE)) {
             AppUser user = role.getUser();
             if (user != null && user.getEmail() != null && !user.getEmail().isBlank()) {
-                notificationEventService.enqueueSeasonApplicationSubmittedToReferee(user, team, season);
+                notificationEventService.enqueueSeasonApplicationSubmittedToReferee(
+                    user,
+                    application.getTeam(),
+                    application.getSeason(),
+                    application.getId(),
+                    application.getSubmittedAt()
+                );
             }
         }
     }
@@ -370,15 +376,21 @@ public class SeasonApplicationService {
         }
 
         if (status == SeasonApplicationStatus.APPROVED) {
-            notificationEventService.enqueueSeasonApplicationApproved(representative, application.getSeason());
+            notificationEventService.enqueueSeasonApplicationApproved(
+                representative, application.getSeason(), application.getId(), application.getDecisionAt()
+            );
             return;
         }
         if (status == SeasonApplicationStatus.RETURNED) {
-            notificationEventService.enqueueSeasonApplicationReturned(representative, application.getSeason(), decisionComment);
+            notificationEventService.enqueueSeasonApplicationReturned(
+                representative, application.getSeason(), decisionComment, application.getId(), application.getDecisionAt()
+            );
             return;
         }
         if (status == SeasonApplicationStatus.REJECTED) {
-            notificationEventService.enqueueSeasonApplicationRejected(representative, application.getSeason(), decisionComment);
+            notificationEventService.enqueueSeasonApplicationRejected(
+                representative, application.getSeason(), decisionComment, application.getId(), application.getDecisionAt()
+            );
         }
     }
 

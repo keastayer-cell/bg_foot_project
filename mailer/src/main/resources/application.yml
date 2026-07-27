@@ -43,12 +43,18 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,mailerQueue
 
 mailer:
   poll-interval-ms: ${MAILER_POLL_INTERVAL_MS:600000}
   batch-size: ${MAILER_BATCH_SIZE:20}
   retry-limit: ${MAILER_RETRY_LIMIT:5}
   retry-delay-seconds: ${MAILER_RETRY_DELAY_SECONDS:60}
+  max-retry-delay-seconds: ${MAILER_MAX_RETRY_DELAY_SECONDS:3600}
   stale-lock-seconds: ${MAILER_STALE_LOCK_SECONDS:300}
   transport:
     type: ${MAILER_TRANSPORT_TYPE:log}

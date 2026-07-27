@@ -48,6 +48,24 @@ class TemplateRendererTest {
             .hasMessageContaining("макросы");
     }
 
+    @Test
+    void escapesPayloadValuesInHtmlTemplates() {
+        NotificationTemplateRecord template = new NotificationTemplateRecord(
+            "safe-html",
+            "Решение ${teamName}",
+            "<p>${decisionComment}</p>",
+            "HTML"
+        );
+
+        EmailMessage message = renderer.render(
+            event("{\"teamName\":\"Команда <A>\",\"decisionComment\":\"<script>alert('x')</script>\"}"),
+            template
+        );
+
+        assertThat(message.subject()).isEqualTo("Решение Команда <A>");
+        assertThat(message.body()).contains("&lt;script&gt;", "&#39;x&#39;").doesNotContain("<script>");
+    }
+
     private NotificationEventRecord event(String payloadJson) {
         return new NotificationEventRecord(
             1L,
@@ -58,7 +76,8 @@ class TemplateRendererTest {
             "Иван",
             payloadJson,
             0,
-            OffsetDateTime.parse("2026-07-27T12:00:00+03:00")
+            OffsetDateTime.parse("2026-07-27T12:00:00+03:00"),
+            "lock-token"
         );
     }
 }

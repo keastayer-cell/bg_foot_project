@@ -31,8 +31,8 @@ public class TemplateRenderer {
         variables.putIfAbsent("recipientEmail", event.recipientEmail());
         variables.putIfAbsent("recipientName", event.recipientName());
 
-        String subject = applyVariables(template.subjectTemplate(), variables);
-        String body = applyVariables(template.bodyTemplate(), variables);
+        String subject = applyVariables(template.subjectTemplate(), variables, false);
+        String body = applyVariables(template.bodyTemplate(), variables, template.htmlBody());
         return new EmailMessage(subject, body, template.htmlBody());
     }
 
@@ -48,10 +48,13 @@ public class TemplateRenderer {
         }
     }
 
-    private String applyVariables(String template, Map<String, Object> variables) {
+    private String applyVariables(String template, Map<String, Object> variables, boolean escapeHtml) {
         String rendered = template;
         for (Map.Entry<String, Object> entry : variables.entrySet()) {
             String value = entry.getValue() == null ? "" : String.valueOf(entry.getValue());
+            if (escapeHtml) {
+                value = escapeHtml(value);
+            }
             rendered = rendered.replace("${" + entry.getKey() + "}", value);
         }
 
@@ -60,5 +63,14 @@ public class TemplateRenderer {
         }
 
         return rendered;
+    }
+
+    private String escapeHtml(String value) {
+        return value
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#39;");
     }
 }

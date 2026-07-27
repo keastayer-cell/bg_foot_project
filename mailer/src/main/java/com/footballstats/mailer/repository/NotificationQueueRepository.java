@@ -6,12 +6,14 @@ import com.footballstats.mailer.domain.EmailSendResult;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public class NotificationQueueRepository {
@@ -28,7 +30,8 @@ public class NotificationQueueRepository {
                 rs.getString("recipient_name"),
                 rs.getString("payload_json"),
                 rs.getInt("attempt_count"),
-                rs.getObject("created_at", OffsetDateTime.class)
+                rs.getObject("created_at", OffsetDateTime.class),
+                rs.getString("lock_token")
             );
         }
     };
@@ -40,14 +43,26 @@ public class NotificationQueueRepository {
     }
 
     public List<NotificationEventRecord> claimPendingEvents(int batchSize, int staleLockSeconds) {
+        String lockToken = UUID.randomUUID().toString();
         return jdbcTemplate.query(
             """
                 with candidate as (
                     select e.id
                     from mailer.notification_event e
-                    where e.status in ('NEW', 'FAILED')
-                      and e.next_retry_at <= now()
-                      and (e.locked_at is null or e.locked_at < now() - (? * interval '1 second'))
+                    where (
+                        e.status in ('NEW', 'FAILED')
+                        and e.next_retry_at <= now()
+                        and (
+                            e.locked_at is null
+                            or e.locked_at < now() - (? * interval '1 second')
+                        )
+                    ) or (
+                        e.status = 'PROCESSING'
+                        and (
+                            e.locked_at is null
+                            or e.locked_at < now() - (? * interval '1 second')
+                        )
+                    )
                     order by e.created_at, e.id
                     limit ?
                     for update skip locked
@@ -55,7 +70,8 @@ public class NotificationQueueRepository {
                 update mailer.notification_event e
                    set status = 'PROCESSING',
                        locked_at = now(),
-                       processing_started_at = now()
+                       processing_started_at = now(),
+                       lock_token = ?
                   from candidate
                  where e.id = candidate.id
                 returning e.id,
@@ -66,11 +82,14 @@ public class NotificationQueueRepository {
                           e.recipient_name,
                           e.payload_json::text as payload_json,
                           e.attempt_count,
-                          e.created_at
+                          e.created_at,
+                          e.lock_token
                 """,
             EVENT_ROW_MAPPER,
             staleLockSeconds,
-            batchSize
+            staleLockSeconds,
+            batchSize,
+            lockToken
         );
     }
 
@@ -95,10 +114,11 @@ public class NotificationQueueRepository {
         return templates.stream().findFirst();
     }
 
-    public void markSent(NotificationEventRecord event, String subject, String body, EmailSendResult result) {
+    @Transactional
+    public boolean markSent(NotificationEventRecord event, String subject, String body, EmailSendResult result) {
         int nextAttemptNumber = event.attemptCount() + 1;
 
-        jdbcTemplate.update(
+        int updated = jdbcTemplate.update(
             """
                 update mailer.notification_event
                    set attempt_count = ?,
@@ -106,23 +126,41 @@ public class NotificationQueueRepository {
                        processed_at = now(),
                        locked_at = null,
                        processing_started_at = null,
+                       lock_token = null,
                        last_error = null
                  where id = ?
+                   and status = 'PROCESSING'
+                   and lock_token = ?
                 """,
             nextAttemptNumber,
-            event.id()
+            event.id(),
+            event.lockToken()
         );
+        if (updated == 0) {
+            return false;
+        }
 
         insertEventLog(event.id(), "SENT", "Письмо успешно отправлено");
         insertDeliveryLog(event.id(), nextAttemptNumber, event.recipientEmail(), subject, body, result.transportType(), result.providerMessageId(), "SENT", null);
+        return true;
     }
 
-    public void markFailed(NotificationEventRecord event, String subject, String body, String errorText, int retryLimit, int retryDelaySeconds) {
+    @Transactional
+    public boolean markFailed(
+        NotificationEventRecord event,
+        String subject,
+        String body,
+        String errorText,
+        int retryLimit,
+        int retryDelaySeconds,
+        int maxRetryDelaySeconds
+    ) {
         int nextAttemptNumber = event.attemptCount() + 1;
         boolean dead = nextAttemptNumber >= retryLimit;
         String nextStatus = dead ? "DEAD" : "FAILED";
+        int nextRetryDelaySeconds = calculateRetryDelay(retryDelaySeconds, maxRetryDelaySeconds, nextAttemptNumber);
 
-        jdbcTemplate.update(
+        int updated = jdbcTemplate.update(
             """
                 update mailer.notification_event
                    set attempt_count = ?,
@@ -131,20 +169,28 @@ public class NotificationQueueRepository {
                        processed_at = case when ? then now() else null end,
                        locked_at = null,
                        processing_started_at = null,
+                       lock_token = null,
                        last_error = ?
                  where id = ?
+                   and status = 'PROCESSING'
+                   and lock_token = ?
                 """,
             nextAttemptNumber,
             nextStatus,
             dead,
-            retryDelaySeconds,
+            nextRetryDelaySeconds,
             dead,
             truncateError(errorText),
-            event.id()
+            event.id(),
+            event.lockToken()
         );
+        if (updated == 0) {
+            return false;
+        }
 
         insertEventLog(event.id(), nextStatus, dead ? "Событие переведено в DEAD после исчерпания попыток" : "Попытка отправки завершилась ошибкой, событие оставлено на повтор");
         insertDeliveryLog(event.id(), nextAttemptNumber, event.recipientEmail(), subject, body, "INTERNAL", null, nextStatus, errorText);
+        return true;
     }
 
     private void insertEventLog(Long eventId, String status, String message) {
@@ -180,6 +226,7 @@ public class NotificationQueueRepository {
                     status,
                     error_text
                 ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict (event_id, attempt_number) do nothing
                 """,
             eventId,
             attemptNumber,
@@ -198,5 +245,11 @@ public class NotificationQueueRepository {
             return null;
         }
         return errorText.length() <= 4000 ? errorText : errorText.substring(0, 4000);
+    }
+
+    static int calculateRetryDelay(int baseDelaySeconds, int maxDelaySeconds, int attemptNumber) {
+        long multiplier = 1L << Math.min(Math.max(attemptNumber - 1, 0), 30);
+        long delay = Math.max(baseDelaySeconds, 1) * multiplier;
+        return (int) Math.min(delay, Math.max(maxDelaySeconds, 1));
     }
 }

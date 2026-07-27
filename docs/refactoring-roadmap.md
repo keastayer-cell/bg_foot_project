@@ -73,16 +73,16 @@
 
 ## Этап 5. Mailer и уведомления
 
-- [ ] **НЕ СДЕЛАНО — проверить retry, lock, stale lock и дедупликацию очереди.**
-  Retry, `FOR UPDATE SKIP LOCKED` и stale lock реализованы, но не покрыты тестами и не проведён аудит дедупликации.
+- [x] **СДЕЛАНО — проверить retry, lock, stale lock и дедупликацию очереди.**
+  Исправлен возврат зависших `PROCESSING`, добавлены lock ownership, exponential backoff, атомарные логи и deduplication keys.
 - [x] **СДЕЛАНО — добавить health/readiness для mailer.**
-  Actuator публикует health endpoint, а `management.endpoint.health.probes.enabled=true` включает liveness/readiness probes с datasource health contribution.
+  Readiness включает datasource и отдельный `mailerQueue` indicator со статистикой очереди.
 - [x] **СДЕЛАНО — покрыть шаблоны тестами рендера.**
-  `TemplateRendererTest`: 2 теста рендера и незаполненных макросов.
+  Проверены макросы, незаполненные значения и HTML escaping пользовательских данных.
 - [x] **СДЕЛАНО — сделать понятный режим `log` для test и `smtp` для production.**
-  `MAILER_TRANSPORT_TYPE` и оба режима описаны в `mailer/README.md`.
+  Добавлены профили `test`/`prod`, fail-fast проверка SMTP credentials и безопасное логирование без тела письма.
 
-**Статус этапа 5: НЕ ЗАВЕРШЁН.** Нужны аудит и тесты очереди, а также подтверждённая дедупликация событий.
+**Статус этапа 5: ЗАВЕРШЁН.** Подробности находятся в `docs/refactoring-stage-5-mailer.md`.
 
 ## Этап 6. CI/CD и эксплуатация
 

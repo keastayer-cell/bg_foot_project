@@ -1,16 +1,30 @@
 package com.footballstats.mailer.config;
 
 import java.nio.charset.StandardCharsets;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
+@Validated
 @ConfigurationProperties(prefix = "mailer")
 public class MailerProperties {
 
+    @Min(100)
     private long pollIntervalMs = 5000;
+    @Min(1)
     private int batchSize = 20;
+    @Min(1)
     private int retryLimit = 5;
+    @Min(1)
     private int retryDelaySeconds = 60;
+    @Min(1)
+    private int maxRetryDelaySeconds = 3600;
+    @Min(30)
     private int staleLockSeconds = 300;
+    @Valid
     private final Transport transport = new Transport();
 
     public long getPollIntervalMs() {
@@ -49,6 +63,14 @@ public class MailerProperties {
         return staleLockSeconds;
     }
 
+    public int getMaxRetryDelaySeconds() {
+        return maxRetryDelaySeconds;
+    }
+
+    public void setMaxRetryDelaySeconds(int maxRetryDelaySeconds) {
+        this.maxRetryDelaySeconds = maxRetryDelaySeconds;
+    }
+
     public void setStaleLockSeconds(int staleLockSeconds) {
         this.staleLockSeconds = staleLockSeconds;
     }
@@ -59,8 +81,11 @@ public class MailerProperties {
 
     public static class Transport {
 
+        @Pattern(regexp = "log|smtp", message = "mailer.transport.type должен быть log или smtp")
         private String type = "log";
+        @NotBlank
         private String fromEmail = "no-reply@football.local";
+        @NotBlank
         private String fromName = "Football Stats";
 
         public String getType() {

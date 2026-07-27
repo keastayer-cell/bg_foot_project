@@ -11,6 +11,7 @@ public record NotificationEventRecord(
     String recipientName,
     String payloadJson,
     int attemptCount,
-    OffsetDateTime createdAt
+    OffsetDateTime createdAt,
+    String lockToken
 ) {
 }

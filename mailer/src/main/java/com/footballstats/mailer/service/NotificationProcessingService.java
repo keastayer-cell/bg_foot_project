@@ -49,21 +49,23 @@ public class NotificationProcessingService {
         }
 
         try {
-        List<NotificationEventRecord> events = queueRepository.claimPendingEvents(
-            mailerProperties.getBatchSize(),
-            mailerProperties.getStaleLockSeconds()
-        );
+            int processedCount = 0;
+            while (processedCount < mailerProperties.getBatchSize()) {
+                List<NotificationEventRecord> events = queueRepository.claimPendingEvents(
+                    1,
+                    mailerProperties.getStaleLockSeconds()
+                );
+                if (events.isEmpty()) {
+                    break;
+                }
+                processSingleEvent(events.getFirst());
+                processedCount++;
+            }
 
-        if (events.isEmpty()) {
-            return 0;
-        }
-
-        log.info("Mailer picked {} notification event(s) for processing", events.size());
-        for (NotificationEventRecord event : events) {
-            processSingleEvent(event);
-        }
-
-        return events.size();
+            if (processedCount > 0) {
+                log.info("Mailer processed {} notification event(s)", processedCount);
+            }
+            return processedCount;
         } finally {
             processing.set(false);
         }
@@ -82,7 +84,9 @@ public class NotificationProcessingService {
             renderedBody = message.body();
 
             EmailSendResult sendResult = emailTransport.send(event.recipientEmail(), event.recipientName(), message);
-            queueRepository.markSent(event, renderedSubject, renderedBody, sendResult);
+            if (!queueRepository.markSent(event, renderedSubject, renderedBody, sendResult)) {
+                log.warn("Mailer event {} lost its processing lock before SENT was persisted", event.id());
+            }
         } catch (NotificationProcessingException exception) {
             log.warn("Mailer skipped sending event {} ({}) due to processing error: {}", event.id(), event.eventType(), exception.getMessage());
             queueRepository.markFailed(
@@ -91,7 +95,8 @@ public class NotificationProcessingService {
                 renderedBody,
                 exception.getMessage(),
                 mailerProperties.getRetryLimit(),
-                mailerProperties.getRetryDelaySeconds()
+                mailerProperties.getRetryDelaySeconds(),
+                mailerProperties.getMaxRetryDelaySeconds()
             );
         } catch (Exception exception) {
             log.error("Mailer failed to process event {} ({})", event.id(), event.eventType(), exception);
@@ -101,7 +106,8 @@ public class NotificationProcessingService {
                 renderedBody,
                 exception.getMessage(),
                 mailerProperties.getRetryLimit(),
-                mailerProperties.getRetryDelaySeconds()
+                mailerProperties.getRetryDelaySeconds(),
+                mailerProperties.getMaxRetryDelaySeconds()
             );
         }
     }

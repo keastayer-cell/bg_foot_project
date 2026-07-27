@@ -16,13 +16,22 @@ public class LoggingEmailTransport implements EmailTransport {
     @Override
     public EmailSendResult send(String recipientEmail, String recipientName, EmailMessage message) {
         log.info(
-            "MAILER LOG transport -> to='{}' name='{}' html={} subject='{}' body='{}'",
-            recipientEmail,
-            recipientName,
+            "MAILER LOG transport -> to='{}' html={} subjectLength={} bodyLength={}",
+            maskEmail(recipientEmail),
             message.html(),
-            message.subject(),
-            message.body()
+            message.subject() == null ? 0 : message.subject().length(),
+            message.body() == null ? 0 : message.body().length()
         );
         return new EmailSendResult("LOG", null);
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return "***";
+        }
+        int separator = email.indexOf('@');
+        String localPart = email.substring(0, separator);
+        String domain = email.substring(separator + 1);
+        return (localPart.isEmpty() ? "*" : localPart.substring(0, 1) + "***") + "@" + domain;
     }
 }
