@@ -17,258 +17,11 @@
     />
 
 
-    <article class="card admin-panel" v-if="activeTab === 'teams'">
-      <div class="admin-panel-head">
-        <h3 class="section-title">Команды и составы</h3>
-        <p class="muted-text">Карточка команды, текущий состав и сезонная заявка игроков.</p>
-      </div>
-      <div class="admin-inline-message" v-if="messageError || messageOk">
-        <p class="error-text" v-if="messageError">{{ messageError }}</p>
-        <p class="success-text" v-if="messageOk">{{ messageOk }}</p>
-      </div>
-      <div class="admin-subnav">
-        <button
-          class="btn-ghost admin-subnav-btn"
-          :class="{ 'admin-subnav-active': teamSubMode === 'create' }"
-          type="button"
-          @click="teamSubMode = 'create'; cancelEditTeam(); teamEditSelectId = ''"
-        >Создать команду</button>
-        <button
-          class="btn-ghost admin-subnav-btn"
-          :class="{ 'admin-subnav-active': teamSubMode === 'edit' }"
-          type="button"
-          @click="teamSubMode = 'edit'"
-        >Редактировать</button>
-      </div>
+    <AdminTeamsPanel
+      v-if="activeTab === 'teams'"
+      :panel="teamPanel"
+    />
 
-      <form v-if="teamSubMode === 'create'" class="admin-form admin-surface" @submit.prevent="createTeam">
-        <label>
-          Название команды
-          <input v-model.trim="teamForm.name" type="text" required />
-        </label>
-        <label>
-          Короткое название
-          <input v-model.trim="teamForm.shortName" type="text" required />
-        </label>
-        <label>
-          Город
-          <input v-model.trim="teamForm.city" type="text" required />
-        </label>
-        <label>
-          Лого команды
-          <input type="file" accept="image/*" @change="onTeamLogoSelected" />
-        </label>
-        <img v-if="teamForm.logoDataUrl" :src="teamForm.logoDataUrl" alt="Превью лого команды" class="admin-team-logo-preview" />
-        <div class="actions-row">
-          <button class="btn-primary" type="submit">Создать команду</button>
-        </div>
-      </form>
-
-      <div v-else class="admin-form admin-surface">
-        <label>
-          Выберите команду
-          <select v-model="teamEditSelectId" @change="onTeamSelectChange">
-            <option value="">— выберите —</option>
-            <option v-for="t in teamsList" :key="t.id" :value="String(t.id)">{{ t.name }}</option>
-          </select>
-        </label>
-        <template v-if="editingTeamId">
-          <div class="admin-sticky-actions-spacer"></div>
-          <div class="admin-team-editor-shell">
-            <section class="admin-surface admin-team-identity-card">
-              <div class="admin-team-identity-head">
-                <div>
-                  <h4 class="admin-list-title">Карточка команды</h4>
-                  <p class="muted-text">Базовые поля и быстрые показатели в одном компактном блоке.</p>
-                </div>
-                <div class="admin-team-summary-grid">
-                  <article class="admin-team-summary-card">
-                    <span class="admin-team-summary-label">В составе</span>
-                    <strong>{{ teamRoster.length }}</strong>
-                  </article>
-                  <article class="admin-team-summary-card">
-                    <span class="admin-team-summary-label">Сезонов</span>
-                    <strong>{{ teamSeasonOptions.length }}</strong>
-                  </article>
-                  <article class="admin-team-summary-card" :class="{ 'is-accent': selectedTeamSeasonId }">
-                    <span class="admin-team-summary-label">В заявке</span>
-                    <strong>{{ selectedTeamSeasonId ? teamSeasonSelectedPlayers.length : '—' }}</strong>
-                  </article>
-                </div>
-              </div>
-
-              <div class="admin-team-identity-grid">
-                <label>
-                  Название команды
-                  <input v-model.trim="teamForm.name" type="text" />
-                </label>
-                <label>
-                  Короткое название
-                  <input v-model.trim="teamForm.shortName" type="text" />
-                </label>
-                <label>
-                  Город
-                  <input v-model.trim="teamForm.city" type="text" />
-                </label>
-                <label class="admin-team-logo-field">
-                  Лого команды
-                  <input type="file" accept="image/*" @change="onTeamLogoSelected" />
-                </label>
-                <div v-if="teamForm.logoDataUrl" class="admin-team-logo-preview-wrap">
-                  <img :src="teamForm.logoDataUrl" alt="Превью лого команды" class="admin-team-logo-preview" />
-                </div>
-              </div>
-            </section>
-
-            <div class="admin-team-management-grid">
-            <section class="admin-list admin-team-management-card">
-              <div class="toolbar admin-team-management-head">
-                <div>
-                  <h4 class="admin-list-title">Состав команды</h4>
-                  <p class="muted-text">Массовое добавление в команду и быстрый контроль текущего состава.</p>
-                </div>
-                <div class="actions-row admin-team-head-actions">
-                  <button class="btn-ghost btn-sm" type="button" @click="toggleTeamRosterVisibility">
-                    {{ isTeamRosterVisible ? 'Скрыть состав' : 'Показать весь состав' }}
-                  </button>
-                  <button class="btn-ghost btn-sm" type="button" @click="refreshAdminTeamContext">Обновить</button>
-                </div>
-              </div>
-
-              <div class="actions-row admin-team-picker-row admin-team-management-toolbar">
-                <SearchableSelect
-                  :key="`team-roster-multi-${editingTeamId}-${teamRosterAddOptions.length}`"
-                  v-model="teamRosterToAddIds"
-                  :options="teamRosterAddOptions"
-                  multiple
-                  multiple-summary-text="Выбрано игроков"
-                  placeholder="Выберите игроков в состав"
-                  search-placeholder="Начните вводить ФИО игрока"
-                  empty-text="Игрок по такому ФИО не найден"
-                />
-                <div class="admin-team-picker-side">
-                  <span class="admin-team-picker-count">Выбрано: {{ teamRosterToAddIds.length }}</span>
-                  <button class="btn-primary btn-sm" type="button" @click="addPlayerToEditingTeam" :disabled="teamRosterBusy || !teamRosterToAddIds.length">
-                    Добавить выбранных
-                  </button>
-                </div>
-              </div>
-
-              <p v-if="!isTeamRosterVisible" class="muted-text">Состав скрыт. Нажмите «Показать весь состав», если нужен полный список игроков.</p>
-              <p v-else-if="!teamRoster.length" class="muted-text">В текущем составе команды пока нет игроков.</p>
-              <div v-else class="admin-list-items">
-                <article v-for="player in teamRoster" :key="`team-roster-${player.id}`" class="admin-list-item admin-player-manage-item">
-                  <div class="admin-player-manage-copy">
-                    <strong>{{ player.fullName }}<span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></strong>
-                    <span class="muted-text">В команде с {{ formatDateOnly(player.inTeamSince) }}</span>
-                  </div>
-                  <button class="btn-danger btn-sm" type="button" @click="removePlayerFromEditingTeam(player.id)" :disabled="teamRosterBusy">
-                    Удалить из состава
-                  </button>
-                </article>
-              </div>
-            </section>
-
-            <section class="admin-list admin-team-management-card">
-              <div class="toolbar admin-team-management-head">
-                <div>
-                  <h4 class="admin-list-title">Заявка на сезон</h4>
-                  <p class="muted-text">Выбери сезон, затем массово добавь или сними игроков без длинного списка.</p>
-                </div>
-              </div>
-
-              <div class="admin-team-management-toolbar admin-team-management-toolbar-spacer" aria-hidden="true"></div>
-
-              <label class="admin-team-season-select-field">
-                Выберите сезон
-                <select v-model="selectedTeamSeasonId" @change="onAdminTeamSeasonChange">
-                  <option value="">— выберите —</option>
-                  <option v-for="season in teamSeasonOptions" :key="`team-season-${season.id}`" :value="String(season.id)">
-                    {{ season.name }}
-                  </option>
-                </select>
-              </label>
-
-              <p v-if="!teamSeasonOptions.length" class="muted-text">Эта команда пока не включена ни в один активный сезон.</p>
-              <p v-else-if="!selectedTeamSeasonId" class="muted-text">Выберите сезон, чтобы управлять заявкой команды.</p>
-              <p v-else-if="!teamSeasonPlayers.length" class="muted-text">В составе команды пока нет игроков для управления заявкой сезона.</p>
-
-              <div v-else class="admin-team-season-tools">
-                <div class="admin-team-season-summary">
-                  <span class="admin-season-player-badge is-selected">В заявке: {{ teamSeasonSelectedPlayers.length }}</span>
-                  <span class="admin-season-player-badge is-not-selected">Доступно: {{ teamSeasonAvailablePlayers.length }}</span>
-                  <span v-if="teamSeasonMaxRosterSize" class="admin-season-player-badge">Лимит: {{ teamSeasonMaxRosterSize }}</span>
-                  <span v-if="teamSeasonMaxRosterSize" class="admin-season-player-badge" :class="teamSeasonRemainingSlots > 0 ? 'is-not-selected' : 'is-selected'">
-                    Осталось мест: {{ teamSeasonRemainingSlots }}
-                  </span>
-                </div>
-
-                <div class="admin-team-season-action-block">
-                  <label class="admin-team-season-control">
-                    Добавить игроков в сезон
-                    <SearchableSelect
-                      :key="`team-season-add-${selectedTeamSeasonId}-${teamSeasonAddOptions.length}`"
-                      v-model="teamSeasonToAddIds"
-                      :options="teamSeasonAddOptions"
-                      multiple
-                      multiple-summary-text="Выбрано игроков"
-                      placeholder="Выберите игроков для заявки"
-                      search-placeholder="Начните вводить ФИО игрока"
-                      empty-text="Нет доступных игроков для добавления"
-                      :disabled="teamSeasonBusy || !teamSeasonAddOptions.length || isTeamSeasonAtLimit"
-                    />
-                  </label>
-                  <div class="admin-team-picker-side admin-team-picker-side-inline">
-                    <span class="admin-team-picker-count">Выбрано: {{ teamSeasonToAddIds.length }}</span>
-                    <button class="btn-primary btn-sm" type="button" @click="addSelectedPlayersToSeason" :disabled="teamSeasonBusy || !teamSeasonToAddIds.length || willSelectedPlayersExceedSeasonLimit">
-                      Добавить выбранных
-                    </button>
-                  </div>
-                  <p v-if="teamSeasonMaxRosterSize && isTeamSeasonAtLimit" class="muted-text">
-                    Лимит заявки уже достигнут. Сначала уберите кого-то из сезона.
-                  </p>
-                  <p v-else-if="willSelectedPlayersExceedSeasonLimit" class="error-text">
-                    Нельзя добавить {{ teamSeasonToAddIds.length }} игрок(ов): будет превышен лимит {{ teamSeasonMaxRosterSize }}.
-                  </p>
-                </div>
-
-                <div class="admin-team-season-action-block" v-if="teamSeasonRemoveOptions.length">
-                  <label class="admin-team-season-control">
-                    Убрать игроков из сезона
-                    <SearchableSelect
-                      :key="`team-season-remove-${selectedTeamSeasonId}-${teamSeasonRemoveOptions.length}`"
-                      v-model="teamSeasonToRemoveIds"
-                      :options="teamSeasonRemoveOptions"
-                      multiple
-                      multiple-summary-text="Выбрано игроков"
-                      placeholder="Выберите игроков для удаления"
-                      search-placeholder="Начните вводить ФИО игрока"
-                      empty-text="В заявке пока нет игроков"
-                      :disabled="teamSeasonBusy"
-                    />
-                  </label>
-                  <div class="admin-team-picker-side admin-team-picker-side-inline">
-                    <span class="admin-team-picker-count">Выбрано: {{ teamSeasonToRemoveIds.length }}</span>
-                    <button class="btn-danger btn-sm" type="button" @click="removeSelectedPlayersFromSeason" :disabled="teamSeasonBusy || !teamSeasonToRemoveIds.length">
-                      Убрать выбранных
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </section>
-            </div>
-          </div>
-
-          <div class="actions-row admin-sticky-actions">
-            <button class="btn-primary" type="button" @click="saveEditTeam" :disabled="teamSaving">
-              {{ teamSaving ? 'Сохраняем...' : 'Сохранить изменения' }}
-            </button>
-            <button class="btn-danger" type="button" @click="deactivateTeam(editingTeamId)">Удалить команду</button>
-            <button class="btn-ghost" type="button" @click="cancelEditTeam(); teamEditSelectId = ''">Отмена</button>
-          </div>
-        </template>
-      </div>
-    </article>
 
     <article class="card admin-panel" v-if="activeTab === 'tours'">
       <div class="admin-panel-head">
@@ -467,6 +220,7 @@ import {
   TIE_BREAKER_RULE_OPTIONS,
   useAdminSeasonRules,
 } from '../composables/useAdminSeasonRules'
+import { useAdminTeams } from '../composables/useAdminTeams'
 import { useAdminTabs } from '../composables/useAdminTabs'
 import AdminTabNavigation from '../components/AdminTabNavigation.vue'
 import AdminBanPanel from '../components/admin/AdminBanPanel.vue'
@@ -475,7 +229,7 @@ import AdminRefereesPanel from '../components/admin/AdminRefereesPanel.vue'
 import AdminRepresentativesPanel from '../components/admin/AdminRepresentativesPanel.vue'
 import AdminRolesPanel from '../components/admin/AdminRolesPanel.vue'
 import AdminSeasonsPanel from '../components/admin/AdminSeasonsPanel.vue'
-import SearchableSelect from '../components/SearchableSelect.vue'
+import AdminTeamsPanel from '../components/admin/AdminTeamsPanel.vue'
 import AdminLeagueContent from '../components/AdminLeagueContent.vue'
 
 const USERS_KEY = 'football_stats_admin_users_registry'
@@ -601,13 +355,6 @@ const matchForm = reactive({
   kickoffAt: '',
 })
 
-const teamForm = reactive({
-  name: '',
-  shortName: '',
-  city: '',
-  logoDataUrl: '',
-})
-
 const editingSeasonId = ref(null)
 const seasonSubMode = ref('create')
 const seasonEditSelectId = ref('')
@@ -621,20 +368,55 @@ const seasonTeamToAddId = ref('')
 const seasonRefereeIds = ref([])
 const originalSeasonRefereeIds = ref([])
 const seasonRefereeToAddId = ref('')
-const editingTeamId = ref(null)
-const teamSubMode = ref('create')
-const teamEditSelectId = ref('')
-const teamRoster = ref([])
-const teamSeasonOptions = ref([])
-const teamSeasonPlayers = ref([])
-const teamRosterToAddIds = ref([])
-const selectedTeamSeasonId = ref('')
-const teamSeasonToAddIds = ref([])
-const teamSeasonToRemoveIds = ref([])
-const teamRosterBusy = ref(false)
-const teamSeasonBusy = ref(false)
-const isTeamRosterVisible = ref(false)
-const teamSaving = ref(false)
+const {
+  addPlayersToRoster: addPlayerToEditingTeam,
+  addPlayersToSeason: addSelectedPlayersToSeason,
+  cancelEdit: cancelEditTeam,
+  create: createTeam,
+  deactivate: deactivateTeam,
+  editingId: editingTeamId,
+  editSelectId: teamEditSelectId,
+  form: teamForm,
+  isRosterVisible: isTeamRosterVisible,
+  isSeasonAtLimit: isTeamSeasonAtLimit,
+  loadRegistry: loadTeamRegistry,
+  onLogoSelected: onTeamLogoSelected,
+  onSeasonChange: onAdminTeamSeasonChange,
+  onSelectChange: onTeamSelectChange,
+  refreshContext: refreshAdminTeamContext,
+  removePlayerFromRoster: removePlayerFromEditingTeam,
+  removePlayersFromSeason: removeSelectedPlayersFromSeason,
+  roster: teamRoster,
+  rosterAddOptions: teamRosterAddOptions,
+  rosterBusy: teamRosterBusy,
+  rosterToAddIds: teamRosterToAddIds,
+  saveEdit: saveEditTeam,
+  saving: teamSaving,
+  seasonAddOptions: teamSeasonAddOptions,
+  seasonAvailablePlayers: teamSeasonAvailablePlayers,
+  seasonBusy: teamSeasonBusy,
+  seasonMaxRosterSize: teamSeasonMaxRosterSize,
+  seasonOptions: teamSeasonOptions,
+  seasonPlayers: teamSeasonPlayers,
+  seasonRemainingSlots: teamSeasonRemainingSlots,
+  seasonRemoveOptions: teamSeasonRemoveOptions,
+  seasonSelectedPlayers: teamSeasonSelectedPlayers,
+  seasonToAddIds: teamSeasonToAddIds,
+  seasonToRemoveIds: teamSeasonToRemoveIds,
+  selectedSeasonId: selectedTeamSeasonId,
+  subMode: teamSubMode,
+  toggleRosterVisibility: toggleTeamRosterVisibility,
+  willSelectedPlayersExceedSeasonLimit,
+} = useAdminTeams({
+  request: authorizedApiRequest,
+  teams: teamsList,
+  players: playersList,
+  loadPlayers: loadPlayerRegistry,
+  clearMessages: resetMessages,
+  errorMessage: messageError,
+  successMessage: messageOk,
+  formatDateOnly,
+})
 const tourSeasonId = ref('')
 const selectedTourId = ref('')
 const banForm = reactive({
@@ -682,88 +464,6 @@ const seasonAvailableReferees = computed(() => {
   return refereesList.value.filter((referee) => !selectedIds.has(Number(referee.id)))
 })
 
-const teamPlayersAvailableForRoster = computed(() => {
-  const rosterIds = new Set(teamRoster.value.map((player) => Number(player.id)))
-  const currentEditingTeamId = Number(editingTeamId.value)
-
-  return playersList.value.filter((player) => {
-    const playerId = Number(player.id)
-    const playerActiveSeasonTeamId = Number(player.activeSeasonTeamId)
-
-    if (rosterIds.has(playerId)) {
-      return false
-    }
-
-    if (!Number.isFinite(playerActiveSeasonTeamId) || playerActiveSeasonTeamId <= 0) {
-      return true
-    }
-
-    return playerActiveSeasonTeamId === currentEditingTeamId
-  })
-})
-
-const teamRosterAddOptions = computed(() => {
-  return teamPlayersAvailableForRoster.value.map((player) => ({
-    value: String(player.id),
-    label: formatAdminRosterPlayerOption(player),
-    caption: formatAdminPlayerOptionCaption(player),
-    keywords: `${player.fullName || ''}`,
-  }))
-})
-
-const teamSeasonSelectedPlayers = computed(() => {
-  return teamSeasonPlayers.value.filter((player) => Boolean(player?.selectedForSeason))
-})
-
-const teamSeasonAvailablePlayers = computed(() => {
-  return teamSeasonPlayers.value.filter((player) => !player?.selectedForSeason)
-})
-
-const selectedAdminTeamSeason = computed(() => {
-  return teamSeasonOptions.value.find((season) => String(season.id) === String(selectedTeamSeasonId.value)) || null
-})
-
-const teamSeasonMaxRosterSize = computed(() => {
-  const rawValue = selectedAdminTeamSeason.value?.maxRosterSize
-  const normalized = Number(rawValue)
-  return Number.isFinite(normalized) && normalized > 0 ? normalized : null
-})
-
-const teamSeasonRemainingSlots = computed(() => {
-  if (!teamSeasonMaxRosterSize.value) {
-    return null
-  }
-  return Math.max(teamSeasonMaxRosterSize.value - teamSeasonSelectedPlayers.value.length, 0)
-})
-
-const isTeamSeasonAtLimit = computed(() => {
-  return teamSeasonRemainingSlots.value === 0
-})
-
-const willSelectedPlayersExceedSeasonLimit = computed(() => {
-  if (teamSeasonRemainingSlots.value == null) {
-    return false
-  }
-  return teamSeasonToAddIds.value.length > teamSeasonRemainingSlots.value
-})
-
-const teamSeasonAddOptions = computed(() => {
-  return teamSeasonAvailablePlayers.value.map((player) => ({
-    value: String(player.id),
-    label: formatAdminRosterPlayerOption(player),
-    caption: formatAdminPlayerOptionCaption(player),
-    keywords: `${player.fullName || ''}`,
-  }))
-})
-
-const teamSeasonRemoveOptions = computed(() => {
-  return teamSeasonSelectedPlayers.value.map((player) => ({
-    value: String(player.id),
-    label: formatAdminRosterPlayerOption(player),
-    caption: formatAdminPlayerOptionCaption(player),
-    keywords: `${player.fullName || ''}`,
-  }))
-})
 
 const {
   addRankingRule: addSeasonRankingRule,
@@ -838,6 +538,50 @@ const seasonPanel = reactive({
   seasonTeamToAddId,
   tieBreakerRuleOptions,
   toggleSeasonProtocolMenu,
+})
+
+const teamPanel = reactive({
+  addPlayersToRoster: addPlayerToEditingTeam,
+  addPlayersToSeason: addSelectedPlayersToSeason,
+  cancelEdit: cancelEditTeam,
+  create: createTeam,
+  deactivate: deactivateTeam,
+  editingId: editingTeamId,
+  editSelectId: teamEditSelectId,
+  form: teamForm,
+  formatDateOnly,
+  isRosterVisible: isTeamRosterVisible,
+  isSeasonAtLimit: isTeamSeasonAtLimit,
+  messageError,
+  messageOk,
+  onLogoSelected: onTeamLogoSelected,
+  onSeasonChange: onAdminTeamSeasonChange,
+  onSelectChange: onTeamSelectChange,
+  refreshContext: refreshAdminTeamContext,
+  removePlayerFromRoster: removePlayerFromEditingTeam,
+  removePlayersFromSeason: removeSelectedPlayersFromSeason,
+  roster: teamRoster,
+  rosterAddOptions: teamRosterAddOptions,
+  rosterBusy: teamRosterBusy,
+  rosterToAddIds: teamRosterToAddIds,
+  saveEdit: saveEditTeam,
+  saving: teamSaving,
+  seasonAddOptions: teamSeasonAddOptions,
+  seasonAvailablePlayers: teamSeasonAvailablePlayers,
+  seasonBusy: teamSeasonBusy,
+  seasonMaxRosterSize: teamSeasonMaxRosterSize,
+  seasonOptions: teamSeasonOptions,
+  seasonPlayers: teamSeasonPlayers,
+  seasonRemainingSlots: teamSeasonRemainingSlots,
+  seasonRemoveOptions: teamSeasonRemoveOptions,
+  seasonSelectedPlayers: teamSeasonSelectedPlayers,
+  seasonToAddIds: teamSeasonToAddIds,
+  seasonToRemoveIds: teamSeasonToRemoveIds,
+  selectedSeasonId: selectedTeamSeasonId,
+  subMode: teamSubMode,
+  teamsList,
+  toggleRosterVisibility: toggleTeamRosterVisibility,
+  willSelectedPlayersExceedSeasonLimit,
 })
 
 const selectedTour = computed(() => {
@@ -1319,383 +1063,6 @@ function showSeasonOperationError(message) {
   }
 }
 
-async function createTeam() {
-  resetMessages()
-
-  if (!teamForm.name || !teamForm.shortName || !teamForm.city) {
-    messageError.value = 'Заполните все поля команды.'
-    return
-  }
-
-  try {
-    await authorizedApiRequest('/api/teams', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: teamForm.name,
-        shortName: teamForm.shortName,
-        city: teamForm.city,
-        logoDataUrl: teamForm.logoDataUrl,
-      }),
-    })
-    await loadTeamRegistry()
-    resetTeamForm()
-    messageOk.value = 'Команда создана.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось создать команду.'
-  }
-}
-
-function startEditTeam(item) {
-  editingTeamId.value = item.id
-  teamForm.name = item.name
-  teamForm.shortName = item.shortName
-  teamForm.city = item.city
-  teamForm.logoDataUrl = item.logoDataUrl || ''
-  isTeamRosterVisible.value = false
-  resetMessages()
-}
-
-function cancelEditTeam() {
-  editingTeamId.value = null
-  resetTeamForm()
-  resetAdminTeamContext()
-  resetMessages()
-}
-
-async function saveEditTeam() {
-  resetMessages()
-
-  if (!editingTeamId.value) {
-    messageError.value = 'Сначала выберите команду для редактирования.'
-    return
-  }
-
-  if (!teamForm.name || !teamForm.shortName || !teamForm.city) {
-    messageError.value = 'Заполните все поля команды.'
-    return
-  }
-
-  teamSaving.value = true
-
-  try {
-    const updatedTeam = await authorizedApiRequest(`/api/teams/${editingTeamId.value}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        name: teamForm.name,
-        shortName: teamForm.shortName,
-        city: teamForm.city,
-        logoDataUrl: teamForm.logoDataUrl,
-      }),
-    })
-
-    await loadTeamRegistry()
-
-    const refreshedTeam = teamsList.value.find((team) => String(team.id) === String(updatedTeam?.id || editingTeamId.value)) || updatedTeam
-    if (refreshedTeam?.id) {
-      teamEditSelectId.value = String(refreshedTeam.id)
-      startEditTeam(refreshedTeam)
-      await refreshAdminTeamContext(refreshedTeam.id)
-    }
-
-    messageOk.value = 'Команда обновлена.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось обновить команду.'
-  } finally {
-    teamSaving.value = false
-  }
-}
-
-async function onTeamSelectChange() {
-  if (!teamEditSelectId.value) {
-    cancelEditTeam()
-    return
-  }
-  const item = teamsList.value.find((t) => String(t.id) === teamEditSelectId.value)
-  if (item) {
-    startEditTeam(item)
-    await refreshAdminTeamContext(item.id)
-  }
-}
-
-async function deactivateTeam(teamId) {
-  resetMessages()
-
-  try {
-    await authorizedApiRequest(`/api/teams/${teamId}`, {
-      method: 'DELETE',
-    })
-    if (String(editingTeamId.value || '') === String(teamId)) {
-      cancelEditTeam()
-      teamEditSelectId.value = ''
-    }
-    await loadTeamRegistry()
-    messageOk.value = 'Команда деактивирована.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось удалить команду.'
-  }
-}
-
-function onTeamLogoSelected(event) {
-  const file = event.target?.files?.[0]
-  if (!file) return
-
-  const reader = new FileReader()
-  reader.onload = () => {
-    teamForm.logoDataUrl = String(reader.result || '')
-  }
-  reader.readAsDataURL(file)
-}
-
-function resetTeamForm() {
-  teamForm.name = ''
-  teamForm.shortName = ''
-  teamForm.city = ''
-  teamForm.logoDataUrl = ''
-}
-
-function resetAdminTeamContext() {
-  teamRoster.value = []
-  teamSeasonOptions.value = []
-  teamSeasonPlayers.value = []
-  teamRosterToAddIds.value = []
-  selectedTeamSeasonId.value = ''
-  teamSeasonToAddIds.value = []
-  teamSeasonToRemoveIds.value = []
-  teamRosterBusy.value = false
-  teamSeasonBusy.value = false
-  isTeamRosterVisible.value = false
-}
-
-function toggleTeamRosterVisibility() {
-  isTeamRosterVisible.value = !isTeamRosterVisible.value
-}
-
-async function refreshAdminTeamContext(teamId = editingTeamId.value) {
-  const normalizedTeamId = Number(teamId)
-  if (!Number.isFinite(normalizedTeamId) || normalizedTeamId <= 0) {
-    resetAdminTeamContext()
-    return
-  }
-
-  await loadEditingTeamRoster(normalizedTeamId)
-  await loadEditingTeamSeasonOptions(normalizedTeamId)
-
-  if (selectedTeamSeasonId.value && !teamSeasonOptions.value.some((season) => String(season.id) === String(selectedTeamSeasonId.value))) {
-    selectedTeamSeasonId.value = ''
-    teamSeasonPlayers.value = []
-    teamSeasonToAddIds.value = []
-    teamSeasonToRemoveIds.value = []
-  }
-
-  if (selectedTeamSeasonId.value) {
-    await loadEditingTeamSeasonPlayers(normalizedTeamId, selectedTeamSeasonId.value)
-  }
-}
-
-async function loadEditingTeamRoster(teamId) {
-  teamRosterBusy.value = true
-  try {
-    const payload = await authorizedApiRequest(`/api/teams/${encodeURIComponent(teamId)}/players`, {
-      method: 'GET',
-    })
-    teamRoster.value = Array.isArray(payload) ? payload : []
-  } catch (error) {
-    teamRoster.value = []
-    messageError.value = error.message || 'Не удалось загрузить состав команды.'
-  } finally {
-    teamRosterBusy.value = false
-  }
-}
-
-async function loadEditingTeamSeasonOptions(teamId) {
-  teamSeasonBusy.value = true
-  try {
-    const payload = await authorizedApiRequest(`/api/teams/${encodeURIComponent(teamId)}/seasons`, {
-      method: 'GET',
-    })
-    teamSeasonOptions.value = Array.isArray(payload) ? payload : []
-  } catch (error) {
-    teamSeasonOptions.value = []
-    messageError.value = error.message || 'Не удалось определить сезоны команды.'
-  } finally {
-    teamSeasonBusy.value = false
-  }
-}
-
-async function onAdminTeamSeasonChange() {
-  resetMessages()
-  teamSeasonToAddIds.value = []
-  teamSeasonToRemoveIds.value = []
-
-  if (!editingTeamId.value || !selectedTeamSeasonId.value) {
-    teamSeasonPlayers.value = []
-    return
-  }
-
-  await loadEditingTeamSeasonPlayers(editingTeamId.value, selectedTeamSeasonId.value)
-}
-
-async function loadEditingTeamSeasonPlayers(teamId, seasonId) {
-  teamSeasonBusy.value = true
-  try {
-    const payload = await authorizedApiRequest(
-      `/api/seasons/${encodeURIComponent(seasonId)}/teams/${encodeURIComponent(teamId)}/players`,
-      { method: 'GET' }
-    )
-    teamSeasonPlayers.value = Array.isArray(payload) ? payload : []
-    teamSeasonToAddIds.value = []
-    teamSeasonToRemoveIds.value = []
-  } catch (error) {
-    teamSeasonPlayers.value = []
-    teamSeasonToAddIds.value = []
-    teamSeasonToRemoveIds.value = []
-    messageError.value = error.message || 'Не удалось загрузить заявку команды на сезон.'
-  } finally {
-    teamSeasonBusy.value = false
-  }
-}
-
-async function addPlayerToEditingTeam() {
-  resetMessages()
-
-  if (!editingTeamId.value) {
-    messageError.value = 'Сначала выберите команду.'
-    return
-  }
-
-  const playerIds = normalizePositiveIdList(teamRosterToAddIds.value)
-
-  if (!playerIds.length) {
-    messageError.value = 'Выберите хотя бы одного игрока для добавления в состав.'
-    return
-  }
-
-  teamRosterBusy.value = true
-  try {
-    for (const playerId of playerIds) {
-      await authorizedApiRequest(
-        `/api/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(playerId)}`,
-        { method: 'POST' }
-      )
-    }
-    teamRosterToAddIds.value = []
-    await loadPlayerRegistry()
-    await refreshAdminTeamContext()
-    messageOk.value = playerIds.length === 1 ? 'Игрок добавлен в состав команды.' : `В состав команды добавлено игроков: ${playerIds.length}.`
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось добавить игрока в состав команды.'
-  } finally {
-    teamRosterBusy.value = false
-  }
-}
-
-async function removePlayerFromEditingTeam(playerId) {
-  resetMessages()
-
-  if (!editingTeamId.value) {
-    messageError.value = 'Сначала выберите команду.'
-    return
-  }
-
-  if (!window.confirm('Убрать игрока из состава команды?')) {
-    return
-  }
-
-  teamRosterBusy.value = true
-  try {
-    await authorizedApiRequest(
-      `/api/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(playerId)}`,
-      { method: 'DELETE' }
-    )
-    await loadPlayerRegistry()
-    await refreshAdminTeamContext()
-    messageOk.value = 'Игрок убран из состава команды.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось убрать игрока из состава команды.'
-  } finally {
-    teamRosterBusy.value = false
-  }
-}
-
-async function addSelectedPlayersToSeason() {
-  resetMessages()
-
-  if (!editingTeamId.value || !selectedTeamSeasonId.value) {
-    messageError.value = 'Сначала выберите команду и сезон.'
-    return
-  }
-
-  const playerIds = normalizePositiveIdList(teamSeasonToAddIds.value)
-  if (!playerIds.length) {
-    messageError.value = 'Выберите хотя бы одного игрока для добавления в заявку сезона.'
-    return
-  }
-  if (teamSeasonRemainingSlots.value != null && playerIds.length > teamSeasonRemainingSlots.value) {
-    messageError.value = `Нельзя превысить лимит заявки сезона: ${teamSeasonMaxRosterSize.value}.`
-    return
-  }
-
-  teamSeasonBusy.value = true
-
-  try {
-    for (const playerId of playerIds) {
-      await authorizedApiRequest(
-        `/api/seasons/${encodeURIComponent(selectedTeamSeasonId.value)}/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(playerId)}`,
-        { method: 'POST' }
-      )
-    }
-    await loadEditingTeamSeasonPlayers(editingTeamId.value, selectedTeamSeasonId.value)
-    messageOk.value = playerIds.length === 1 ? 'Игрок добавлен в заявку сезона.' : `В заявку сезона добавлено игроков: ${playerIds.length}.`
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось добавить игроков в заявку сезона.'
-  } finally {
-    teamSeasonBusy.value = false
-  }
-}
-
-async function removeSelectedPlayersFromSeason() {
-  resetMessages()
-
-  if (!editingTeamId.value || !selectedTeamSeasonId.value) {
-    messageError.value = 'Сначала выберите команду и сезон.'
-    return
-  }
-
-  const playerIds = normalizePositiveIdList(teamSeasonToRemoveIds.value)
-  if (!playerIds.length) {
-    messageError.value = 'Выберите хотя бы одного игрока для удаления из заявки сезона.'
-    return
-  }
-
-  teamSeasonBusy.value = true
-
-  try {
-    for (const playerId of playerIds) {
-      await authorizedApiRequest(
-        `/api/seasons/${encodeURIComponent(selectedTeamSeasonId.value)}/teams/${encodeURIComponent(editingTeamId.value)}/players/${encodeURIComponent(playerId)}`,
-        { method: 'DELETE' }
-      )
-    }
-    await loadEditingTeamSeasonPlayers(editingTeamId.value, selectedTeamSeasonId.value)
-    messageOk.value = playerIds.length === 1 ? 'Игрок убран из заявки сезона.' : `Из заявки сезона убрано игроков: ${playerIds.length}.`
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось изменить заявку сезона.'
-  } finally {
-    teamSeasonBusy.value = false
-  }
-}
-
-async function loadTeamRegistry() {
-  try {
-    const payload = await authorizedApiRequest('/api/teams?active_flag=1', {
-      method: 'GET',
-    })
-    teamsList.value = Array.isArray(payload) ? payload : []
-  } catch (error) {
-    teamsList.value = []
-    messageError.value = error.message || 'Не удалось загрузить команды.'
-  }
-}
 
 async function onTourSeasonChange() {
   resetMessages()
@@ -1966,39 +1333,6 @@ function protocolStatusBadgeClass(status) {
 
 function formatSeasonApplicationDeadline(value) {
   return value ? formatDateOnly(value) : 'Без ограничения'
-}
-
-function formatPlayerOptionLabel(player) {
-  if (!player) return ''
-  return `${player.fullName || ''}`
-}
-
-function formatAdminRosterPlayerOption(player) {
-  if (!player) return ''
-  return formatPlayerOptionLabel(player)
-}
-
-function formatAdminPlayerOptionCaption(player) {
-  if (!player) return ''
-
-  const parts = []
-  if (player.birthDate) {
-    parts.push(`ДР: ${formatDateOnly(player.birthDate)}`)
-  }
-  if (player.residence) {
-    parts.push(player.residence)
-  }
-  if (player.isGoalkeeper) {
-    parts.push('Вратарь')
-  }
-
-  return parts.join(' · ')
-}
-
-function normalizePositiveIdList(values) {
-  return [...new Set((Array.isArray(values) ? values : [])
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value) && value > 0))]
 }
 
 function banUser() {
