@@ -50,3 +50,7 @@ npm --prefix web run build
 - Крупные frontend-компоненты требуют декомпозиции: `Admin.vue`, `Tours.vue`, `Match.vue`, `TeamRepDashboard.vue`.
 - API debug logging в `web/src/main.js` сейчас включен глобально через monkey-patch `window.fetch`; перед production-полировкой его нужно спрятать за env-флаг.
 - Нужно решить, какая локальная папка будет основной рабочей копией: старая грязная копия или новый чистый checkout.
+
+## Статус исходного этапа
+
+Этап выполнен частично. Чистый checkout, ветки, Java 21 и сборка проверены. Пункт о самодостаточном README не завершён: текущие README ссылаются на внешний локальный каталог `/Users/korytov/projects/football-stat-readme` и не описывают полный запуск/deploy внутри репозитория.

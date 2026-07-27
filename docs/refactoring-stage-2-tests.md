@@ -41,6 +41,12 @@ npm --prefix web run build
 
 ## Что осталось на следующие шаги
 
+- Добавить backend smoke-тест старта приложения и `/api/health`.
+- Покрыть login, refresh, logout, reset password и `tokenVersion`.
 - Добавить Spring MVC/security тесты для ролей и `ApiAccessRuleFilter`.
 - Добавить тесты бизнес-логики заявок, трансферов, таблицы и протоколов матчей.
 - Добавить frontend тестовый раннер или e2e smoke для ключевых пользовательских путей.
+
+## Статус исходного этапа
+
+Этап выполнен частично и не закрыт. Текущие 5 backend-тестов, 2 mailer-теста и frontend unit/route-контур полезны, но не заменяют перечисленные smoke, auth-flow, access-control, бизнес- и e2e-сценарии.
