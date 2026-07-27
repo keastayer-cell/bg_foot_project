@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Collection;
 
 public interface SeasonApplicationPlayerRepository extends JpaRepository<SeasonApplicationPlayer, Long> {
 
@@ -17,5 +18,18 @@ public interface SeasonApplicationPlayerRepository extends JpaRepository<SeasonA
         """)
     List<SeasonApplicationPlayer> findAllDetailedByApplicationId(Long applicationId);
 
+    @Query("""
+        select sap.application.id as applicationId, count(sap.id) as playersCount
+        from SeasonApplicationPlayer sap
+        where sap.application.id in :applicationIds
+        group by sap.application.id
+        """)
+    List<ApplicationPlayerCount> countByApplicationIds(Collection<Long> applicationIds);
+
     void deleteByApplication_Id(Long applicationId);
+
+    interface ApplicationPlayerCount {
+        Long getApplicationId();
+        long getPlayersCount();
+    }
 }

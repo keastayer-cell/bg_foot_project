@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -75,8 +76,12 @@ class SeasonApplicationServiceTest {
         Player second = player(11L, "Second");
         SeasonApplication application = application(20L, season, team, SeasonApplicationStatus.SUBMITTED);
         List<SeasonApplicationPlayer> rows = List.of(row(application, first), row(application, second));
+        when(seasonApplicationRepository.findDetailedByIdForUpdate(20L)).thenReturn(Optional.of(application));
         when(seasonApplicationRepository.findDetailedById(20L)).thenReturn(Optional.of(application));
         when(seasonApplicationPlayerRepository.findAllDetailedByApplicationId(20L)).thenReturn(rows);
+        when(mediaAssetService.loadDataUrls(
+            MediaAssetService.OWNER_PLAYER, List.of(10L, 11L), MediaAssetService.KIND_PLAYER_PHOTO
+        )).thenReturn(Map.of());
 
         SeasonApplicationService.ReviewDetailsData result = service.approve(99L, 20L, "ok");
 

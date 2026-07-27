@@ -283,18 +283,18 @@ public class LeagueController {
     ) {}
 
     public record LeagueOfficialUpsertRequest(
-        @NotBlank(message = "ФИО обязательно.") String fullName,
-        @NotBlank(message = "Должность обязательна.") String positionTitle,
-        String bio,
+        @NotBlank(message = "ФИО обязательно.") @jakarta.validation.constraints.Size(max = 255) String fullName,
+        @NotBlank(message = "Должность обязательна.") @jakarta.validation.constraints.Size(max = 255) String positionTitle,
+        @jakarta.validation.constraints.Size(max = 4000) String bio,
         String photoDataUrl,
         Integer sortOrder
     ) {}
 
     public record LeagueVenueUpsertRequest(
-        @NotBlank(message = "Название площадки обязательно.") String name,
-        String shortLabel,
-        @NotBlank(message = "Адрес площадки обязателен.") String address,
-        String description,
+        @NotBlank(message = "Название площадки обязательно.") @jakarta.validation.constraints.Size(max = 255) String name,
+        @jakarta.validation.constraints.Size(max = 100) String shortLabel,
+        @NotBlank(message = "Адрес площадки обязателен.") @jakarta.validation.constraints.Size(max = 500) String address,
+        @jakarta.validation.constraints.Size(max = 4000) String description,
         String photoDataUrl,
         Integer sortOrder
     ) {}

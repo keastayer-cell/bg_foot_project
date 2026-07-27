@@ -7,7 +7,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -75,6 +79,24 @@ public class MediaAssetService {
             ownerId,
             normalizeToken(mediaKind)
         );
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, String> loadDataUrls(String ownerType, Collection<Long> ownerIds, String mediaKind) {
+        if (ownerIds == null || ownerIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> normalizedOwnerIds = ownerIds.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (normalizedOwnerIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, String> latestByOwner = new LinkedHashMap<>();
+        mediaAssetRepository.findActiveByOwners(
+            normalizeToken(ownerType),
+            normalizeToken(mediaKind),
+            normalizedOwnerIds
+        ).forEach(asset -> latestByOwner.putIfAbsent(asset.getOwnerId(), asset.getDataUrl()));
+        return latestByOwner;
     }
 
     public DataUrlPayload decodeDataUrl(String dataUrl) {

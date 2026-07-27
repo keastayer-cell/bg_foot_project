@@ -119,8 +119,10 @@ public class SeasonApplicationService {
         Season season = seasonPlayerService.getSeasonForTeam(context.teamId(), seasonId);
         SeasonApplication application = getOrCreateApplication(context, season, userId, false);
         List<TeamRepService.TeamRepSeasonPlayerData> players = buildDraftPlayers(context, season, application);
-        List<TeamRepService.TeamRepAvailablePlayerData> availablePlayers = seasonPlayerService.listAvailablePlayersForSeason(context.teamId(), seasonId).stream()
-            .map(this::toAvailablePlayerData)
+        List<Player> available = seasonPlayerService.listAvailablePlayersForSeason(context.teamId(), seasonId);
+        Map<Long, String> availablePhotos = loadPlayerPhotos(available);
+        List<TeamRepService.TeamRepAvailablePlayerData> availablePlayers = available.stream()
+            .map(player -> toAvailablePlayerData(player, availablePhotos.get(player.getId())))
             .toList();
         long selectedCount = players.stream().filter(TeamRepService.TeamRepSeasonPlayerData::selectedForSeason).count();
         return new TeamRepService.TeamRepSeasonPlayersData(
@@ -250,9 +252,16 @@ public class SeasonApplicationService {
             ? seasonApplicationRepository.findAllDetailedByStatusInOrderBySubmittedAtDesc(statuses)
             : seasonApplicationRepository.findAllDetailedBySeasonIdAndStatusInOrderBySubmittedAtDesc(seasonId, statuses);
 
+        Map<Long, Long> playerCounts = applications.isEmpty()
+            ? Map.of()
+            : seasonApplicationPlayerRepository.countByApplicationIds(applications.stream().map(SeasonApplication::getId).toList())
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    SeasonApplicationPlayerRepository.ApplicationPlayerCount::getApplicationId,
+                    SeasonApplicationPlayerRepository.ApplicationPlayerCount::getPlayersCount
+                ));
         List<ReviewItemData> items = applications.stream()
             .map(application -> {
-                int playersCount = seasonApplicationPlayerRepository.findAllDetailedByApplicationId(application.getId()).size();
                 return new ReviewItemData(
                     application.getId(),
                     application.getSeason().getId(),
@@ -263,7 +272,7 @@ public class SeasonApplicationService {
                     application.getSubmittedAt(),
                     application.getDecisionAt(),
                     application.getDecisionComment(),
-                    playersCount,
+                    playerCounts.getOrDefault(application.getId(), 0L).intValue(),
                     application.getRepresentativeUser() == null ? null : application.getRepresentativeUser().getId(),
                     application.getRepresentativeUser() == null ? null : application.getRepresentativeUser().getName()
                 );
@@ -276,14 +285,21 @@ public class SeasonApplicationService {
     public ReviewDetailsData getReviewDetails(Long applicationId) {
         SeasonApplication application = seasonApplicationRepository.findDetailedById(applicationId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сезонная заявка не найдена."));
-        List<ReviewPlayerData> players = seasonApplicationPlayerRepository.findAllDetailedByApplicationId(applicationId).stream()
+        List<SeasonApplicationPlayer> applicationPlayers =
+            seasonApplicationPlayerRepository.findAllDetailedByApplicationId(applicationId);
+        Map<Long, String> photos = mediaAssetService.loadDataUrls(
+            MediaAssetService.OWNER_PLAYER,
+            applicationPlayers.stream().map(item -> item.getPlayer().getId()).toList(),
+            MediaAssetService.KIND_PLAYER_PHOTO
+        );
+        List<ReviewPlayerData> players = applicationPlayers.stream()
             .map(item -> new ReviewPlayerData(
                 item.getPlayer().getId(),
                 item.getPlayer().getFullName(),
                 item.getPlayer().getBirthDate(),
                 item.getPlayer().getResidence(),
                 item.getPlayer().isGoalkeeper(),
-                mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, item.getPlayer().getId(), MediaAssetService.KIND_PLAYER_PHOTO)
+                photos.get(item.getPlayer().getId())
             ))
             .toList();
         return new ReviewDetailsData(
@@ -330,7 +346,7 @@ public class SeasonApplicationService {
     }
 
     private SeasonApplication requireSubmittedApplication(Long applicationId) {
-        SeasonApplication application = seasonApplicationRepository.findDetailedById(applicationId)
+        SeasonApplication application = seasonApplicationRepository.findDetailedByIdForUpdate(applicationId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Сезонная заявка не найдена."));
         if (application.getStatus() != SeasonApplicationStatus.SUBMITTED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Заявка уже не находится на проверке.");
@@ -402,16 +418,29 @@ public class SeasonApplicationService {
             selectedIds.addAll(seasonPlayerService.getActivePlayerIds(context.teamId(), season.getId()));
         }
 
+        List<Player> rosterPlayers = playerTeamRepository.findCurrentRosterByTeamId(context.teamId()).stream()
+            .map(PlayerTeam::getPlayer)
+            .toList();
+        Set<Long> rosterIds = rosterPlayers.stream().map(Player::getId).collect(java.util.stream.Collectors.toSet());
+        List<Player> seasonPlayers = seasonPlayerService.listActiveSeasonPlayers(context.teamId(), season.getId()).stream()
+            .map(SeasonPlayer::getPlayer)
+            .toList();
+        Map<Long, String> photos = loadPlayerPhotos(
+            java.util.stream.Stream.concat(rosterPlayers.stream(), seasonPlayers.stream()).distinct().toList()
+        );
         Map<Long, TeamRepService.TeamRepSeasonPlayerData> playersById = new LinkedHashMap<>();
-        for (Player player : playerTeamRepository.findCurrentRosterByTeamId(context.teamId()).stream().map(PlayerTeam::getPlayer).toList()) {
-            playersById.put(player.getId(), toDraftPlayerData(player, selectedIds.contains(player.getId()), true));
+        for (Player player : rosterPlayers) {
+            playersById.put(
+                player.getId(),
+                toDraftPlayerData(player, selectedIds.contains(player.getId()), true, photos.get(player.getId()))
+            );
         }
-        for (SeasonPlayer seasonPlayer : seasonPlayerService.listActiveSeasonPlayers(context.teamId(), season.getId())) {
-            Player player = seasonPlayer.getPlayer();
+        for (Player player : seasonPlayers) {
             playersById.put(player.getId(), toDraftPlayerData(
                 player,
                 selectedIds.contains(player.getId()),
-                playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(player.getId(), context.teamId()).isPresent()
+                rosterIds.contains(player.getId()),
+                photos.get(player.getId())
             ));
         }
         return playersById.values().stream()
@@ -419,27 +448,40 @@ public class SeasonApplicationService {
             .toList();
     }
 
-    private TeamRepService.TeamRepSeasonPlayerData toDraftPlayerData(Player player, boolean selected, boolean inRoster) {
+    private TeamRepService.TeamRepSeasonPlayerData toDraftPlayerData(
+        Player player,
+        boolean selected,
+        boolean inRoster,
+        String photoDataUrl
+    ) {
         return new TeamRepService.TeamRepSeasonPlayerData(
             player.getId(),
             player.getFullName(),
             player.getBirthDate(),
             player.getResidence(),
             player.isGoalkeeper(),
-            mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
+            photoDataUrl,
             selected,
             inRoster
         );
     }
 
-    private TeamRepService.TeamRepAvailablePlayerData toAvailablePlayerData(Player player) {
+    private TeamRepService.TeamRepAvailablePlayerData toAvailablePlayerData(Player player, String photoDataUrl) {
         return new TeamRepService.TeamRepAvailablePlayerData(
             player.getId(),
             player.getFullName(),
             player.getBirthDate(),
             player.getResidence(),
             player.isGoalkeeper(),
-            mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO)
+            photoDataUrl
+        );
+    }
+
+    private Map<Long, String> loadPlayerPhotos(List<Player> players) {
+        return mediaAssetService.loadDataUrls(
+            MediaAssetService.OWNER_PLAYER,
+            players.stream().map(Player::getId).toList(),
+            MediaAssetService.KIND_PLAYER_PHOTO
         );
     }
 

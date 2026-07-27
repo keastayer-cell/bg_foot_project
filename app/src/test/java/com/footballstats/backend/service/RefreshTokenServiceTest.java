@@ -48,7 +48,7 @@ class RefreshTokenServiceTest {
         ArgumentCaptor<RefreshTokenSession> issuedCaptor = ArgumentCaptor.forClass(RefreshTokenSession.class);
         verify(refreshTokenSessionRepository).save(issuedCaptor.capture());
         RefreshTokenSession current = issuedCaptor.getValue();
-        when(refreshTokenSessionRepository.findByTokenHash(current.getTokenHash())).thenReturn(Optional.of(current));
+        when(refreshTokenSessionRepository.findLockedByTokenHash(current.getTokenHash())).thenReturn(Optional.of(current));
 
         RefreshTokenService.RefreshTokenRotation rotation =
             refreshTokenService.rotateToken(rawToken, "new browser", "10.0.0.2");
@@ -74,7 +74,7 @@ class RefreshTokenServiceTest {
     @Test
     void rotationRejectsSessionFromPreviousTokenVersion() {
         RefreshTokenSession session = activeSession(user(12L, 4), 3);
-        when(refreshTokenSessionRepository.findByTokenHash(any(String.class))).thenReturn(Optional.of(session));
+        when(refreshTokenSessionRepository.findLockedByTokenHash(any(String.class))).thenReturn(Optional.of(session));
 
         assertThatThrownBy(() -> refreshTokenService.rotateToken("old-refresh", null, null))
             .isInstanceOf(ResponseStatusException.class)

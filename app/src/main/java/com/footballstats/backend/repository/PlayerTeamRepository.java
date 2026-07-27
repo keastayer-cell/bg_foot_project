@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 
 public interface PlayerTeamRepository extends JpaRepository<PlayerTeam, Long> {
 
@@ -42,4 +43,14 @@ public interface PlayerTeamRepository extends JpaRepository<PlayerTeam, Long> {
 
     /** Все активные привязки игрока (может быть в нескольких командах одновременно не предусмотрено, но безопасно). */
     List<PlayerTeam> findByPlayer_IdAndActiveTrue(Long playerId);
+
+    @Query("""
+        SELECT pt
+        FROM PlayerTeam pt
+        JOIN FETCH pt.player
+        JOIN FETCH pt.team
+        WHERE pt.player.id IN :playerIds AND pt.active = TRUE
+        ORDER BY pt.id
+        """)
+    List<PlayerTeam> findActiveByPlayerIds(@Param("playerIds") Collection<Long> playerIds);
 }

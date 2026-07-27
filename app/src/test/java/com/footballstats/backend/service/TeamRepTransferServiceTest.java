@@ -80,7 +80,7 @@ class TeamRepTransferServiceTest {
         request.setToTeam(to);
         request.setStatus(SeasonTransferStatus.PENDING);
 
-        when(seasonTransferRequestRepository.findDetailedById(5L)).thenReturn(Optional.of(request));
+        when(seasonTransferRequestRepository.findDetailedByIdForUpdate(5L)).thenReturn(Optional.of(request));
         when(seasonRepository.findById(1L)).thenReturn(Optional.of(season));
         when(seasonTeamRepository.findAllBySeasonIdOrderByTeamNameAsc(1L)).thenReturn(List.of());
         when(seasonTransferRequestRepository.findPageDetailedBySeasonId(any(Long.class), any()))

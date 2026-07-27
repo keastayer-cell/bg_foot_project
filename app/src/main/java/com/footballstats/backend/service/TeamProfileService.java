@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class TeamProfileService {
@@ -92,15 +93,23 @@ public class TeamProfileService {
         String representativeName = application != null && application.getRepresentativeUser() != null
             ? application.getRepresentativeUser().getName()
             : null;
-        List<TeamSeasonRosterPlayerData> activePlayers = seasonPlayerService.listActiveSeasonPlayers(teamId, seasonId).stream()
-            .map(SeasonPlayer::getPlayer)
+        List<com.footballstats.backend.domain.Player> rosterPlayers =
+            seasonPlayerService.listActiveSeasonPlayers(teamId, seasonId).stream()
+                .map(SeasonPlayer::getPlayer)
+                .toList();
+        Map<Long, String> photos = mediaAssetService.loadDataUrls(
+            MediaAssetService.OWNER_PLAYER,
+            rosterPlayers.stream().map(com.footballstats.backend.domain.Player::getId).toList(),
+            MediaAssetService.KIND_PLAYER_PHOTO
+        );
+        List<TeamSeasonRosterPlayerData> activePlayers = rosterPlayers.stream()
             .map(player -> new TeamSeasonRosterPlayerData(
                 player.getId(),
                 player.getFullName(),
                 player.isGoalkeeper(),
                 player.getBirthDate(),
                 player.getResidence(),
-                mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO)
+                photos.get(player.getId())
             ))
             .toList();
 

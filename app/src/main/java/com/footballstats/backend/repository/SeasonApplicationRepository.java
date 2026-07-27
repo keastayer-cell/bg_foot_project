@@ -3,8 +3,10 @@ package com.footballstats.backend.repository;
 import com.footballstats.backend.domain.SeasonApplication;
 import com.footballstats.backend.domain.SeasonApplicationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +31,17 @@ public interface SeasonApplicationRepository extends JpaRepository<SeasonApplica
         where sa.id = :id
         """)
     Optional<SeasonApplication> findDetailedById(Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select sa
+        from SeasonApplication sa
+        join fetch sa.season s
+        join fetch sa.team t
+        left join fetch sa.representativeUser ru
+        where sa.id = :id
+        """)
+    Optional<SeasonApplication> findDetailedByIdForUpdate(Long id);
 
     @Query("""
         select sa

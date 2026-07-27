@@ -164,9 +164,9 @@ public class TeamController {
     ) {}
 
     public record TeamUpsertRequest(
-        @NotBlank(message = "Название команды обязательно.") String name,
-        String shortName,
-        String city,
+        @NotBlank(message = "Название команды обязательно.") @jakarta.validation.constraints.Size(max = 255) String name,
+        @jakarta.validation.constraints.Size(max = 50) String shortName,
+        @jakarta.validation.constraints.Size(max = 255) String city,
         String logoDataUrl
     ) {}
 

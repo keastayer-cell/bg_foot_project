@@ -1,5 +1,6 @@
 package com.footballstats.backend.security;
 
+import com.footballstats.backend.dto.ApiErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,8 +12,6 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.util.Map;
-
 @Component
 public class JsonAccessDeniedHandler implements AccessDeniedHandler {
 
@@ -30,6 +29,9 @@ public class JsonAccessDeniedHandler implements AccessDeniedHandler {
     ) throws IOException, ServletException {
         response.setStatus(HttpStatus.FORBIDDEN.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getWriter(), Map.of("error", "Недостаточно прав доступа."));
+        objectMapper.writeValue(
+            response.getWriter(),
+            ApiErrorResponse.of(HttpStatus.FORBIDDEN.value(), "Недостаточно прав доступа.", request.getRequestURI())
+        );
     }
 }

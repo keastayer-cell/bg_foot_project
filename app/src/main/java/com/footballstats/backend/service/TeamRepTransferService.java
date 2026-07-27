@@ -102,6 +102,7 @@ public class TeamRepTransferService {
             ? seasonTransferRequestRepository.findPageDetailedBySeasonId(seasonId, pageable)
             : seasonTransferRequestRepository.findPageDetailedBySeasonIdAndTeamId(seasonId, access.teamId(), pageable);
         Map<Long, String> userNames = resolveUserNames(requestsPage.getContent());
+        Map<Long, String> playerPhotos = loadPlayerPhotos(requestsPage.getContent());
 
         return new TeamRepTransferOverviewData(
             season.getId(),
@@ -117,7 +118,9 @@ public class TeamRepTransferService {
             sourceTeams,
             targetTeams,
             access.privilegedAccess(),
-            requestsPage.getContent().stream().map(request -> toTransferData(request, access, userNames, season)).toList(),
+            requestsPage.getContent().stream()
+                .map(request -> toTransferData(request, access, userNames, playerPhotos, season))
+                .toList(),
             requestsPage.getNumber(),
             requestsPage.getSize(),
             requestsPage.getTotalElements(),
@@ -131,13 +134,14 @@ public class TeamRepTransferService {
         Pageable pageable = buildPageable(pageNum, pageSize);
         Page<SeasonTransferRequest> requestsPage = seasonTransferRequestRepository.findIncomingPendingDetailedByTeamId(context.teamId(), pageable);
         Map<Long, String> userNames = resolveUserNames(requestsPage.getContent());
+        Map<Long, String> playerPhotos = loadPlayerPhotos(requestsPage.getContent());
         long totalPendingCount = seasonTransferRequestRepository.countByStatusAndFromTeam_Id(SeasonTransferStatus.PENDING, context.teamId());
         TransferAccessContext access = new TransferAccessContext(userId, context.teamId(), context.teamName(), false, false);
 
         return new IncomingTransferNotificationsData(
             totalPendingCount,
             requestsPage.getContent().stream()
-                .map(request -> toTransferData(request, access, userNames, request.getSeason()))
+                .map(request -> toTransferData(request, access, userNames, playerPhotos, request.getSeason()))
                 .toList(),
             requestsPage.getNumber(),
             requestsPage.getSize(),
@@ -156,17 +160,27 @@ public class TeamRepTransferService {
         ensureTransferWindowOpen(season);
         validateTransferTeams(seasonId, resolvedToTeamId, fromTeamId);
 
-        return seasonPlayerService.listActiveSeasonPlayers(fromTeamId, seasonId).stream()
-            .filter(item -> !hasBlockingTransferRequest(seasonId, item.getPlayer().getId()))
+        Set<Long> blockedPlayerIds = Set.copyOf(
+            seasonTransferRequestRepository.findPlayerIdsBySeasonIdAndStatusIn(seasonId, BLOCKING_TRANSFER_STATUSES)
+        );
+        List<Player> candidates = seasonPlayerService.listActiveSeasonPlayers(fromTeamId, seasonId).stream()
+            .filter(item -> !blockedPlayerIds.contains(item.getPlayer().getId()))
             .map(SeasonPlayer::getPlayer)
             .sorted(Comparator.comparing(Player::getFullName, String.CASE_INSENSITIVE_ORDER))
+            .toList();
+        Map<Long, String> photos = mediaAssetService.loadDataUrls(
+            MediaAssetService.OWNER_PLAYER,
+            candidates.stream().map(Player::getId).toList(),
+            MediaAssetService.KIND_PLAYER_PHOTO
+        );
+        return candidates.stream()
             .map(player -> new TeamRepTransferCandidateData(
                 player.getId(),
                 player.getFullName(),
                 player.getBirthDate(),
                 player.getResidence(),
                 player.isGoalkeeper(),
-                mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO)
+                photos.get(player.getId())
             ))
             .toList();
     }
@@ -211,7 +225,7 @@ public class TeamRepTransferService {
     @Transactional
     public TeamRepTransferOverviewData approveTransferRequest(TransferActor actor, Long requestId, String decisionComment) {
         TransferAccessContext access = requireTransferAccess(actor);
-        SeasonTransferRequest request = seasonTransferRequestRepository.findDetailedById(requestId)
+        SeasonTransferRequest request = seasonTransferRequestRepository.findDetailedByIdForUpdate(requestId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Трансферная заявка не найдена."));
         validateProcessorScope(access, request);
         ensurePending(request);
@@ -236,7 +250,7 @@ public class TeamRepTransferService {
     @Transactional
     public TeamRepTransferOverviewData rejectTransferRequest(TransferActor actor, Long requestId, String decisionComment) {
         TransferAccessContext access = requireTransferAccess(actor);
-        SeasonTransferRequest request = seasonTransferRequestRepository.findDetailedById(requestId)
+        SeasonTransferRequest request = seasonTransferRequestRepository.findDetailedByIdForUpdate(requestId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Трансферная заявка не найдена."));
         validateProcessorScope(access, request);
         ensurePending(request);
@@ -253,7 +267,7 @@ public class TeamRepTransferService {
     @Transactional
     public TeamRepTransferOverviewData revokeTransferRequest(TransferActor actor, Long requestId, String decisionComment) {
         TransferAccessContext access = requireTransferAccess(actor);
-        SeasonTransferRequest request = seasonTransferRequestRepository.findDetailedById(requestId)
+        SeasonTransferRequest request = seasonTransferRequestRepository.findDetailedByIdForUpdate(requestId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Трансферная заявка не найдена."));
         validateRequesterScope(access, request);
 
@@ -284,6 +298,7 @@ public class TeamRepTransferService {
         SeasonTransferRequest request,
         TransferAccessContext access,
         Map<Long, String> userNames,
+        Map<Long, String> playerPhotos,
         Season season
     ) {
         boolean canProcess = request.getStatus() == SeasonTransferStatus.PENDING
@@ -299,7 +314,7 @@ public class TeamRepTransferService {
             request.getId(),
             request.getPlayer().getId(),
             request.getPlayer().getFullName(),
-            mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, request.getPlayer().getId(), MediaAssetService.KIND_PLAYER_PHOTO),
+            playerPhotos.get(request.getPlayer().getId()),
             request.getPlayer().isGoalkeeper(),
             request.getFromTeam().getId(),
             request.getFromTeam().getName(),
@@ -365,6 +380,14 @@ public class TeamRepTransferService {
             seasonId,
             playerId,
             BLOCKING_TRANSFER_STATUSES
+        );
+    }
+
+    private Map<Long, String> loadPlayerPhotos(List<SeasonTransferRequest> requests) {
+        return mediaAssetService.loadDataUrls(
+            MediaAssetService.OWNER_PLAYER,
+            requests.stream().map(request -> request.getPlayer().getId()).toList(),
+            MediaAssetService.KIND_PLAYER_PHOTO
         );
     }
 

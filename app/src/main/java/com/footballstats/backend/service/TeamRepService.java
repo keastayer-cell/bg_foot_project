@@ -91,9 +91,14 @@ public class TeamRepService {
                 .add(new TeamRepPlayerSeasonData(seasonPlayer.getSeason().getId(), seasonPlayer.getSeason().getName()));
         }
 
+        Map<Long, String> photos = mediaAssetService.loadDataUrls(
+            MediaAssetService.OWNER_PLAYER,
+            rosterMemberships.stream().map(item -> item.getPlayer().getId()).toList(),
+            MediaAssetService.KIND_PLAYER_PHOTO
+        );
         return rosterMemberships.stream()
             .map(PlayerTeam::getPlayer)
-            .map(player -> toPlayerData(player, seasonsByPlayerId.getOrDefault(player.getId(), List.of())))
+            .map(player -> toPlayerData(player, seasonsByPlayerId.getOrDefault(player.getId(), List.of()), photos.get(player.getId())))
             .toList();
     }
 
@@ -262,13 +267,21 @@ public class TeamRepService {
     }
 
     private TeamRepPlayerData toPlayerData(Player player, List<TeamRepPlayerSeasonData> seasons) {
+        return toPlayerData(
+            player,
+            seasons,
+            mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO)
+        );
+    }
+
+    private TeamRepPlayerData toPlayerData(Player player, List<TeamRepPlayerSeasonData> seasons, String photoDataUrl) {
         return new TeamRepPlayerData(
             player.getId(),
             player.getFullName(),
             player.getBirthDate(),
             player.getResidence(),
             player.isGoalkeeper(),
-            mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
+            photoDataUrl,
             seasons.stream().map(TeamRepPlayerSeasonData::id).toList(),
             seasons,
             player.isActive()

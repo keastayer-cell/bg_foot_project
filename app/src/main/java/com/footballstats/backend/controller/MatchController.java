@@ -318,8 +318,11 @@ public class MatchController {
     ) {}
 
     public record MatchProtocolUpsertRequest(
+        @NotNull(message = "Статус протокола обязателен.")
         MatchProtocolStatus status,
+        @jakarta.validation.constraints.PositiveOrZero(message = "Счет хозяев не может быть отрицательным.")
         Integer homeScore,
+        @jakarta.validation.constraints.PositiveOrZero(message = "Счет гостей не может быть отрицательным.")
         Integer awayScore,
         Boolean homeTechnicalDefeat,
         Boolean awayTechnicalDefeat,
@@ -327,22 +330,23 @@ public class MatchController {
         Long chiefRefereeId,
         Long assistantRefereeOneId,
         Long assistantRefereeTwoId,
+        @jakarta.validation.constraints.Size(max = 4000, message = "Примечание не должно превышать 4000 символов.")
         String notes,
         OffsetDateTime startedAt,
         OffsetDateTime finishedAt,
-        List<MatchPlayerStatUpsertRequest> playerStats
+        List<@Valid MatchPlayerStatUpsertRequest> playerStats
     ) {}
 
     public record MatchPlayerStatUpsertRequest(
         @NotNull(message = "teamId обязателен.") Long teamId,
         @NotNull(message = "playerId обязателен.") Long playerId,
-        Integer goals,
-        Integer yellowCards,
-        Integer redCards
+        @jakarta.validation.constraints.PositiveOrZero Integer goals,
+        @jakarta.validation.constraints.PositiveOrZero Integer yellowCards,
+        @jakarta.validation.constraints.PositiveOrZero Integer redCards
     ) {}
 
     public record MatchLineupUpsertRequest(
-        List<Long> playerIds
+        @jakarta.validation.constraints.NotNull(message = "Состав обязателен.") List<@NotNull Long> playerIds
     ) {}
 
     public record MatchEventUpsertRequest(
@@ -350,9 +354,9 @@ public class MatchController {
         Long teamId,
         Long playerId,
         Long relatedPlayerId,
-        Integer extraMinute,
-        String valueText,
-        Integer sortOrder,
-        @NotNull(message = "minute обязателен.") Integer minute
+        @jakarta.validation.constraints.PositiveOrZero Integer extraMinute,
+        @jakarta.validation.constraints.Size(max = 1000) String valueText,
+        @jakarta.validation.constraints.PositiveOrZero Integer sortOrder,
+        @NotNull(message = "minute обязателен.") @jakarta.validation.constraints.PositiveOrZero Integer minute
     ) {}
 }

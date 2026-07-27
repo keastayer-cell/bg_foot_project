@@ -258,16 +258,23 @@ public class TeamRepController {
     }
 
     public record TeamRepPlayerUpsertRequest(
-        @NotBlank(message = "ФИО игрока обязательно.") String fullName,
+        @NotBlank(message = "ФИО игрока обязательно.") @jakarta.validation.constraints.Size(max = 255) String fullName,
         LocalDate birthDate,
-        String residence,
+        @jakarta.validation.constraints.Size(max = 255) String residence,
         boolean isGoalkeeper,
         String photoDataUrl
     ) {}
 
-    public record TeamRepSeasonPlayersUpsertRequest(List<Long> playerIds) {}
+    public record TeamRepSeasonPlayersUpsertRequest(
+        @jakarta.validation.constraints.NotNull(message = "Список игроков обязателен.") List<@jakarta.validation.constraints.NotNull Long> playerIds
+    ) {}
 
-    public record TeamRepTransferRequestCreateRequest(Long fromTeamId, Long toTeamId, Long playerId, String requestComment) {}
+    public record TeamRepTransferRequestCreateRequest(
+        Long fromTeamId,
+        @jakarta.validation.constraints.NotNull(message = "Команда назначения обязательна.") Long toTeamId,
+        @jakarta.validation.constraints.NotNull(message = "Игрок обязателен.") Long playerId,
+        @jakarta.validation.constraints.Size(max = 2000) String requestComment
+    ) {}
 
     public record TeamRepTransferDecisionRequest(String decisionComment) {}
 }

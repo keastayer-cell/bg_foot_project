@@ -4,19 +4,14 @@ import com.footballstats.backend.domain.Season;
 import com.footballstats.backend.domain.SeasonStatus;
 import com.footballstats.backend.domain.MatchProtocol;
 import com.footballstats.backend.domain.MatchProtocolStatus;
-import com.footballstats.backend.domain.Player;
-import com.footballstats.backend.domain.PlayerTeam;
 import com.footballstats.backend.domain.Referee;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.Tour;
 import com.footballstats.backend.domain.TourMatch;
 import com.footballstats.backend.domain.SeasonStandingsConfig;
 import com.footballstats.backend.domain.SeasonStandingsRow;
-import com.footballstats.backend.domain.SeasonTransferRequest;
 import com.footballstats.backend.domain.SeasonTransferStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.footballstats.backend.repository.PlayerTeamRepository;
-import com.footballstats.backend.repository.SeasonTransferRequestRepository;
 import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.service.MediaAssetService;
 import com.footballstats.backend.service.MatchProtocolService;
@@ -24,6 +19,7 @@ import com.footballstats.backend.service.SeasonPlayoffService;
 import com.footballstats.backend.service.SeasonProtocolArchiveService;
 import com.footballstats.backend.service.SeasonPlayerService;
 import com.footballstats.backend.service.SeasonPlayerStatsService;
+import com.footballstats.backend.service.SeasonQueryService;
 import com.footballstats.backend.service.SeasonService;
 import com.footballstats.backend.service.SeasonStandingsService;
 import com.footballstats.backend.service.StandingsRankingRules;
@@ -31,8 +27,6 @@ import com.footballstats.backend.service.TourService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -51,7 +45,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Set;
 
 @RestController
 public class SeasonController {
@@ -64,8 +57,7 @@ public class SeasonController {
     private final MatchProtocolService matchProtocolService;
     private final SeasonPlayoffService seasonPlayoffService;
     private final SeasonProtocolArchiveService seasonProtocolArchiveService;
-    private final PlayerTeamRepository playerTeamRepository;
-    private final SeasonTransferRequestRepository seasonTransferRequestRepository;
+    private final SeasonQueryService seasonQueryService;
     private final MediaAssetService mediaAssetService;
     private final ObjectMapper objectMapper;
 
@@ -78,8 +70,7 @@ public class SeasonController {
         MatchProtocolService matchProtocolService,
         SeasonPlayoffService seasonPlayoffService,
         SeasonProtocolArchiveService seasonProtocolArchiveService,
-        PlayerTeamRepository playerTeamRepository,
-        SeasonTransferRequestRepository seasonTransferRequestRepository,
+        SeasonQueryService seasonQueryService,
         MediaAssetService mediaAssetService,
         ObjectMapper objectMapper
     ) {
@@ -91,8 +82,7 @@ public class SeasonController {
         this.matchProtocolService = matchProtocolService;
         this.seasonPlayoffService = seasonPlayoffService;
         this.seasonProtocolArchiveService = seasonProtocolArchiveService;
-        this.playerTeamRepository = playerTeamRepository;
-        this.seasonTransferRequestRepository = seasonTransferRequestRepository;
+        this.seasonQueryService = seasonQueryService;
         this.mediaAssetService = mediaAssetService;
         this.objectMapper = objectMapper;
     }
@@ -192,7 +182,7 @@ public class SeasonController {
             toPlayoffBracketResponse(seasonPlayoffService.getSeasonPlayoffBracket(seasonId)),
             toStandingsConfigResponse(standings.config()),
             standings.rows().stream().map(this::toStandingsRowResponse).toList(),
-            seasonTransferRequestRepository.findAllDetailedBySeasonId(seasonId).stream()
+            seasonQueryService.listTransfers(seasonId).stream()
                 .map(this::toSeasonTransferResponse)
                 .toList()
         ));
@@ -204,11 +194,7 @@ public class SeasonController {
         @RequestParam(defaultValue = "0") int pagenum,
         @RequestParam(defaultValue = "20") int pagesize
     ) {
-        Pageable pageable = PageRequest.of(Math.max(pagenum, 0), Math.min(Math.max(pagesize, 1), 100));
-        return ResponseEntity.ok(
-            seasonTransferRequestRepository.findPageDetailedBySeasonId(seasonId, pageable)
-                .map(this::toSeasonTransferResponse)
-        );
+        return ResponseEntity.ok(seasonQueryService.listTransfers(seasonId, pagenum, pagesize).map(this::toSeasonTransferResponse));
     }
 
     @GetMapping("/api/seasons/{seasonId}/protocols/export")
@@ -296,30 +282,12 @@ public class SeasonController {
     }
 
     private List<SeasonTeamPlayerResponse> buildSeasonTeamPlayersResponse(Long seasonId, Long teamId) {
-        Set<Long> selectedPlayerIds = seasonPlayerService.getActivePlayerIds(teamId, seasonId);
-        return playerTeamRepository.findCurrentRosterByTeamId(teamId).stream()
-            .map(PlayerTeam::getPlayer)
-            .map(player -> toSeasonTeamPlayerResponse(player, selectedPlayerIds.contains(player.getId()), findRosterSince(teamId, player.getId())))
+        return seasonQueryService.getRoster(seasonId, teamId).stream()
+            .map(player -> new SeasonTeamPlayerResponse(
+                player.id(), player.fullName(), player.birthDate(), player.residence(), player.isGoalkeeper(),
+                player.photoDataUrl(), player.selectedForSeason(), player.inTeamSince()
+            ))
             .toList();
-    }
-
-    private SeasonTeamPlayerResponse toSeasonTeamPlayerResponse(Player player, boolean selectedForSeason, LocalDate inTeamSince) {
-        return new SeasonTeamPlayerResponse(
-            player.getId(),
-            player.getFullName(),
-            player.getBirthDate(),
-            player.getResidence(),
-            player.isGoalkeeper(),
-            mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, player.getId(), MediaAssetService.KIND_PLAYER_PHOTO),
-            selectedForSeason,
-            inTeamSince
-        );
-    }
-
-    private LocalDate findRosterSince(Long teamId, Long playerId) {
-        return playerTeamRepository.findByPlayer_IdAndTeam_IdAndActiveTrue(playerId, teamId)
-            .map(PlayerTeam::getValidFrom)
-            .orElse(null);
     }
 
     private SeasonResponse toResponse(Season season) {
@@ -456,23 +424,12 @@ public class SeasonController {
         );
     }
 
-    private SeasonTransferResponse toSeasonTransferResponse(SeasonTransferRequest request) {
+    private SeasonTransferResponse toSeasonTransferResponse(SeasonQueryService.SeasonTransferData request) {
         return new SeasonTransferResponse(
-            request.getId(),
-            request.getPlayer().getId(),
-            request.getPlayer().getFullName(),
-            request.getPlayer().isGoalkeeper(),
-            mediaAssetService.loadDataUrl(MediaAssetService.OWNER_PLAYER, request.getPlayer().getId(), MediaAssetService.KIND_PLAYER_PHOTO),
-            request.getFromTeam().getId(),
-            request.getFromTeam().getName(),
-            request.getToTeam().getId(),
-            request.getToTeam().getName(),
-            request.getRequestedAt() == null ? null : request.getRequestedAt().toLocalDate(),
-            request.getStatus(),
-            request.getRequestComment(),
-            request.getDecisionComment(),
-            request.getRequestedAt(),
-            request.getProcessedAt()
+            request.id(), request.playerId(), request.playerName(), request.playerGoalkeeper(),
+            request.playerPhotoDataUrl(), request.fromTeamId(), request.fromTeamName(),
+            request.toTeamId(), request.toTeamName(), request.requestedDate(), request.status(),
+            request.requestComment(), request.decisionComment(), request.requestedAt(), request.processedAt()
         );
     }
 
@@ -515,20 +472,20 @@ public class SeasonController {
     ) {}
 
     public record SeasonUpsertRequest(
-        @NotBlank(message = "Название сезона обязательно.") String name,
-        Integer roundsCount,
+        @NotBlank(message = "Название сезона обязательно.") @jakarta.validation.constraints.Size(max = 255) String name,
+        @jakarta.validation.constraints.Positive Integer roundsCount,
         Boolean playoffEnabled,
-        Integer playoffTeamCount,
+        @jakarta.validation.constraints.Positive Integer playoffTeamCount,
         Boolean thirdPlaceEnabled,
         LocalDate applicationDeadline,
         SeasonStatus status,
-        Integer maxRosterSize,
+        @jakarta.validation.constraints.Positive Integer maxRosterSize,
         LocalDate transferWindowStartDate,
         LocalDate transferWindowEndDate,
         List<String> rankingRules,
         List<Long> refereeIds,
-        Integer yellowCardsForSuspension,
-        Integer redCardsForSuspension
+        @jakarta.validation.constraints.Positive Integer yellowCardsForSuspension,
+        @jakarta.validation.constraints.Positive Integer redCardsForSuspension
     ) {}
 
     public record RefereeResponse(

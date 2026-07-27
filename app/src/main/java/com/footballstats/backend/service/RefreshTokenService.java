@@ -50,7 +50,7 @@ public class RefreshTokenService {
         }
 
         OffsetDateTime now = OffsetDateTime.now();
-        RefreshTokenSession currentSession = refreshTokenSessionRepository.findByTokenHash(hashToken(rawToken))
+        RefreshTokenSession currentSession = refreshTokenSessionRepository.findLockedByTokenHash(hashToken(rawToken))
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Сессия истекла. Войдите снова."));
 
         if (currentSession.getRevokedAt() != null || currentSession.getExpiresAt() == null || now.isAfter(currentSession.getExpiresAt())) {
