@@ -1,0 +1,52 @@
+export const routes = [
+  { path: '/', name: 'tours', component: () => import('../pages/Tours.vue') },
+  { path: '/league', name: 'league', component: () => import('../pages/LeagueOverview.vue') },
+  { path: '/transfers', name: 'transfers', component: () => import('../pages/Transfers.vue') },
+  { path: '/players', name: 'players', component: () => import('../pages/Players.vue') },
+  { path: '/teams', name: 'teams', component: () => import('../pages/Teams.vue') },
+  { path: '/teams/:id', name: 'team-profile', component: () => import('../pages/TeamProfile.vue') },
+  {
+    path: '/create',
+    name: 'create-match',
+    component: () => import('../pages/CreateMatch.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/admin',
+    name: 'admin',
+    component: () => import('../pages/Admin.vue'),
+    meta: { requiresAuth: true, requiresAdminPanel: true },
+  },
+  {
+    path: '/team-rep-dashboard',
+    name: 'team-rep-dashboard',
+    component: () => import('../pages/TeamRepDashboard.vue'),
+    meta: { requiresAuth: true, requiresTeamRep: true },
+  },
+  {
+    path: '/team-rep-transfers',
+    name: 'team-rep-transfers',
+    component: () => import('../pages/TeamRepTransfers.vue'),
+    meta: { requiresAuth: true, requiresTransferManager: true },
+  },
+  {
+    path: '/season-applications-review',
+    name: 'season-applications-review',
+    component: () => import('../pages/SeasonApplicationsReview.vue'),
+    meta: { requiresAuth: true, requiresAdminPanel: true },
+  },
+  { path: '/reset-password', name: 'reset-password', component: () => import('../pages/ResetPasswordPage.vue') },
+  {
+    path: '/api-explorer',
+    name: 'api-explorer',
+    component: () => import('../pages/ApiExplorer.vue'),
+    meta: { requiresAuth: true, requiresSuperAdmin: true },
+  },
+  {
+    path: '/api-explorer/test/:endpointKey',
+    name: 'api-explorer-test',
+    component: () => import('../pages/ApiExplorerTest.vue'),
+    meta: { requiresAuth: true, requiresSuperAdmin: true },
+  },
+  { path: '/match/:id', name: 'match', component: () => import('../pages/Match.vue') },
+]

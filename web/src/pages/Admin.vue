@@ -5,28 +5,11 @@
       <p class="muted-text">Управление турниром, участниками и правами доступа из одного экрана.</p>
     </article>
 
-    <article class="card admin-tabs-wrap">
-      <div class="admin-tab-groups">
-        <section v-for="group in visibleTabGroups" :key="group.id" class="admin-tab-group">
-          <div class="admin-tab-group-head">
-            <span class="admin-tab-group-kicker">{{ group.kicker }}</span>
-            <h3 class="admin-tab-group-title">{{ group.title }}</h3>
-          </div>
-          <div class="admin-tabs admin-tabs-grid">
-            <button
-              v-for="tab in group.items"
-              :key="tab.id"
-              class="btn-ghost admin-tab-btn"
-              :class="{ 'admin-tab-active': activeTab === tab.id }"
-              type="button"
-              @click="handleAdminTabClick(tab.id)"
-            >
-              <span class="admin-tab-label">{{ tab.label }}</span>
-            </button>
-          </div>
-        </section>
-      </div>
-    </article>
+    <AdminTabNavigation
+      :groups="visibleTabGroups"
+      :active-tab="activeTab"
+      @select="selectAdminTab"
+    />
 
     <article class="card admin-panel" v-if="activeTab === 'seasons'">
       <div class="admin-panel-head">
@@ -1156,89 +1139,20 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
 import { useStore } from '../store/store'
+import { useAdminTabs } from '../composables/useAdminTabs'
+import AdminTabNavigation from '../components/AdminTabNavigation.vue'
 import SearchableSelect from '../components/SearchableSelect.vue'
 import AdminLeagueContent from '../components/AdminLeagueContent.vue'
 
 const USERS_KEY = 'football_stats_admin_users_registry'
-
-const tabGroups = [
-  {
-    id: 'competition',
-    kicker: 'Турнир',
-    title: 'Соревнование и участники',
-    items: [
-      {
-        id: 'seasons',
-        label: 'Сезоны',
-      },
-      {
-        id: 'season-applications',
-        label: 'Заявки на сезон',
-      },
-      {
-        id: 'transfers',
-        label: 'Трансферы',
-      },
-      {
-        id: 'teams',
-        label: 'Команды',
-      },
-      {
-        id: 'players',
-        label: 'Игроки',
-      },
-      {
-        id: 'referees',
-        label: 'Судьи',
-      },
-      {
-        id: 'tours',
-        label: 'Туры и матчи',
-      },
-    ],
-  },
-  {
-    id: 'access',
-    kicker: 'Доступ',
-    title: 'Права и модерация',
-    items: [
-      {
-        id: 'roles',
-        label: 'Роли и доступ',
-      },
-      {
-        id: 'league',
-        label: 'Лига',
-      },
-      {
-        id: 'representatives',
-        label: 'Представители',
-      },
-      {
-        id: 'ban',
-        label: 'Блокировки',
-      },
-    ],
-  },
-]
-
-const tabs = tabGroups.flatMap((group) => group.items)
-
-const visibleTabGroups = computed(() => {
-  if (hasRole('SUPER_ADMIN')) {
-    return tabGroups
-  }
-  if (hasRole('REFEREE')) {
-    return tabGroups.filter((group) => group.id !== 'access')
-  }
-  return []
-})
-
-const activeTab = ref('seasons')
 const router = useRouter()
 
 const { authorizedApiRequest, authorizedApiRequestRaw, hasRole } = useAuth()
 const { loadSeasons } = useStore()
+const { activeTab, visibleTabGroups, selectAdminTab } = useAdminTabs({
+  hasRole,
+  navigate: (path) => router.push(path),
+})
 
 const seasonsList = ref([])
 const teamsList = ref([])
@@ -1251,18 +1165,6 @@ const refereesList = ref([])
 const usersRegistry = ref(loadFromStorage(USERS_KEY))
 const roleUsersList = ref([])
 const repUsersList = ref([])
-
-function handleAdminTabClick(tabId) {
-  if (tabId === 'season-applications') {
-    router.push('/season-applications-review')
-    return
-  }
-  if (tabId === 'transfers') {
-    router.push('/team-rep-transfers')
-    return
-  }
-  activeTab.value = tabId
-}
 
 const messageError = ref('')
 const messageOk = ref('')

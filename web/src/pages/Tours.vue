@@ -533,6 +533,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useSeasonPlayerStats } from '../composables/useSeasonPlayerStats'
 import { useAuth } from '../store/auth'
 
 const { optionalAuthApiRequest } = useAuth()
@@ -552,6 +553,7 @@ const statsMode = ref('scorers')
 const loadingSeasons = ref(false)
 const loadingSeasonData = ref(false)
 const pageError = ref('')
+const { topStatsRows, statsEmptyText } = useSeasonPlayerStats(seasonPlayerStats, statsMode)
 
 const selectedSeason = computed(() => {
   return seasons.value.find((item) => String(item.id) === String(selectedSeasonId.value)) || null
@@ -745,43 +747,6 @@ const playoffCenterCards = computed(() => {
       roundSubtitle: playoffRoundSubtitle(round),
     }))
   )
-})
-
-const scorersStats = computed(() => {
-  return [...seasonPlayerStats.value]
-    .filter((item) => Number(item?.goals || 0) > 0)
-    .sort((left, right) => {
-      const goalsDiff = Number(right?.goals || 0) - Number(left?.goals || 0)
-      if (goalsDiff !== 0) return goalsDiff
-      return String(left?.fullName || '').localeCompare(String(right?.fullName || ''), 'ru', { sensitivity: 'base' })
-    })
-})
-
-const disciplineStats = computed(() => {
-  return [...seasonPlayerStats.value]
-    .filter((item) => Number(item?.yellowCards || 0) > 0 || Number(item?.redCards || 0) > 0)
-    .sort((left, right) => {
-      const redDiff = Number(right?.redCards || 0) - Number(left?.redCards || 0)
-      if (redDiff !== 0) return redDiff
-      const yellowDiff = Number(right?.yellowCards || 0) - Number(left?.yellowCards || 0)
-      if (yellowDiff !== 0) return yellowDiff
-      return String(left?.fullName || '').localeCompare(String(right?.fullName || ''), 'ru', { sensitivity: 'base' })
-    })
-})
-
-const activeStatsRows = computed(() => {
-  return statsMode.value === 'discipline' ? disciplineStats.value : scorersStats.value
-})
-
-const topStatsRows = computed(() => {
-  return activeStatsRows.value.slice(0, 10)
-})
-
-const statsEmptyText = computed(() => {
-  if (statsMode.value === 'discipline') {
-    return 'В подтвержденных матчах выбранного сезона пока нет желтых или красных карточек.'
-  }
-  return 'В подтвержденных матчах выбранного сезона пока нет голов.'
 })
 
 const formattedTours = computed(() => {
