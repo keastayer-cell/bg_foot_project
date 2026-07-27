@@ -88,322 +88,24 @@
           </div>
         </div>
 
-        <div class="playoff-bracket-wrap" v-if="seasonViewMode === 'playoff' && selectedSeason?.playoffEnabled && playoffBracketColumns.length">
-          <div class="playoff-stage-shell">
-            <div class="playoff-stage-side playoff-stage-side-left">
-              <section
-                v-for="column in playoffLeftColumns"
-                :key="`left-${column.key}`"
-                class="playoff-side-column playoff-side-column-left"
-                :class="playoffRoundClass(column)"
-                :style="playoffSideColumnStyle(column)"
-              >
-                <header class="playoff-round-head">
-                  <div>
-                    <h3>{{ column.label }}</h3>
-                  </div>
-                </header>
-                <div class="playoff-side-cards">
-                  <component
-                    v-for="card in column.cards"
-                    :key="card.key"
-                    :is="card.matchId ? 'router-link' : 'article'"
-                    :to="card.matchId ? `/match/${card.matchId}` : undefined"
-                    class="playoff-match-card"
-                    :class="{ 'is-placeholder': !card.matchId }"
-                  >
-                    <div class="playoff-match-card-head">
-                      <span class="playoff-match-card-badge">{{ card.badge }}</span>
-                      <span v-if="card.dateLabel" class="playoff-match-card-date">{{ card.dateLabel }}</span>
-                    </div>
-                    <div class="playoff-match-card-body">
-                      <div class="playoff-team-slot">
-                        <strong>{{ card.homeTeamName }}</strong>
-                        <span class="playoff-team-score">{{ card.homeScoreLabel }}</span>
-                      </div>
-                      <div class="playoff-team-slot">
-                        <strong>{{ card.awayTeamName }}</strong>
-                        <span class="playoff-team-score">{{ card.awayScoreLabel }}</span>
-                      </div>
-                    </div>
-                    <div v-if="card.statusLabel || card.tourLabel" class="playoff-match-card-footer">
-                      <span class="muted-text">{{ card.statusLabel }}</span>
-                      <span class="muted-text" v-if="card.tourLabel">{{ card.tourLabel }}</span>
-                    </div>
-                  </component>
-                </div>
-              </section>
-            </div>
+        <SeasonPlayoffBracket
+          v-if="seasonViewMode === 'playoff' && selectedSeason?.playoffEnabled && playoffBracketColumns.length"
+          :left-columns="playoffLeftColumns"
+          :right-columns="playoffRightColumns"
+          :center-cards="playoffCenterCards"
+        />
 
-            <div class="playoff-stage-center">
-              <section class="playoff-center-stack">
-                <div class="playoff-center-card-wrap" v-for="card in playoffCenterCards" :key="card.key">
-                  <header class="playoff-round-head playoff-round-head-center">
-                    <div>
-                      <h3>{{ card.roundLabel }}</h3>
-                    </div>
-                  </header>
-                  <component
-                    :is="card.matchId ? 'router-link' : 'article'"
-                    :to="card.matchId ? `/match/${card.matchId}` : undefined"
-                    class="playoff-match-card playoff-match-card-center"
-                    :class="{ 'is-placeholder': !card.matchId, 'is-third-place': card.roundKey === 'THIRD_PLACE' }"
-                  >
-                    <div class="playoff-match-card-head">
-                      <span class="playoff-match-card-badge">{{ card.badge }}</span>
-                      <span v-if="card.dateLabel" class="playoff-match-card-date">{{ card.dateLabel }}</span>
-                    </div>
-                    <div class="playoff-match-card-body">
-                      <div class="playoff-team-slot">
-                        <strong>{{ card.homeTeamName }}</strong>
-                        <span class="playoff-team-score">{{ card.homeScoreLabel }}</span>
-                      </div>
-                      <div class="playoff-team-slot">
-                        <strong>{{ card.awayTeamName }}</strong>
-                        <span class="playoff-team-score">{{ card.awayScoreLabel }}</span>
-                      </div>
-                    </div>
-                    <div v-if="card.statusLabel || card.tourLabel" class="playoff-match-card-footer">
-                      <span class="muted-text">{{ card.statusLabel }}</span>
-                      <span class="muted-text" v-if="card.tourLabel">{{ card.tourLabel }}</span>
-                    </div>
-                  </component>
-                </div>
-              </section>
-            </div>
+        <SeasonStandingsTables
+          v-else-if="seasonViewMode === 'table' && seasonStandings.length"
+          :standings="seasonStandings"
+          :season-id="selectedSeasonId"
+        />
 
-            <div class="playoff-stage-side playoff-stage-side-right">
-              <section
-                v-for="column in playoffRightColumns"
-                :key="`right-${column.key}`"
-                class="playoff-side-column playoff-side-column-right"
-                :class="playoffRoundClass(column)"
-                :style="playoffSideColumnStyle(column)"
-              >
-                <header class="playoff-round-head">
-                  <div>
-                    <h3>{{ column.label }}</h3>
-                  </div>
-                </header>
-                <div class="playoff-side-cards">
-                  <component
-                    v-for="card in column.cards"
-                    :key="card.key"
-                    :is="card.matchId ? 'router-link' : 'article'"
-                    :to="card.matchId ? `/match/${card.matchId}` : undefined"
-                    class="playoff-match-card"
-                    :class="{ 'is-placeholder': !card.matchId }"
-                  >
-                    <div class="playoff-match-card-head">
-                      <span class="playoff-match-card-badge">{{ card.badge }}</span>
-                      <span v-if="card.dateLabel" class="playoff-match-card-date">{{ card.dateLabel }}</span>
-                    </div>
-                    <div class="playoff-match-card-body">
-                      <div class="playoff-team-slot">
-                        <strong>{{ card.homeTeamName }}</strong>
-                        <span class="playoff-team-score">{{ card.homeScoreLabel }}</span>
-                      </div>
-                      <div class="playoff-team-slot">
-                        <strong>{{ card.awayTeamName }}</strong>
-                        <span class="playoff-team-score">{{ card.awayScoreLabel }}</span>
-                      </div>
-                    </div>
-                    <div v-if="card.statusLabel || card.tourLabel" class="playoff-match-card-footer">
-                      <span class="muted-text">{{ card.statusLabel }}</span>
-                      <span class="muted-text" v-if="card.tourLabel">{{ card.tourLabel }}</span>
-                    </div>
-                  </component>
-                </div>
-              </section>
-            </div>
-          </div>
-        </div>
-
-        <table class="stats-table standings-table-desktop" v-else-if="seasonViewMode === 'table' && seasonStandings.length">
-          <thead>
-            <tr>
-              <th>Место</th>
-              <th>Команда</th>
-              <th>И</th>
-              <th>ЗМ</th>
-              <th>ПМ</th>
-              <th>РМ</th>
-              <th>О</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in seasonStandings" :key="row.teamId">
-              <td>{{ row.position }}</td>
-              <td>
-                <div class="team-cell">
-                  <RouterLink
-                    class="team-link"
-                    :to="{
-                      path: `/teams/${row.teamId}`,
-                      query: { seasonId: String(selectedSeasonId) },
-                    }"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {{ row.teamName }}
-                  </RouterLink>
-                </div>
-              </td>
-              <td>{{ row.matchesPlayed }}</td>
-              <td>{{ row.goalsFor }}</td>
-              <td>{{ row.goalsAgainst }}</td>
-              <td>{{ signedGoalDifference(row.goalDifference) }}</td>
-              <td><strong>{{ row.points }}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table class="stats-table standings-table-mobile" v-else-if="seasonViewMode === 'table' && seasonStandings.length">
-          <thead>
-            <tr>
-              <th>Место</th>
-              <th>Команда</th>
-              <th>И</th>
-              <th>ЗМ</th>
-              <th>ПМ</th>
-              <th>РМ</th>
-              <th>О</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in seasonStandings" :key="`mobile-${row.teamId}`">
-              <td>{{ row.position }}</td>
-              <td>
-                <div class="team-cell team-cell-mobile">
-                  <RouterLink
-                    class="team-link"
-                    :to="{
-                      path: `/teams/${row.teamId}`,
-                      query: { seasonId: String(selectedSeasonId) },
-                    }"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {{ row.teamName }}
-                  </RouterLink>
-                </div>
-              </td>
-              <td>{{ row.matchesPlayed }}</td>
-              <td>{{ row.goalsFor }}</td>
-              <td>{{ row.goalsAgainst }}</td>
-              <td>{{ signedGoalDifference(row.goalDifference) }}</td>
-              <td><strong>{{ row.points }}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="matrix-wrap matrix-desktop" v-else-if="seasonViewMode === 'matrix' && matrixTeams.length">
-          <table class="matrix-table">
-            <thead>
-              <tr>
-                <th class="matrix-team-head">Команда</th>
-                <th v-for="team in matrixTeams" :key="`matrix-col-${team.id}`" class="matrix-col-head">
-                  {{ team.positionLabel }}
-                </th>
-                <th>И</th>
-                <th>В</th>
-                <th>Н</th>
-                <th>П</th>
-                <th>М</th>
-                <th>О</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in matrixRows" :key="`matrix-row-${row.team.id}`">
-                <td class="matrix-team-cell">
-                  <div class="matrix-team-copy">
-                    <strong>{{ row.team.name }}</strong>
-                  </div>
-                </td>
-                <td
-                  v-for="cell in row.cells"
-                  :key="`matrix-cell-${row.team.id}-${cell.opponentTeamId}`"
-                  class="matrix-score-cell"
-                  :class="{
-                    'matrix-score-self': cell.isSelf,
-                    'matrix-score-empty': !cell.isSelf && !cell.results.length,
-                  }"
-                >
-                  <template v-if="cell.isSelf">
-                    <span class="matrix-ball" aria-hidden="true">⚽</span>
-                  </template>
-                  <template v-else-if="cell.results.length">
-                    <component
-                      v-for="result in cell.results"
-                      :key="result.key"
-                      :is="result.matchId ? 'router-link' : 'span'"
-                      :to="result.matchId ? `/match/${result.matchId}` : undefined"
-                      class="matrix-score-pill"
-                      :class="{
-                        'matrix-score-link': Boolean(result.matchId),
-                        'matrix-score-pending': result.pending,
-                      }"
-                    >
-                      {{ result.label }}
-                    </component>
-                  </template>
-                  <template v-else>—</template>
-                </td>
-                <td>{{ row.summary.played }}</td>
-                <td>{{ row.summary.wins }}</td>
-                <td>{{ row.summary.draws }}</td>
-                <td>{{ row.summary.losses }}</td>
-                <td>{{ row.summary.goalsFor }}-{{ row.summary.goalsAgainst }}</td>
-                <td><strong>{{ row.summary.points }}</strong></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="matrix-mobile-list" v-else-if="seasonViewMode === 'matrix' && matrixRows.length">
-          <article class="matrix-mobile-card" v-for="row in matrixRows" :key="`matrix-mobile-${row.team.id}`">
-            <div class="matrix-mobile-card-head">
-              <div class="matrix-mobile-team-copy">
-                <strong>{{ row.team.name }}</strong>
-                <span class="muted-text">И: {{ row.summary.played }} · О: {{ row.summary.points }}</span>
-              </div>
-              <span class="matrix-mobile-goals">{{ row.summary.goalsFor }}-{{ row.summary.goalsAgainst }}</span>
-            </div>
-
-            <div class="matrix-mobile-summary">
-              <span>В: <strong>{{ row.summary.wins }}</strong></span>
-              <span>Н: <strong>{{ row.summary.draws }}</strong></span>
-              <span>П: <strong>{{ row.summary.losses }}</strong></span>
-            </div>
-
-            <div class="matrix-mobile-opponents">
-              <article
-                class="matrix-mobile-opponent"
-                v-for="cell in row.cells.filter((item) => !item.isSelf)"
-                :key="`matrix-mobile-opp-${row.team.id}-${cell.opponentTeamId}`"
-              >
-                <div class="matrix-mobile-opponent-head">
-                  <strong>{{ cell.opponentName }}</strong>
-                </div>
-                <div class="matrix-mobile-results">
-                  <component
-                    v-for="result in cell.results"
-                    :key="result.key"
-                    :is="result.matchId ? 'router-link' : 'span'"
-                    :to="result.matchId ? `/match/${result.matchId}` : undefined"
-                    class="matrix-mobile-result-pill"
-                    :class="{
-                      'matrix-score-link': Boolean(result.matchId),
-                      'matrix-score-pending': result.pending,
-                    }"
-                  >
-                    {{ result.label }}
-                  </component>
-                </div>
-              </article>
-            </div>
-          </article>
-        </div>
+        <SeasonMatrix
+          v-else-if="seasonViewMode === 'matrix' && matrixTeams.length"
+          :teams="matrixTeams"
+          :rows="matrixRows"
+        />
 
         <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData && seasonViewMode === 'playoff' && !selectedSeason?.playoffEnabled">Для этого сезона плей-офф выключен.</p>
         <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData && seasonViewMode === 'playoff'">Сетка плей-офф пока не заполнена матчами, но формат сезона уже учтен.</p>
@@ -411,120 +113,21 @@
         <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData && seasonViewMode === 'matrix'">В выбранном сезоне пока нет данных для шахматки.</p>
       </article>
 
-      <article class="card tours-card" v-if="seasonViewMode !== 'matrix' && seasonViewMode !== 'playoff' && sidePanelMode === 'tours'">
-        <div class="section-head">
-          <h2 class="section-title">Туры сезона</h2>
-          <span class="muted-text" v-if="loadingSeasonData">Загрузка...</span>
-        </div>
+      <SeasonToursCard
+        v-if="seasonViewMode !== 'matrix' && seasonViewMode !== 'playoff' && sidePanelMode === 'tours'"
+        :tours="formattedTours"
+        :selected-season="selectedSeason"
+        :loading="loadingSeasonData"
+      />
 
-        <div class="tour-list" v-if="formattedTours.length">
-          <article class="tour-block" v-for="tour in formattedTours" :key="tour.id">
-            <button class="tour-card tour-card-button" type="button" @click="toggleTour(tour.id)">
-              <div class="tour-main">
-                <h3>{{ tour.name }}</h3>
-                <p class="muted-text">{{ stageLabel(tour) }}</p>
-                <p class="tour-date">{{ tourDateLabel(tour) }}</p>
-              </div>
-              <div class="tour-side">
-                <span class="tour-match-count">{{ tour.matchesCount }} матч{{ matchesWord(tour.matchesCount) }}</span>
-                <span class="tour-badge">{{ tourBadge(tour) }}</span>
-              </div>
-            </button>
-            <div class="tour-match-list" v-if="String(expandedTourId) === String(tour.id)">
-              <router-link
-                v-for="match in tour.matches"
-                :key="match.id"
-                :to="`/match/${match.id}`"
-                class="tour-match-link"
-              >
-                <div class="tour-match-copy">
-                  <strong>{{ match.homeTeamName }} - {{ match.awayTeamName }}</strong>
-                  <span class="muted-text">{{ matchStatusLabel(match.status) }}</span>
-                </div>
-                <div class="tour-match-meta">
-                  <span>{{ formatMatchDateTime(match.kickoffAt) }}</span>
-                  <span class="tour-match-score">{{ matchScoreLabel(match) }}</span>
-                </div>
-              </router-link>
-            </div>
-          </article>
-        </div>
-        <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData">Для выбранного сезона пока нет туров с назначенными матчами.</p>
-      </article>
-
-      <article class="card player-stats-card" v-else-if="seasonViewMode !== 'playoff' && sidePanelMode === 'stats'">
-        <div class="section-head player-stats-head">
-          <div>
-            <h2 class="section-title">Статистика игроков сезона</h2>
-            <p class="muted-text player-stats-subtitle">Учитываются только подтвержденные протоколы опубликованных туров.</p>
-          </div>
-          <span class="muted-text" v-if="loadingSeasonData">Загрузка...</span>
-        </div>
-
-        <div class="player-stats-tabs" v-if="selectedSeason">
-          <button
-            class="btn-ghost player-stats-tab"
-            type="button"
-            :class="{ 'is-active': statsMode === 'scorers' }"
-            @click="statsMode = 'scorers'"
-          >
-            Бомбардиры
-          </button>
-          <button
-            class="btn-ghost player-stats-tab"
-            type="button"
-            :class="{ 'is-active': statsMode === 'discipline' }"
-            @click="statsMode = 'discipline'"
-          >
-            Дисциплина
-          </button>
-        </div>
-
-        <div class="player-stats-table-wrap" v-if="topStatsRows.length">
-          <table class="stats-table player-stats-table player-stats-table-scorers" v-if="statsMode === 'scorers'">
-            <thead>
-              <tr>
-                <th>№</th>
-                <th>Игрок</th>
-                <th>Команда</th>
-                <th>Голы</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, index) in topStatsRows" :key="`scorers-${row.playerId}`">
-                <td class="player-stats-rank">{{ index + 1 }}</td>
-                <td><strong class="player-stats-name">{{ row.fullName }}</strong></td>
-                <td><span class="player-stats-team">{{ row.teamName || '—' }}</span></td>
-                <td><strong>{{ row.goals }}</strong></td>
-              </tr>
-            </tbody>
-          </table>
-
-          <table class="stats-table player-stats-table player-stats-table-discipline" v-else>
-            <thead>
-              <tr>
-                <th>№</th>
-                <th>Игрок</th>
-                <th>Команда</th>
-                <th>ЖК</th>
-                <th>КК</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(row, index) in topStatsRows" :key="`discipline-${row.playerId}`">
-                <td class="player-stats-rank">{{ index + 1 }}</td>
-                <td><strong class="player-stats-name">{{ row.fullName }}</strong></td>
-                <td><span class="player-stats-team">{{ row.teamName || '—' }}</span></td>
-                <td class="player-stats-yellow">{{ row.yellowCards }}</td>
-                <td class="player-stats-red">{{ row.redCards }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData">{{ statsEmptyText }}</p>
-        <p class="empty-text" v-else>Выберите сезон, чтобы посмотреть статистику игроков.</p>
-      </article>
+      <SeasonPlayerStatsCard
+        v-else-if="seasonViewMode !== 'playoff' && sidePanelMode === 'stats'"
+        v-model:mode="statsMode"
+        :selected-season="selectedSeason"
+        :loading="loadingSeasonData"
+        :rows="topStatsRows"
+        :empty-text="statsEmptyText"
+      />
 
     </div>
   </section>
@@ -532,8 +135,14 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import SeasonMatrix from '../components/tours/SeasonMatrix.vue'
+import SeasonPlayerStatsCard from '../components/tours/SeasonPlayerStatsCard.vue'
+import SeasonPlayoffBracket from '../components/tours/SeasonPlayoffBracket.vue'
+import SeasonStandingsTables from '../components/tours/SeasonStandingsTables.vue'
+import SeasonToursCard from '../components/tours/SeasonToursCard.vue'
+import { useSeasonMatrix } from '../composables/useSeasonMatrix'
 import { useSeasonPlayerStats } from '../composables/useSeasonPlayerStats'
+import { useSeasonPlayoff } from '../composables/useSeasonPlayoff'
 import { useAuth } from '../store/auth'
 
 const { optionalAuthApiRequest } = useAuth()
@@ -546,7 +155,6 @@ const seasonStandings = ref([])
 const seasonPlayerStats = ref([])
 const playoffBracket = ref(null)
 const standingsConfig = ref(null)
-const expandedTourId = ref('')
 const seasonViewMode = ref('table')
 const sidePanelMode = ref('tours')
 const statsMode = ref('scorers')
@@ -558,6 +166,23 @@ const { topStatsRows, statsEmptyText } = useSeasonPlayerStats(seasonPlayerStats,
 const selectedSeason = computed(() => {
   return seasons.value.find((item) => String(item.id) === String(selectedSeasonId.value)) || null
 })
+const { matrixRows, matrixTeams, teamPositionMap } = useSeasonMatrix({
+  season: selectedSeason,
+  teams: seasonTeams,
+  tours: seasonTours,
+  standings: seasonStandings,
+})
+const {
+  bracketColumns: playoffBracketColumns,
+  centerCards: playoffCenterCards,
+  leftColumns: playoffLeftColumns,
+  rightColumns: playoffRightColumns,
+} = useSeasonPlayoff({
+  bracket: playoffBracket,
+  season: selectedSeason,
+  tours: seasonTours,
+  teamPositionMap,
+})
 
 const mainPanelTitle = computed(() => {
   if (seasonViewMode.value === 'matrix') return 'Шахматка сезона'
@@ -568,185 +193,6 @@ const mainPanelTitle = computed(() => {
 const playoffLabel = computed(() => {
   if (!selectedSeason.value?.playoffEnabled) return 'Нет'
   return `${selectedSeason.value.playoffTeamCount || '—'} команд${selectedSeason.value.thirdPlaceEnabled ? ' · 3 место' : ''}`
-})
-
-const playoffBracketTies = computed(() => {
-  return Array.isArray(playoffBracket.value?.ties) ? playoffBracket.value.ties : []
-})
-
-const playoffTours = computed(() => {
-  return [...seasonTours.value]
-    .filter((tour) => String(tour.stageType || '').toUpperCase() === 'PLAYOFF')
-    .map((tour) => ({
-      ...tour,
-      matches: [...(Array.isArray(tour.matches) ? tour.matches : [])].sort((left, right) => {
-        const leftTime = new Date(left.kickoffAt || 0).getTime()
-        const rightTime = new Date(right.kickoffAt || 0).getTime()
-        return leftTime - rightTime || Number(left.id) - Number(right.id)
-      }),
-    }))
-    .sort((left, right) => {
-      const leftOrder = Number(left.sortOrder || 0)
-      const rightOrder = Number(right.sortOrder || 0)
-      if (leftOrder !== rightOrder) return leftOrder - rightOrder
-      return Number(left.id) - Number(right.id)
-    })
-})
-
-const playoffRoundBlueprint = computed(() => {
-  const teamCount = Number(playoffBracket.value?.teamCount || selectedSeason.value?.playoffTeamCount || 0)
-  const rounds = []
-
-  if (teamCount >= 16) {
-    rounds.push({ key: 'ROUND_OF_16', label: '1/8 финала', expectedTieCount: 8 })
-  }
-  if (teamCount >= 8) {
-    rounds.push({ key: 'QUARTERFINAL', label: '1/4 финала', expectedTieCount: 4 })
-  }
-  if (teamCount >= 4) {
-    rounds.push({ key: 'SEMIFINAL', label: '1/2 финала', expectedTieCount: 2 })
-  }
-  if (teamCount >= 2) {
-    rounds.push({ key: 'FINAL', label: 'Финал', expectedTieCount: 1 })
-  }
-
-  if (Boolean(playoffBracket.value?.thirdPlaceEnabled) && teamCount >= 4) {
-    rounds.push({ key: 'THIRD_PLACE', label: 'Матч за 3 место', expectedTieCount: 1 })
-  }
-
-  return rounds
-})
-
-const playoffBracketColumns = computed(() => {
-  const blueprint = playoffRoundBlueprint.value
-  const blueprintKeys = blueprint.map((round) => round.key)
-
-  if (playoffBracketTies.value.length) {
-    const groupedTies = new Map()
-
-    for (const tie of playoffBracketTies.value) {
-      const roundKey = String(tie.roundCode || '')
-      if (!roundKey) continue
-
-      const existingGroup = groupedTies.get(roundKey)
-      if (existingGroup) {
-        existingGroup.ties.push(tie)
-        continue
-      }
-
-      groupedTies.set(roundKey, {
-        key: roundKey,
-        label: roundLabelByKey(roundKey),
-        expectedTieCount: blueprint.find((round) => round.key === roundKey)?.expectedTieCount || 1,
-        ties: [tie],
-        tours: [],
-        matchCount: 0,
-        order: Number(tie.roundOrder || 999),
-      })
-    }
-
-    return [...groupedTies.values()].sort((left, right) => left.order - right.order)
-  }
-
-  const groups = new Map()
-  let fallbackIndex = 0
-
-  for (const tour of playoffTours.value) {
-    let roundKey = detectPlayoffRoundKey(tour)
-    if (!roundKey) {
-      roundKey = blueprintKeys[fallbackIndex] || `PLAYOFF_${fallbackIndex + 1}`
-      fallbackIndex += 1
-    } else if (roundKey !== 'THIRD_PLACE') {
-      const explicitIndex = blueprintKeys.indexOf(roundKey)
-      if (explicitIndex >= 0 && explicitIndex >= fallbackIndex) {
-        fallbackIndex = explicitIndex + 1
-      }
-    }
-
-    const blueprintRound = blueprint.find((round) => round.key === roundKey)
-    const existingGroup = groups.get(roundKey)
-    const preparedTour = {
-      ...tour,
-      key: `${roundKey}-${tour.id}`,
-    }
-
-    if (existingGroup) {
-      existingGroup.tours.push(preparedTour)
-      existingGroup.matchCount += preparedTour.matches.length
-      continue
-    }
-
-    groups.set(roundKey, {
-      key: roundKey,
-      label: roundKey === 'THIRD_PLACE' ? 'Матч за 3 место' : roundLabelByKey(roundKey, tour.name),
-      expectedTieCount: blueprintRound?.expectedTieCount || Math.max(preparedTour.matches.length, 1),
-      tours: [preparedTour],
-      matchCount: preparedTour.matches.length,
-      order: roundKey === 'THIRD_PLACE'
-        ? 999
-        : blueprintKeys.indexOf(roundKey) >= 0
-          ? blueprintKeys.indexOf(roundKey)
-          : blueprint.length + groups.size,
-    })
-  }
-
-  const columns = blueprint.map((round, index) => {
-    const existingGroup = groups.get(round.key)
-    return {
-      key: round.key,
-      label: round.label,
-      expectedTieCount: round.expectedTieCount,
-      tours: existingGroup?.tours || [],
-      matchCount: existingGroup?.matchCount || 0,
-      order: index,
-    }
-  })
-
-  if (groups.has('THIRD_PLACE')) {
-    columns.push(groups.get('THIRD_PLACE'))
-  }
-
-  return columns.sort((left, right) => left.order - right.order)
-})
-
-const playoffCompetitiveColumns = computed(() => {
-  return playoffBracketColumns.value.filter((round) => round.key !== 'FINAL' && round.key !== 'THIRD_PLACE')
-})
-
-const playoffLeftColumns = computed(() => {
-  return playoffCompetitiveColumns.value.map((round) => {
-    const cards = playoffRoundCards(round)
-    const splitIndex = Math.ceil(cards.length / 2)
-    return {
-      ...round,
-      cards: cards.slice(0, splitIndex),
-    }
-  })
-})
-
-const playoffRightColumns = computed(() => {
-  return [...playoffCompetitiveColumns.value]
-    .reverse()
-    .map((round) => {
-      const cards = playoffRoundCards(round)
-      const splitIndex = Math.ceil(cards.length / 2)
-      return {
-        ...round,
-        cards: cards.slice(splitIndex),
-      }
-    })
-})
-
-const playoffCenterCards = computed(() => {
-  const centerRounds = playoffBracketColumns.value.filter((round) => round.key === 'FINAL' || round.key === 'THIRD_PLACE')
-  return centerRounds.flatMap((round) =>
-    playoffRoundCards(round).map((card) => ({
-      ...card,
-      roundKey: round.key,
-      roundLabel: round.label,
-      roundSubtitle: playoffRoundSubtitle(round),
-    }))
-  )
 })
 
 const formattedTours = computed(() => {
@@ -782,177 +228,7 @@ watch(selectedSeason, (season) => {
   }
 })
 
-const regularSeasonMatches = computed(() => {
-  return seasonTours.value
-    .filter((tour) => String(tour.stageType || '').toUpperCase() !== 'PLAYOFF')
-    .flatMap((tour) => (Array.isArray(tour.matches) ? tour.matches : []))
-    .sort((left, right) => {
-      const leftTime = new Date(left.kickoffAt || 0).getTime()
-      const rightTime = new Date(right.kickoffAt || 0).getTime()
-      return leftTime - rightTime || Number(left.id) - Number(right.id)
-    })
-})
-
-const standingsMap = computed(() => {
-  return new Map(seasonStandings.value.map((row) => [String(row.teamId), row]))
-})
-
-const teamPositionMap = computed(() => {
-  return new Map(seasonStandings.value.map((row) => [String(row.teamId), Number(row.position || 0)]))
-})
-
-const matrixSummaryMap = computed(() => {
-  const summary = new Map()
-
-  function ensure(teamId) {
-    const key = String(teamId)
-    if (!summary.has(key)) {
-      const standingsRow = standingsMap.value.get(key)
-      summary.set(key, {
-        played: Number(standingsRow?.matchesPlayed || 0),
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        goalsFor: Number(standingsRow?.goalsFor || 0),
-        goalsAgainst: Number(standingsRow?.goalsAgainst || 0),
-        points: Number(standingsRow?.points || 0),
-      })
-    }
-    return summary.get(key)
-  }
-
-  for (const team of seasonTeams.value) {
-    ensure(team.id)
-  }
-
-  for (const match of regularSeasonMatches.value) {
-    if (!Number.isInteger(match.homeScore) || !Number.isInteger(match.awayScore)) {
-      continue
-    }
-
-    const home = ensure(match.homeTeamId)
-    const away = ensure(match.awayTeamId)
-
-    if (match.homeScore > match.awayScore) {
-      home.wins += 1
-      away.losses += 1
-    } else if (match.homeScore < match.awayScore) {
-      away.wins += 1
-      home.losses += 1
-    } else {
-      home.draws += 1
-      away.draws += 1
-    }
-  }
-
-  return summary
-})
-
-const matrixTeams = computed(() => {
-  const ordered = []
-  const used = new Set()
-
-  for (const row of seasonStandings.value) {
-    ordered.push({
-      id: row.teamId,
-      name: row.teamName,
-      positionLabel: row.position,
-    })
-    used.add(String(row.teamId))
-  }
-
-  const remainder = seasonTeams.value
-    .filter((team) => !used.has(String(team.id)))
-    .slice()
-    .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'ru', { sensitivity: 'base' }))
-
-  remainder.forEach((team) => {
-    ordered.push({
-      id: team.id,
-      name: team.name,
-      positionLabel: ordered.length + 1,
-    })
-  })
-
-  return ordered
-})
-
-const expectedMatrixMatchCount = computed(() => {
-  const roundsCount = Number(selectedSeason.value?.roundsCount || 1)
-  return Number.isFinite(roundsCount) && roundsCount > 0 ? roundsCount : 1
-})
-
-const matrixRows = computed(() => {
-  const matchMap = new Map()
-
-  for (const match of regularSeasonMatches.value) {
-    const key = [String(match.homeTeamId), String(match.awayTeamId)].sort().join(':')
-    if (!matchMap.has(key)) {
-      matchMap.set(key, [])
-    }
-    matchMap.get(key).push(match)
-  }
-
-  return matrixTeams.value.map((team) => ({
-    team,
-    summary: matrixSummaryMap.value.get(String(team.id)) || {
-      played: 0,
-      wins: 0,
-      draws: 0,
-      losses: 0,
-      goalsFor: 0,
-      goalsAgainst: 0,
-      points: 0,
-    },
-    cells: matrixTeams.value.map((opponent) => {
-      if (String(team.id) === String(opponent.id)) {
-        return {
-          opponentTeamId: opponent.id,
-          opponentName: opponent.name,
-          isSelf: true,
-          results: [],
-        }
-      }
-
-      const key = [String(team.id), String(opponent.id)].sort().join(':')
-      const matches = matchMap.get(key) || []
-      const results = matches.map((match) => {
-        const hasScore = Number.isInteger(match.homeScore) && Number.isInteger(match.awayScore)
-        let label = '—'
-        if (hasScore) {
-          label = String(match.homeTeamId) === String(team.id)
-            ? `${match.homeScore}:${match.awayScore}`
-            : `${match.awayScore}:${match.homeScore}`
-        }
-        return {
-          key: match.id,
-          matchId: match.id,
-          label,
-          pending: !hasScore,
-        }
-      })
-
-      while (results.length < expectedMatrixMatchCount.value) {
-        results.push({
-          key: `placeholder-${team.id}-${opponent.id}-${results.length}`,
-          matchId: null,
-          label: '—',
-          pending: true,
-        })
-      }
-
-      return {
-        opponentTeamId: opponent.id,
-        opponentName: opponent.name,
-        isSelf: false,
-        results,
-      }
-    }),
-  }))
-})
-
 watch(selectedSeasonId, async (seasonId) => {
-  expandedTourId.value = ''
   sidePanelMode.value = 'tours'
   statsMode.value = 'scorers'
   if (!seasonId) {
@@ -972,228 +248,11 @@ function resetError() {
   pageError.value = ''
 }
 
-function toggleTour(tourId) {
-  expandedTourId.value = String(expandedTourId.value) === String(tourId) ? '' : String(tourId)
-}
-
 function openStatsPanel() {
   if (seasonViewMode.value === 'matrix') {
     seasonViewMode.value = 'table'
   }
   sidePanelMode.value = sidePanelMode.value === 'stats' ? 'tours' : 'stats'
-}
-
-function detectPlayoffRoundKey(tour) {
-  const title = String(tour?.name || '').toLowerCase()
-
-  if (/треть|3\s*мест|бронз/.test(title)) {
-    return 'THIRD_PLACE'
-  }
-  if (/1\s*[\/\\-]\s*8|1\/8|восьм|round\s*of\s*16/.test(title)) {
-    return 'ROUND_OF_16'
-  }
-  if (/1\s*[\/\\-]\s*4|1\/4|четверт|quarter/.test(title)) {
-    return 'QUARTERFINAL'
-  }
-  if (/1\s*[\/\\-]\s*2|1\/2|полуфин|semi/.test(title)) {
-    return 'SEMIFINAL'
-  }
-  if (/финал|final/.test(title)) {
-    return 'FINAL'
-  }
-
-  return ''
-}
-
-function roundLabelByKey(roundKey, fallbackName = '') {
-  switch (roundKey) {
-    case 'ROUND_OF_16':
-      return '1/8 финала'
-    case 'QUARTERFINAL':
-      return '1/4 финала'
-    case 'SEMIFINAL':
-      return '1/2 финала'
-    case 'FINAL':
-      return 'Финал'
-    case 'THIRD_PLACE':
-      return 'Матч за 3 место'
-    default:
-      return fallbackName || 'Плей-офф'
-  }
-}
-
-function playoffRoundSubtitle(round) {
-  return ''
-}
-
-function playoffRoundClass(round) {
-  return {
-    'is-round-of-16': round.key === 'ROUND_OF_16',
-    'is-quarterfinal': round.key === 'QUARTERFINAL',
-    'is-semifinal': round.key === 'SEMIFINAL',
-    'is-final': round.key === 'FINAL',
-    'is-third-place': round.key === 'THIRD_PLACE',
-  }
-}
-
-function playoffRoundStyle(round) {
-  const tieCount = Math.max(Number(round.expectedTieCount || 1), 1)
-  if (round.key === 'THIRD_PLACE') {
-    return {
-      '--playoff-gap': '18px',
-      '--playoff-padding-top': '36px',
-    }
-  }
-
-  const depth = Math.max(Math.log2(tieCount), 0)
-  const gap = 18 + (depth * 28)
-  const paddingTop = depth * 22
-
-  return {
-    '--playoff-gap': `${gap}px`,
-    '--playoff-padding-top': `${paddingTop}px`,
-  }
-}
-
-function playoffSideColumnStyle(round) {
-  const tieCount = Math.max(Number(round?.expectedTieCount || round?.cards?.length || 1), 1)
-  const depth = Math.max(Math.log2(tieCount), 0)
-
-  return {
-    '--playoff-side-gap': `${18 + depth * 30}px`,
-    '--playoff-side-padding-top': `${Math.max(depth * 26, 0)}px`,
-  }
-}
-
-function playoffTourHeading(tour, round) {
-  if (tour.matches.length <= 1) {
-    return tour.name || round.label
-  }
-  return tour.name && tour.name !== round.label ? tour.name : `${round.label} · ${tour.matches.length} матч${matchesWord(tour.matches.length)}`
-}
-
-function playoffRoundCards(round) {
-  if (Array.isArray(round?.ties) && round.ties.length) {
-    return round.ties.map((tie, index) => ({
-      key: `${round.key}-tie-${tie.id || index + 1}`,
-      matchId: null,
-      badge: round.ties.length > 1 ? `Пара ${tie.slotOrder || index + 1}` : (tie.title || round.label),
-      dateLabel: playoffTieDateLabel(tie),
-      homeTeamName: playoffTieParticipantLabel(tie, 'home', round.key),
-      awayTeamName: playoffTieParticipantLabel(tie, 'away', round.key),
-      homeScoreLabel: Number.isInteger(tie.aggregateHomeScore) ? String(tie.aggregateHomeScore) : '—',
-      awayScoreLabel: Number.isInteger(tie.aggregateAwayScore) ? String(tie.aggregateAwayScore) : '—',
-      statusLabel: playoffTieStatusLabel(tie),
-      tourLabel: '',
-    }))
-  }
-
-  if (!round?.tours?.length) {
-    return Array.from({ length: Number(round?.expectedTieCount || 0) }, (_, index) => ({
-      key: `${round.key}-placeholder-${index + 1}`,
-      matchId: null,
-      badge: `Пара ${index + 1}`,
-      dateLabel: '',
-      homeTeamName: seededPlaceholderLabel(round, index * 2 + 1),
-      awayTeamName: seededPlaceholderLabel(round, index * 2 + 2),
-      homeScoreLabel: '—',
-      awayScoreLabel: '—',
-      statusLabel: '',
-      tourLabel: '',
-    }))
-  }
-
-  return round.tours.flatMap((tour) => {
-    if (!Array.isArray(tour.matches) || !tour.matches.length) {
-      return [{
-        key: `${tour.key}-empty`,
-        matchId: null,
-        badge: playoffTourHeading(tour, round),
-        dateLabel: '',
-        homeTeamName: 'Команда A',
-        awayTeamName: 'Команда B',
-        homeScoreLabel: '—',
-        awayScoreLabel: '—',
-        statusLabel: '',
-        tourLabel: tour.name || round.label,
-      }]
-    }
-
-    return tour.matches.map((match, index) => ({
-      key: `${tour.key}-match-${match.id}`,
-      matchId: match.id,
-      badge: tour.matches.length > 1 ? `Пара ${index + 1}` : playoffTourHeading(tour, round),
-      dateLabel: compactMatchDateTime(match.kickoffAt),
-      homeTeamName: match.homeTeamName || 'Команда 1',
-      awayTeamName: match.awayTeamName || 'Команда 2',
-      homeScoreLabel: Number.isInteger(match.homeScore) ? String(match.homeScore) : '—',
-      awayScoreLabel: Number.isInteger(match.awayScore) ? String(match.awayScore) : '—',
-      statusLabel: matchStatusLabel(match.status),
-      tourLabel: tour.matches.length > 1 ? (tour.name || round.label) : '',
-    }))
-  })
-}
-
-function seededPlaceholderLabel(round, seedNumber) {
-  if (round.key === 'ROUND_OF_16' || round.key === 'QUARTERFINAL') {
-    return `Команда (${seedNumber})`
-  }
-  if (round.key === 'SEMIFINAL') {
-    return seedNumber % 2 === 1 ? 'Победитель пары' : 'Победитель пары'
-  }
-  if (round.key === 'FINAL') {
-    return seedNumber % 2 === 1 ? 'Победитель 1/2' : 'Победитель 1/2'
-  }
-  if (round.key === 'THIRD_PLACE') {
-    return seedNumber % 2 === 1 ? 'Проигравший 1/2' : 'Проигравший 1/2'
-  }
-  return `Команда ${seedNumber}`
-}
-
-function playoffTieDateLabel(tie) {
-  if (Number.isInteger(tie.aggregateHomeScore) && Number.isInteger(tie.aggregateAwayScore)) {
-    return 'Сыграно'
-  }
-  return ''
-}
-
-function playoffTieParticipantLabel(tie, side, roundKey) {
-  const teamNameKey = side === 'home' ? 'homeTeamName' : 'awayTeamName'
-  const teamIdKey = side === 'home' ? 'homeTeamId' : 'awayTeamId'
-  const seedKey = side === 'home' ? 'homeSeed' : 'awaySeed'
-  const sourceResultKey = side === 'home' ? 'homeSourceResult' : 'awaySourceResult'
-  const sourceTieIdKey = side === 'home' ? 'homeSourceTieId' : 'awaySourceTieId'
-
-  if (tie?.[teamNameKey]) {
-    const position = teamPositionMap.value.get(String(tie?.[teamIdKey] || '')) || tie?.[seedKey] || null
-    return position ? `${tie[teamNameKey]} (${position})` : tie[teamNameKey]
-  }
-  if (tie?.[seedKey]) {
-    return `Команда (${tie[seedKey]})`
-  }
-  if (tie?.[sourceTieIdKey]) {
-    if (String(tie[sourceResultKey] || '').toUpperCase() === 'LOSER') {
-      return roundKey === 'THIRD_PLACE' ? 'Проигравший 1/2' : 'Проигравший пары'
-    }
-    return roundKey === 'FINAL' ? 'Победитель 1/2' : 'Победитель пары'
-  }
-  return seededPlaceholderLabel({ key: roundKey }, side === 'home' ? 1 : 2)
-}
-
-function playoffTieStatusLabel(tie) {
-  return ''
-}
-
-function compactMatchDateTime(value) {
-  if (!value) return 'Дата не назначена'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Дата не назначена'
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
 }
 
 async function loadSeasons() {
@@ -1245,40 +304,6 @@ async function loadSeasonData(seasonId) {
   }
 }
 
-function stageLabel(tour) {
-  if (String(tour.stageType || '').toUpperCase() === 'PLAYOFF') {
-    return 'Стадия плей-офф'
-  }
-  if (tour.roundNumber) {
-    return `Регулярный этап, тур ${tour.roundNumber}`
-  }
-  return 'Регулярный этап'
-}
-
-function tourBadge(tour) {
-  if (String(tour.stageType || '').toUpperCase() === 'PLAYOFF') {
-    return 'Плей-офф'
-  }
-  return tour.roundNumber ? `Тур ${tour.roundNumber}` : 'Регулярка'
-}
-
-function tourDateLabel(tour) {
-  const firstMatch = Array.isArray(tour.matches) && tour.matches.length ? tour.matches[0] : null
-  if (!firstMatch?.kickoffAt) return 'Дата тура будет назначена позже'
-  return `Дата тура: ${formatDateOnly(firstMatch.kickoffAt)}`
-}
-
-function formatDateOnly(value) {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(date)
-}
-
 function formatMatchDateTime(value) {
   if (!value) return 'Дата не указана'
   const date = new Date(value)
@@ -1293,43 +318,12 @@ function formatMatchDateTime(value) {
 }
 
 
-function matchScoreLabel(match) {
-  if (Number.isInteger(match.homeScore) && Number.isInteger(match.awayScore)) {
-    return `${match.homeScore} : ${match.awayScore}`
-  }
-  return '— : —'
-}
-
-function signedGoalDifference(value) {
-  const normalized = Number(value || 0)
-  return normalized > 0 ? `+${normalized}` : `${normalized}`
-}
-
-function matchStatusLabel(status) {
-  if (status === 'LIVE') return 'Матч идет'
-  if (status === 'FINISHED') return 'Матч завершен'
-  if (status === 'VERIFIED') return 'Протокол подтвержден'
-  if (status === 'LINEUPS_SUBMITTED') return 'Заявки поданы'
-  return 'Матч запланирован'
-}
-
-function matchesWord(count) {
-  const normalized = Math.abs(Number(count || 0))
-  const lastTwo = normalized % 100
-  const last = normalized % 10
-
-  if (lastTwo >= 11 && lastTwo <= 14) return 'ей'
-  if (last === 1) return ''
-  if (last >= 2 && last <= 4) return 'а'
-  return 'ей'
-}
-
 onMounted(async () => {
   await loadSeasons()
 })
 </script>
 
-<style scoped>
+<style>
 .home-hero {
   display: grid;
   gap: 18px;

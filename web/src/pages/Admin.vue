@@ -790,177 +790,34 @@
       </div>
     </article>
 
-    <article class="card admin-panel" v-if="activeTab === 'players'">
-      <div class="admin-panel-head">
-        <h3 class="section-title">Игроки</h3>
-        <p class="muted-text">Единый реестр игроков с быстрым созданием и редактированием карточек.</p>
-      </div>
-      <div class="admin-subnav">
-        <button
-          class="btn-ghost admin-subnav-btn"
-          :class="{ 'admin-subnav-active': playerSubMode === 'create' }"
-          type="button"
-          @click="playerSubMode = 'create'; cancelEditPlayer(); playerEditSelectId = ''"
-        >Создать игрока</button>
-        <button
-          class="btn-ghost admin-subnav-btn"
-          :class="{ 'admin-subnav-active': playerSubMode === 'edit' }"
-          type="button"
-          @click="playerSubMode = 'edit'"
-        >Редактировать</button>
-      </div>
+    <AdminPlayersPanel
+      v-if="activeTab === 'players'"
+      v-model:sub-mode="playerSubMode"
+      v-model:edit-select-id="playerEditSelectId"
+      :form="playerForm"
+      :edit-options="playerEditOptions"
+      :editing-id="editingPlayerId"
+      @cancel="cancelEditPlayer"
+      @create="createPlayer"
+      @deactivate="deactivatePlayer"
+      @photo-selected="onPlayerPhotoSelected"
+      @save="saveEditPlayer"
+    />
 
-      <div class="admin-grid">
-        <form v-if="playerSubMode === 'create'" class="admin-form admin-surface" @submit.prevent="createPlayer">
-          <label>
-            ФИО
-            <input v-model.trim="playerForm.fullName" type="text" required />
-          </label>
-          <label>
-            Дата рождения
-            <input v-model="playerForm.birthDate" type="date" class="admin-temporal-input" required />
-          </label>
-          <label>
-            Прописка
-            <input v-model.trim="playerForm.residence" type="text" placeholder="Город/деревня" required />
-          </label>
-          <label class="admin-checkbox-row">
-            <input v-model="playerForm.isGoalkeeper" type="checkbox" />
-            <span>Вратарь</span>
-          </label>
-          <label>
-            Фото игрока
-            <input type="file" accept="image/*" @change="onPlayerPhotoSelected" />
-          </label>
-          <img v-if="playerForm.photoDataUrl" :src="playerForm.photoDataUrl" alt="Превью фото игрока" class="team-rep-player-photo-preview" />
-          <div class="actions-row">
-            <button class="btn-primary" type="submit">Создать игрока</button>
-          </div>
-        </form>
-
-        <div v-else class="admin-form admin-surface">
-          <label>
-            Выберите игрока
-            <SearchableSelect
-              v-model="playerEditSelectId"
-              :options="playerEditOptions"
-              placeholder="— выберите —"
-              search-placeholder="Начните вводить ФИО игрока"
-              empty-text="Игрок по такому ФИО не найден"
-            />
-          </label>
-          <template v-if="editingPlayerId">
-            <label>
-              ФИО
-              <input v-model.trim="playerForm.fullName" type="text" />
-            </label>
-            <label>
-              Дата рождения
-              <input v-model="playerForm.birthDate" type="date" class="admin-temporal-input" />
-            </label>
-            <label>
-              Прописка
-              <input v-model.trim="playerForm.residence" type="text" placeholder="Город/деревня" />
-            </label>
-            <label class="admin-checkbox-row">
-              <input v-model="playerForm.isGoalkeeper" type="checkbox" />
-              <span>Вратарь</span>
-            </label>
-            <label>
-              Фото игрока
-              <input type="file" accept="image/*" @change="onPlayerPhotoSelected" />
-            </label>
-            <img v-if="playerForm.photoDataUrl" :src="playerForm.photoDataUrl" alt="Превью фото игрока" class="team-rep-player-photo-preview" />
-            <div class="actions-row">
-              <button class="btn-primary" type="button" @click="saveEditPlayer">Сохранить изменения</button>
-              <button class="btn-danger" type="button" @click="deactivatePlayer(editingPlayerId)">Удалить игрока</button>
-              <button class="btn-ghost" type="button" @click="cancelEditPlayer(); playerEditSelectId = ''">Отмена</button>
-            </div>
-          </template>
-        </div>
-
-      </div>
-    </article>
-
-    <article class="card admin-panel" v-if="activeTab === 'referees'">
-      <div class="admin-panel-head">
-        <h3 class="section-title">Судьи</h3>
-        <p class="muted-text">Реестр арбитров с быстрым созданием и редактированием карточек.</p>
-      </div>
-      <div class="admin-subnav">
-        <button
-          class="btn-ghost admin-subnav-btn"
-          :class="{ 'admin-subnav-active': refereeSubMode === 'create' }"
-          type="button"
-          @click="refereeSubMode = 'create'; cancelEditReferee(); refereeEditSelectId = ''"
-        >Создать судью</button>
-        <button
-          class="btn-ghost admin-subnav-btn"
-          :class="{ 'admin-subnav-active': refereeSubMode === 'edit' }"
-          type="button"
-          @click="refereeSubMode = 'edit'"
-        >Редактировать</button>
-      </div>
-
-      <div class="admin-grid">
-        <form v-if="refereeSubMode === 'create'" class="admin-form admin-surface" @submit.prevent="createReferee">
-          <label>
-            ФИО
-            <input v-model.trim="refereeForm.fullName" type="text" required />
-          </label>
-          <label>
-            Город
-            <input v-model.trim="refereeForm.city" type="text" placeholder="Например: Богородск" />
-          </label>
-          <label>
-            Дата рождения
-            <input v-model="refereeForm.birthDate" type="date" class="admin-temporal-input" />
-          </label>
-          <label>
-            Фото судьи
-            <input type="file" accept="image/*" @change="onRefereePhotoSelected" />
-          </label>
-          <img v-if="refereeForm.photoDataUrl" :src="refereeForm.photoDataUrl" alt="Превью фото судьи" class="team-rep-player-photo-preview" />
-          <div class="actions-row">
-            <button class="btn-primary" type="submit">Создать судью</button>
-          </div>
-        </form>
-
-        <div v-else class="admin-form admin-surface">
-          <label>
-            Выберите судью
-            <select v-model="refereeEditSelectId" @change="onRefereeSelectChange">
-              <option value="">— выберите —</option>
-              <option v-for="referee in refereesList" :key="referee.id" :value="String(referee.id)">{{ referee.fullName }}</option>
-            </select>
-          </label>
-          <template v-if="editingRefereeId">
-            <label>
-              ФИО
-              <input v-model.trim="refereeForm.fullName" type="text" />
-            </label>
-            <label>
-              Город
-              <input v-model.trim="refereeForm.city" type="text" placeholder="Например: Богородск" />
-            </label>
-            <label>
-              Дата рождения
-              <input v-model="refereeForm.birthDate" type="date" class="admin-temporal-input" />
-            </label>
-            <label>
-              Фото судьи
-              <input type="file" accept="image/*" @change="onRefereePhotoSelected" />
-            </label>
-            <img v-if="refereeForm.photoDataUrl" :src="refereeForm.photoDataUrl" alt="Превью фото судьи" class="team-rep-player-photo-preview" />
-            <div class="actions-row">
-              <button class="btn-primary" type="button" @click="saveEditReferee">Сохранить изменения</button>
-              <button class="btn-danger" type="button" @click="deactivateReferee(editingRefereeId)">Удалить судью</button>
-              <button class="btn-ghost" type="button" @click="cancelEditReferee(); refereeEditSelectId = ''">Отмена</button>
-            </div>
-          </template>
-        </div>
-      </div>
-    </article>
+    <AdminRefereesPanel
+      v-if="activeTab === 'referees'"
+      v-model:sub-mode="refereeSubMode"
+      v-model:edit-select-id="refereeEditSelectId"
+      :form="refereeForm"
+      :referees="refereesList"
+      :editing-id="editingRefereeId"
+      @cancel="cancelEditReferee"
+      @create="createReferee"
+      @deactivate="deactivateReferee"
+      @photo-selected="onRefereePhotoSelected"
+      @save="saveEditReferee"
+      @selection-change="onRefereeSelectChange"
+    />
 
     <AdminLeagueContent
       v-if="activeTab === 'league'"
@@ -968,164 +825,52 @@
       @refresh-seasons="handleLeagueSeasonRefresh"
     />
 
-    <article class="card admin-panel" v-if="activeTab === 'roles'">
-      <div class="admin-panel-head">
-        <h3 class="section-title">Роли и доступ</h3>
-        <p class="muted-text">Поиск пользователя, управление ролями и сброс временного пароля.</p>
-      </div>
+    <AdminRolesPanel
+      v-if="activeTab === 'roles'"
+      v-model:search="rolesSearch"
+      v-model:selected-email="rolesSelectedEmail"
+      v-model:replace-target="replaceRoleTarget"
+      v-model:replace-code="replaceRoleNewCode"
+      v-model:assign-code="assignRoleCode"
+      :users="filteredUsersForSelect"
+      :has-users="Boolean(roleUsersList.length)"
+      :found-user="rolesFoundUser"
+      :password-reset-result="passwordResetResult"
+      :password-reset-link="absolutePasswordResetLink"
+      :format-date-time="formatDateTime"
+      @assign-role="assignRoleToFound"
+      @confirm-replace="confirmReplaceRole"
+      @copy-reset-link="copyPasswordResetLink"
+      @find="findUserForRoles"
+      @remove-role="removeRoleFromFound"
+      @reset-password="resetPasswordForFoundUser"
+      @start-replace="startReplaceRole"
+    />
 
-      <div class="admin-form admin-surface">
-        <label>
-          Поиск по email
-          <input v-model.trim="rolesSearch" type="text" placeholder="Начните вводить email..." />
-        </label>
-        <label>
-          Выберите пользователя
-          <select v-model="rolesSelectedEmail">
-            <option value="">— выберите —</option>
-            <option v-for="u in filteredUsersForSelect" :key="u.email" :value="u.email">{{ u.email }}</option>
-          </select>
-        </label>
-        <p v-if="!roleUsersList.length" class="muted-text">Пользователи не найдены.</p>
-        <div class="actions-row">
-          <button class="btn-primary" type="button" @click="findUserForRoles">Найти</button>
-        </div>
-      </div>
+    <AdminRepresentativesPanel
+      v-if="activeTab === 'representatives'"
+      v-model:search="repSearch"
+      v-model:selected-email="repSelectedEmail"
+      v-model:selected-team-id="repSelectedTeamId"
+      :users="filteredRepresentativeUsersForSelect"
+      :has-users="Boolean(repUsersList.length)"
+      :found-user="repFoundUser"
+      :current-team-scope="repCurrentTeamScope"
+      :has-multiple-team-scopes="repHasMultipleTeamScopes"
+      :teams="teamsList"
+      :primary-action-label="repPrimaryActionLabel"
+      @find="findRepresentative"
+      @save-team="saveRepresentativeTeam"
+      @unassign-team="unassignRepresentativeTeam"
+    />
 
-      <div v-if="rolesFoundUser" class="admin-found-user">
-        <p class="admin-found-email">{{ rolesFoundUser.email }}</p>
-        <p class="muted-text" v-if="rolesFoundUser.name">{{ rolesFoundUser.name }}</p>
-        <p class="muted-text">
-          Требуется смена пароля: {{ rolesFoundUser.mustChangePassword ? 'да' : 'нет' }}
-        </p>
-        <p v-if="!rolesFoundUser.roles.length" class="muted-text">Ролей нет.</p>
-
-        <div class="actions-row">
-          <button class="btn-danger btn-sm" type="button" @click="resetPasswordForFoundUser">Сбросить пароль</button>
-        </div>
-
-        <article v-if="passwordResetResult" class="card admin-reset-password-card">
-          <p><strong>Одноразовая ссылка:</strong></p>
-          <p class="admin-reset-password-link">{{ absolutePasswordResetLink }}</p>
-          <div class="actions-row">
-            <button class="btn-ghost btn-sm" type="button" @click="copyPasswordResetLink">Скопировать ссылку</button>
-          </div>
-          <p class="muted-text">
-            Ссылка действует до {{ formatDateTime(passwordResetResult.expiresAt) }}. Передайте ее пользователю по безопасному каналу. После установки нового пароля ссылка станет недействительной.
-          </p>
-        </article>
-
-        <div v-for="role in rolesFoundUser.roles" :key="role" class="admin-role-manage-row">
-          <span class="admin-role-badge">{{ role }}</span>
-          <template v-if="replaceRoleTarget === role">
-            <select v-model="replaceRoleNewCode" class="admin-role-select-inline">
-              <option value="USER">USER</option>
-              <option value="REFEREE">REFEREE</option>
-              <option value="TEAM_REP">TEAM_REP</option>
-              <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-            </select>
-            <button class="btn-primary btn-sm" type="button" @click="confirmReplaceRole">Подтвердить</button>
-            <button class="btn-ghost btn-sm" type="button" @click="replaceRoleTarget = ''">Отмена</button>
-          </template>
-          <template v-else>
-            <button class="btn-ghost btn-sm" type="button" @click="startReplaceRole(role)">Заменить</button>
-            <button class="btn-danger btn-sm" type="button" @click="removeRoleFromFound(role)">Снять</button>
-          </template>
-        </div>
-
-        <div class="admin-add-role-row">
-          <select v-model="assignRoleCode" class="admin-role-select-inline">
-            <option value="USER">USER</option>
-            <option value="REFEREE">REFEREE</option>
-            <option value="TEAM_REP">TEAM_REP</option>
-            <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-          </select>
-          <button class="btn-ghost btn-sm" type="button" @click="assignRoleToFound">+ Добавить роль</button>
-        </div>
-      </div>
-    </article>
-
-    <article class="card admin-panel" v-if="activeTab === 'representatives'">
-      <div class="admin-panel-head">
-        <h3 class="section-title">Представители команд</h3>
-        <p class="muted-text">Привязка пользователей к командам и управление доступом представителя.</p>
-      </div>
-
-      <div class="admin-form admin-surface">
-        <label>
-          Поиск по email
-          <input v-model.trim="repSearch" type="text" placeholder="Начните вводить email представителя..." />
-        </label>
-        <label>
-          Выберите представителя
-          <select v-model="repSelectedEmail">
-            <option value="">— выберите —</option>
-            <option v-for="u in filteredRepresentativeUsersForSelect" :key="u.email" :value="String(u.email || '').toLowerCase()">{{ u.email }}</option>
-          </select>
-        </label>
-        <p v-if="!repUsersList.length" class="muted-text">Представители команды не найдены.</p>
-        <div class="actions-row">
-          <button class="btn-primary" type="button" @click="findRepresentative">Найти</button>
-        </div>
-      </div>
-
-      <div v-if="repFoundUser" class="admin-found-user">
-        <p class="admin-found-email">{{ repFoundUser.email }}</p>
-        <p class="muted-text" v-if="repFoundUser.name">{{ repFoundUser.name }}</p>
-        <p class="muted-text">Текущая команда: {{ repCurrentTeamScope?.teamName || 'не назначена' }}</p>
-        <p class="muted-text" v-if="repHasMultipleTeamScopes">Найдено несколько активных привязок. При сохранении старые привязки будут сняты.</p>
-
-        <label>
-          Назначить команду
-          <select v-model="repSelectedTeamId">
-            <option value="">— выберите —</option>
-            <option v-for="team in teamsList" :key="team.id" :value="String(team.id)">{{ team.name }}</option>
-          </select>
-        </label>
-
-        <div class="actions-row">
-          <button class="btn-primary" type="button" @click="saveRepresentativeTeam">{{ repPrimaryActionLabel }}</button>
-          <button class="btn-danger" type="button" :disabled="!repCurrentTeamScope" @click="unassignRepresentativeTeam">Открепить команду</button>
-        </div>
-      </div>
-    </article>
-
-    <article class="card admin-panel" v-if="activeTab === 'ban'">
-      <div class="admin-panel-head">
-        <h3 class="section-title">Блокировки пользователей</h3>
-        <p class="muted-text">Локальный реестр блокировок и ручное управление статусом пользователя.</p>
-      </div>
-      <div class="admin-grid">
-        <form class="admin-form admin-surface" @submit.prevent="banUser">
-          <label>
-            Email пользователя
-            <input v-model.trim="banForm.email" type="email" required />
-          </label>
-          <label>
-            Причина
-            <input v-model.trim="banForm.reason" type="text" placeholder="Нарушение правил" required />
-          </label>
-          <div class="actions-row">
-            <button class="btn-danger" type="submit">Забанить</button>
-          </div>
-        </form>
-
-        <div class="admin-list admin-surface">
-          <h4 class="admin-list-title">Статус пользователей</h4>
-          <p v-if="!usersRegistry.length" class="muted-text">Пока пусто.</p>
-          <div class="admin-list-items" v-else>
-            <article class="admin-list-item" v-for="item in usersRegistry" :key="`ban-${item.email}`">
-              <strong>{{ item.email }}</strong>
-              <span class="muted-text" v-if="item.banned">Заблокирован: {{ item.banReason || '-' }}</span>
-              <span class="success-text" v-else>Активен</span>
-              <div class="actions-row" v-if="item.banned">
-                <button class="btn-ghost" type="button" @click="unbanUser(item.email)">Разбанить</button>
-              </div>
-            </article>
-          </div>
-        </div>
-      </div>
-    </article>
+    <AdminBanPanel
+      v-if="activeTab === 'ban'"
+      :form="banForm"
+      :users="usersRegistry"
+      @ban="banUser"
+      @unban="unbanUser"
+    />
 
     <article class="card" v-if="messageError || messageOk">
       <p class="error-text" v-if="messageError">{{ messageError }}</p>
@@ -1135,12 +880,20 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
 import { useStore } from '../store/store'
+import { useAdminAccess } from '../composables/useAdminAccess'
+import { useAdminPlayers } from '../composables/useAdminPlayers'
+import { useAdminReferees } from '../composables/useAdminReferees'
 import { useAdminTabs } from '../composables/useAdminTabs'
 import AdminTabNavigation from '../components/AdminTabNavigation.vue'
+import AdminBanPanel from '../components/admin/AdminBanPanel.vue'
+import AdminPlayersPanel from '../components/admin/AdminPlayersPanel.vue'
+import AdminRefereesPanel from '../components/admin/AdminRefereesPanel.vue'
+import AdminRepresentativesPanel from '../components/admin/AdminRepresentativesPanel.vue'
+import AdminRolesPanel from '../components/admin/AdminRolesPanel.vue'
 import SearchableSelect from '../components/SearchableSelect.vue'
 import AdminLeagueContent from '../components/AdminLeagueContent.vue'
 
@@ -1160,14 +913,87 @@ const tourTeamsList = ref([])
 const toursList = ref([])
 const tourMatchesList = ref([])
 const seasonTourMatchesList = ref([])
-const playersList = ref([])
-const refereesList = ref([])
 const usersRegistry = ref(loadFromStorage(USERS_KEY))
-const roleUsersList = ref([])
-const repUsersList = ref([])
 
 const messageError = ref('')
 const messageOk = ref('')
+const {
+  cancelEditPlayer,
+  createPlayer,
+  deactivatePlayer,
+  editingPlayerId,
+  loadPlayerRegistry,
+  onPlayerPhotoSelected,
+  playerEditOptions,
+  playerEditSelectId,
+  playerForm,
+  playersList,
+  playerSubMode,
+  saveEditPlayer,
+} = useAdminPlayers({
+  request: authorizedApiRequest,
+  clearMessages: resetMessages,
+  errorMessage: messageError,
+  successMessage: messageOk,
+})
+const {
+  cancelEditReferee,
+  createReferee,
+  deactivateReferee,
+  editingRefereeId,
+  loadRefereeRegistry,
+  onRefereePhotoSelected,
+  onRefereeSelectChange,
+  refereeEditSelectId,
+  refereeForm,
+  refereesList,
+  refereeSubMode,
+  saveEditReferee,
+} = useAdminReferees({
+  request: authorizedApiRequest,
+  clearMessages: resetMessages,
+  errorMessage: messageError,
+  successMessage: messageOk,
+})
+const {
+  absolutePasswordResetLink,
+  assignRoleCode,
+  assignRoleToFound,
+  confirmReplaceRole,
+  copyPasswordResetLink,
+  filteredRepresentativeUsersForSelect,
+  filteredUsersForSelect,
+  findRepresentative,
+  findUserForRoles,
+  loadRepresentativeUsers,
+  loadRoleUsers,
+  passwordResetResult,
+  removeRoleFromFound,
+  repCurrentTeamScope,
+  repFoundUser,
+  repHasMultipleTeamScopes,
+  repPrimaryActionLabel,
+  repSearch,
+  repSelectedEmail,
+  repSelectedTeamId,
+  repUsersList,
+  replaceRoleNewCode,
+  replaceRoleTarget,
+  resetPasswordForFoundUser,
+  roleUsersList,
+  rolesFoundUser,
+  rolesSearch,
+  rolesSelectedEmail,
+  saveRepresentativeTeam,
+  startReplaceRole,
+  unassignRepresentativeTeam,
+} = useAdminAccess({
+  activeTab,
+  request: authorizedApiRequest,
+  clearMessages: resetMessages,
+  errorMessage: messageError,
+  successMessage: messageOk,
+})
 
 const playoffTeamOptions = [4, 8, 16]
 const tieBreakerRuleOptions = [
@@ -1206,21 +1032,6 @@ const teamForm = reactive({
   logoDataUrl: '',
 })
 
-const playerForm = reactive({
-  fullName: '',
-  birthDate: '',
-  residence: '',
-  isGoalkeeper: false,
-  photoDataUrl: '',
-})
-
-const refereeForm = reactive({
-  fullName: '',
-  city: '',
-  birthDate: '',
-  photoDataUrl: '',
-})
-
 const editingSeasonId = ref(null)
 const seasonSubMode = ref('create')
 const seasonEditSelectId = ref('')
@@ -1250,31 +1061,6 @@ const isTeamRosterVisible = ref(false)
 const teamSaving = ref(false)
 const tourSeasonId = ref('')
 const selectedTourId = ref('')
-const editingPlayerId = ref(null)
-const playerSubMode = ref('create')
-const playerEditSelectId = ref('')
-const editingRefereeId = ref(null)
-const refereeSubMode = ref('create')
-const refereeEditSelectId = ref('')
-
-const rolesSearch = ref('')
-const rolesSelectedEmail = ref('')
-const rolesFoundEmail = ref('')
-const replaceRoleTarget = ref('')
-const replaceRoleNewCode = ref('USER')
-const assignRoleCode = ref('USER')
-const passwordResetResult = ref(null)
-const rolesSearchDebounceMs = 5000
-let rolesSearchDebounceTimer = null
-
-const repSearch = ref('')
-const repSelectedEmail = ref('')
-const repFoundEmail = ref('')
-const repSelectedTeamId = ref('')
-const repUserAccess = ref(null)
-const repSearchDebounceMs = 5000
-let repSearchDebounceTimer = null
-
 const banForm = reactive({
   email: '',
   reason: '',
@@ -1286,69 +1072,6 @@ const userByEmail = computed(() => {
     map.set(String(item.email || '').toLowerCase(), item)
   }
   return map
-})
-
-const roleUserByEmail = computed(() => {
-  const map = new Map()
-  for (const item of roleUsersList.value) {
-    map.set(String(item.email || '').toLowerCase(), item)
-  }
-  return map
-})
-
-const repUserByEmail = computed(() => {
-  const map = new Map()
-  for (const item of repUsersList.value) {
-    map.set(String(item.email || '').toLowerCase(), item)
-  }
-  return map
-})
-
-const filteredUsersForSelect = computed(() => {
-  const q = rolesSearch.value.toLowerCase()
-  if (!q) return roleUsersList.value
-  return roleUsersList.value.filter((u) => String(u.email || '').toLowerCase().includes(q))
-})
-
-const rolesFoundUser = computed(() => {
-  if (!rolesFoundEmail.value) return null
-  return roleUserByEmail.value.get(rolesFoundEmail.value) || null
-})
-
-const filteredRepresentativeUsersForSelect = computed(() => {
-  const query = String(repSearch.value || '').toLowerCase()
-  if (!query) return repUsersList.value
-  return repUsersList.value.filter((user) => String(user.email || '').toLowerCase().includes(query))
-})
-
-const repFoundUser = computed(() => {
-  if (!repFoundEmail.value) return null
-  return repUserByEmail.value.get(repFoundEmail.value) || null
-})
-
-const repTeamScopes = computed(() => {
-  return Array.isArray(repUserAccess.value?.teamScopes) ? repUserAccess.value.teamScopes : []
-})
-
-const repCurrentTeamScope = computed(() => {
-  return repTeamScopes.value[0] || null
-})
-
-const repHasMultipleTeamScopes = computed(() => repTeamScopes.value.length > 1)
-
-const repPrimaryActionLabel = computed(() => {
-  return repCurrentTeamScope.value ? 'Изменить команду' : 'Назначить команду'
-})
-
-const absolutePasswordResetLink = computed(() => {
-  const resetPath = String(passwordResetResult.value?.resetPath || '').trim()
-  if (!resetPath) {
-    return ''
-  }
-  if (typeof window === 'undefined' || !window.location?.origin) {
-    return resetPath
-  }
-  return `${window.location.origin}${resetPath}`
 })
 
 const seasonSelectedTeams = computed(() => {
@@ -1466,14 +1189,6 @@ const teamSeasonRemoveOptions = computed(() => {
   }))
 })
 
-const playerEditOptions = computed(() => {
-  return playersList.value.map((player) => ({
-    value: String(player.id),
-    label: formatPlayerOptionLabel(player),
-    keywords: `${player.fullName || ''}`,
-  }))
-})
-
 const seasonRegularToursCount = computed(() => {
   return calculateRegularToursCount(seasonSelectedTeams.value.length, Number(seasonForm.roundsCount || 1))
 })
@@ -1579,83 +1294,6 @@ watch(availableAwayTeams, (teams) => {
   }
 })
 
-watch(rolesSearch, (rawValue) => {
-  if (rolesSearchDebounceTimer) {
-    clearTimeout(rolesSearchDebounceTimer)
-    rolesSearchDebounceTimer = null
-  }
-
-  if (activeTab.value !== 'roles') {
-    return
-  }
-
-  const emailFilter = String(rawValue || '').trim()
-  if (!emailFilter) {
-    void loadRoleUsers({ pagenum: 0, pagesize: 20 })
-    rolesSelectedEmail.value = ''
-    rolesFoundEmail.value = ''
-    return
-  }
-
-  rolesSearchDebounceTimer = setTimeout(async () => {
-    await loadRoleUsers({ email: emailFilter, pagenum: 0, pagesize: 50 })
-    if (roleUsersList.value.length === 1) {
-      const email = String(roleUsersList.value[0].email || '').toLowerCase()
-      rolesSelectedEmail.value = email
-      rolesFoundEmail.value = email
-      replaceRoleTarget.value = ''
-    }
-  }, rolesSearchDebounceMs)
-})
-
-watch(repSearch, (rawValue) => {
-  if (repSearchDebounceTimer) {
-    clearTimeout(repSearchDebounceTimer)
-    repSearchDebounceTimer = null
-  }
-
-  if (activeTab.value !== 'representatives') {
-    return
-  }
-
-  const emailFilter = String(rawValue || '').trim()
-  if (!emailFilter) {
-    void loadRepresentativeUsers({ pagenum: 0, pagesize: 20 })
-    repSelectedEmail.value = ''
-    repFoundEmail.value = ''
-    repUserAccess.value = null
-    repSelectedTeamId.value = ''
-    return
-  }
-
-  repSearchDebounceTimer = setTimeout(async () => {
-    await loadRepresentativeUsers({ email: emailFilter, pagenum: 0, pagesize: 50 })
-    if (repUsersList.value.length === 1) {
-      const email = String(repUsersList.value[0].email || '').toLowerCase()
-      repSelectedEmail.value = email
-      await refreshRepresentativeAccessByEmail(email)
-    }
-  }, repSearchDebounceMs)
-})
-
-watch(repSelectedEmail, (value) => {
-  const normalized = String(value || '').trim().toLowerCase()
-  if (!normalized) {
-    repFoundEmail.value = ''
-    repUserAccess.value = null
-    repSelectedTeamId.value = ''
-    return
-  }
-
-  void refreshRepresentativeAccessByEmail(normalized)
-})
-
-watch(playerEditSelectId, () => {
-  if (playerSubMode.value === 'edit') {
-    onPlayerSelectChange()
-  }
-})
-
 watch(activeTab, (tabId) => {
   if (tabId === 'representatives') {
     const emailFilter = String(repSearch.value || '').trim()
@@ -1681,17 +1319,6 @@ watch(visibleTabGroups, (groups) => {
     activeTab.value = groups[0]?.items[0]?.id || 'seasons'
   }
 }, { immediate: true })
-
-onBeforeUnmount(() => {
-  if (rolesSearchDebounceTimer) {
-    clearTimeout(rolesSearchDebounceTimer)
-    rolesSearchDebounceTimer = null
-  }
-  if (repSearchDebounceTimer) {
-    clearTimeout(repSearchDebounceTimer)
-    repSearchDebounceTimer = null
-  }
-})
 
 function resetMessages() {
   messageError.value = ''
@@ -2827,260 +2454,6 @@ function calculateRegularToursCount(teamCount, roundsCount) {
   return toursPerRound * normalizedRoundsCount
 }
 
-async function createPlayer() {
-  resetMessages()
-
-  if (!playerForm.fullName || !playerForm.birthDate || !playerForm.residence) {
-    messageError.value = 'Заполните все поля игрока.'
-    return
-  }
-
-  try {
-    await authorizedApiRequest('/api/players', {
-      method: 'POST',
-      body: JSON.stringify({
-        fullName: playerForm.fullName,
-        birthDate: playerForm.birthDate,
-        residence: playerForm.residence,
-        isGoalkeeper: Boolean(playerForm.isGoalkeeper),
-        photoDataUrl: playerForm.photoDataUrl,
-      }),
-    })
-    await loadPlayerRegistry()
-    resetPlayerForm()
-    messageOk.value = 'Игрок создан.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось создать игрока.'
-  }
-}
-
-function startEditPlayer(item) {
-  editingPlayerId.value = item.id
-  playerForm.fullName = item.fullName
-  playerForm.birthDate = item.birthDate
-  playerForm.residence = item.residence
-  playerForm.isGoalkeeper = Boolean(item.isGoalkeeper)
-  playerForm.photoDataUrl = item.photoDataUrl || ''
-  resetMessages()
-}
-
-function cancelEditPlayer() {
-  editingPlayerId.value = null
-  resetPlayerForm()
-  resetMessages()
-}
-
-async function saveEditPlayer() {
-  resetMessages()
-
-  if (!playerForm.fullName) {
-    messageError.value = 'Укажите ФИО игрока.'
-    return
-  }
-
-  try {
-    await authorizedApiRequest(`/api/players/${editingPlayerId.value}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        fullName: playerForm.fullName,
-        birthDate: playerForm.birthDate,
-        residence: playerForm.residence,
-        isGoalkeeper: Boolean(playerForm.isGoalkeeper),
-        photoDataUrl: playerForm.photoDataUrl,
-      }),
-    })
-    await loadPlayerRegistry()
-    cancelEditPlayer()
-    messageOk.value = 'Игрок обновлен.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось обновить игрока.'
-  }
-}
-
-function onPlayerSelectChange() {
-  if (!playerEditSelectId.value) {
-    cancelEditPlayer()
-    return
-  }
-  const item = playersList.value.find((playerItem) => String(playerItem.id) === playerEditSelectId.value)
-  if (item) startEditPlayer(item)
-}
-
-async function deactivatePlayer(playerId) {
-  resetMessages()
-
-  try {
-    await authorizedApiRequest(`/api/players/${playerId}`, {
-      method: 'DELETE',
-    })
-    if (String(editingPlayerId.value || '') === String(playerId)) {
-      cancelEditPlayer()
-      playerEditSelectId.value = ''
-    }
-    await loadPlayerRegistry()
-    messageOk.value = 'Игрок деактивирован.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось удалить игрока.'
-  }
-}
-
-async function loadPlayerRegistry() {
-  try {
-    const payload = await authorizedApiRequest('/api/players?active_flag=1&pagenum=0&pagesize=500', {
-      method: 'GET',
-    })
-    playersList.value = Array.isArray(payload?.content) ? payload.content : []
-  } catch (error) {
-    playersList.value = []
-    messageError.value = error.message || 'Не удалось загрузить игроков.'
-  }
-}
-
-function onPlayerPhotoSelected(event) {
-  const file = event.target?.files?.[0]
-  if (!file) return
-
-  const reader = new FileReader()
-  reader.onload = () => {
-    playerForm.photoDataUrl = String(reader.result || '')
-  }
-  reader.readAsDataURL(file)
-}
-
-function resetPlayerForm() {
-  playerForm.fullName = ''
-  playerForm.birthDate = ''
-  playerForm.residence = ''
-  playerForm.isGoalkeeper = false
-  playerForm.photoDataUrl = ''
-}
-
-async function createReferee() {
-  resetMessages()
-
-  if (!refereeForm.fullName) {
-    messageError.value = 'Укажите ФИО судьи.'
-    return
-  }
-
-  try {
-    await authorizedApiRequest('/api/referees', {
-      method: 'POST',
-      body: JSON.stringify({
-        fullName: refereeForm.fullName,
-        city: refereeForm.city,
-        birthDate: refereeForm.birthDate || null,
-        photoDataUrl: refereeForm.photoDataUrl,
-      }),
-    })
-    await loadRefereeRegistry()
-    resetRefereeForm()
-    messageOk.value = 'Судья создан.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось создать судью.'
-  }
-}
-
-function startEditReferee(item) {
-  editingRefereeId.value = item.id
-  refereeForm.fullName = item.fullName
-  refereeForm.city = item.city || ''
-  refereeForm.birthDate = item.birthDate || ''
-  refereeForm.photoDataUrl = item.photoDataUrl || ''
-  resetMessages()
-}
-
-function cancelEditReferee() {
-  editingRefereeId.value = null
-  resetRefereeForm()
-  resetMessages()
-}
-
-async function saveEditReferee() {
-  resetMessages()
-
-  if (!refereeForm.fullName) {
-    messageError.value = 'Укажите ФИО судьи.'
-    return
-  }
-
-  try {
-    await authorizedApiRequest(`/api/referees/${editingRefereeId.value}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        fullName: refereeForm.fullName,
-        city: refereeForm.city,
-        birthDate: refereeForm.birthDate || null,
-        photoDataUrl: refereeForm.photoDataUrl,
-      }),
-    })
-    await loadRefereeRegistry()
-    cancelEditReferee()
-    messageOk.value = 'Судья обновлен.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось обновить судью.'
-  }
-}
-
-function onRefereeSelectChange() {
-  if (!refereeEditSelectId.value) {
-    cancelEditReferee()
-    return
-  }
-  const item = refereesList.value.find((referee) => String(referee.id) === refereeEditSelectId.value)
-  if (item) {
-    startEditReferee(item)
-  }
-}
-
-async function deactivateReferee(refereeId) {
-  resetMessages()
-
-  try {
-    await authorizedApiRequest(`/api/referees/${refereeId}`, {
-      method: 'DELETE',
-    })
-    if (String(editingRefereeId.value || '') === String(refereeId)) {
-      cancelEditReferee()
-      refereeEditSelectId.value = ''
-    }
-    await loadRefereeRegistry()
-    messageOk.value = 'Судья деактивирован.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось удалить судью.'
-  }
-}
-
-async function loadRefereeRegistry() {
-  try {
-    const payload = await authorizedApiRequest('/api/referees?active_flag=1', {
-      method: 'GET',
-    })
-    refereesList.value = Array.isArray(payload) ? payload : []
-  } catch (error) {
-    refereesList.value = []
-    messageError.value = error.message || 'Не удалось загрузить судей.'
-  }
-}
-
-function onRefereePhotoSelected(event) {
-  const file = event.target?.files?.[0]
-  if (!file) return
-
-  const reader = new FileReader()
-  reader.onload = () => {
-    refereeForm.photoDataUrl = String(reader.result || '')
-  }
-  reader.readAsDataURL(file)
-}
-
-function resetRefereeForm() {
-  refereeForm.fullName = ''
-  refereeForm.city = ''
-  refereeForm.birthDate = ''
-  refereeForm.photoDataUrl = ''
-}
-
 function formatPlayerOptionLabel(player) {
   if (!player) return ''
   return `${player.fullName || ''}`
@@ -3142,383 +2515,6 @@ function banUser() {
   messageOk.value = 'Пользователь заблокирован.'
 }
 
-function findUserForRoles() {
-  resetMessages()
-  const emailFilter = String(rolesSearch.value || rolesSelectedEmail.value || '').trim()
-  if (!emailFilter) {
-    messageError.value = 'Введите email или выберите пользователя.'
-    return
-  }
-
-  void loadRoleUsers({ email: emailFilter, pagenum: 0, pagesize: 50 }).then(() => {
-    const selected = String(rolesSelectedEmail.value || '').trim().toLowerCase()
-    if (selected) {
-      rolesFoundEmail.value = selected
-      replaceRoleTarget.value = ''
-      return
-    }
-
-    if (roleUsersList.value.length === 1) {
-      const onlyEmail = String(roleUsersList.value[0].email || '').toLowerCase()
-      rolesSelectedEmail.value = onlyEmail
-      rolesFoundEmail.value = onlyEmail
-      replaceRoleTarget.value = ''
-      return
-    }
-
-    if (!roleUsersList.value.length) {
-      messageError.value = 'Пользователь не найден.'
-      rolesFoundEmail.value = ''
-      return
-    }
-
-    messageError.value = 'Выберите пользователя из найденного списка.'
-  })
-}
-
-function startReplaceRole(role) {
-  replaceRoleTarget.value = role
-  replaceRoleNewCode.value = 'USER'
-}
-
-async function confirmReplaceRole() {
-  resetMessages()
-  const user = rolesFoundUser.value
-  if (!user) return
-
-  try {
-    await authorizedApiRequest(`/api/admin/access/users/${user.id}/roles/${replaceRoleTarget.value}`, {
-      method: 'DELETE',
-    })
-    await authorizedApiRequest(`/api/admin/access/users/${user.id}/roles/${replaceRoleNewCode.value}`, {
-      method: 'POST',
-    })
-    const payload = await refreshFoundUserAccess()
-    await syncRepresentativeUsersAfterRoleChange(payload)
-    replaceRoleTarget.value = ''
-    messageOk.value = 'Роль заменена.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось заменить роль.'
-  }
-}
-
-async function removeRoleFromFound(role) {
-  resetMessages()
-  const user = rolesFoundUser.value
-  if (!user) return
-
-  try {
-    await authorizedApiRequest(`/api/admin/access/users/${user.id}/roles/${role}`, {
-      method: 'DELETE',
-    })
-    const payload = await refreshFoundUserAccess()
-    await syncRepresentativeUsersAfterRoleChange(payload)
-    messageOk.value = 'Роль снята.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось снять роль.'
-  }
-}
-
-async function assignRoleToFound() {
-  resetMessages()
-  const user = rolesFoundUser.value
-  if (!user) return
-  if (user.roles.includes(assignRoleCode.value)) {
-    messageError.value = 'Такая роль уже назначена.'
-    return
-  }
-
-  try {
-    await authorizedApiRequest(`/api/admin/access/users/${user.id}/roles/${assignRoleCode.value}`, {
-      method: 'POST',
-    })
-    const payload = await refreshFoundUserAccess()
-    await syncRepresentativeUsersAfterRoleChange(payload)
-    messageOk.value = 'Роль добавлена.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось добавить роль.'
-  }
-}
-
-async function resetPasswordForFoundUser() {
-  resetMessages()
-  const user = rolesFoundUser.value
-  if (!user) return
-
-  try {
-    const payload = await authorizedApiRequest(`/api/admin/access/users/${user.id}/reset-password`, {
-      method: 'POST',
-    })
-    passwordResetResult.value = payload
-    await refreshFoundUserAccess()
-    messageOk.value = 'Одноразовая ссылка для установки нового пароля создана.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось сбросить пароль пользователя.'
-  }
-}
-
-async function copyPasswordResetLink() {
-  resetMessages()
-  const link = absolutePasswordResetLink.value
-  if (!link) {
-    messageError.value = 'Ссылка для сброса пароля недоступна.'
-    return
-  }
-
-  try {
-    await navigator.clipboard.writeText(link)
-    messageOk.value = 'Ссылка скопирована в буфер обмена.'
-  } catch {
-    messageError.value = 'Не удалось скопировать ссылку. Скопируйте ее вручную.'
-  }
-}
-
-async function loadRoleUsers({ name = '', email = '', pagenum = 0, pagesize = 20 } = {}) {
-  try {
-    const search = new URLSearchParams()
-    search.set('pagenum', String(Math.max(0, pagenum)))
-    search.set('pagesize', String(Math.min(Math.max(1, pagesize), 100)))
-    if (String(name || '').trim()) search.set('name', String(name).trim())
-    if (String(email || '').trim()) search.set('email', String(email).trim())
-
-    const payload = await authorizedApiRequest(`/api/admin/access/users?${search.toString()}`, {
-      method: 'GET',
-    })
-
-    roleUsersList.value = Array.isArray(payload?.content) ? payload.content : []
-    if (rolesSelectedEmail.value && !roleUserByEmail.value.has(String(rolesSelectedEmail.value).toLowerCase())) {
-      rolesSelectedEmail.value = ''
-    }
-    if (rolesFoundEmail.value && !roleUserByEmail.value.has(String(rolesFoundEmail.value).toLowerCase())) {
-      rolesFoundEmail.value = ''
-    }
-  } catch (error) {
-    roleUsersList.value = []
-    messageError.value = error.message || 'Не удалось загрузить список пользователей.'
-  }
-}
-
-async function loadRepresentativeUsers({ name = '', email = '', pagenum = 0, pagesize = 20 } = {}) {
-  try {
-    const search = new URLSearchParams()
-    search.set('pagenum', String(Math.max(0, pagenum)))
-    search.set('pagesize', String(Math.min(Math.max(1, pagesize), 100)))
-    search.set('role', 'TEAM_REP')
-    if (String(name || '').trim()) search.set('name', String(name).trim())
-    if (String(email || '').trim()) search.set('email', String(email).trim())
-
-    const payload = await authorizedApiRequest(`/api/admin/access/users?${search.toString()}`, {
-      method: 'GET',
-    })
-
-    repUsersList.value = Array.isArray(payload?.content) ? payload.content : []
-
-    const selectedEmail = String(repSelectedEmail.value || '').toLowerCase()
-    if (selectedEmail && !repUserByEmail.value.has(selectedEmail)) {
-      repSelectedEmail.value = ''
-      repFoundEmail.value = ''
-      repUserAccess.value = null
-      repSelectedTeamId.value = ''
-    }
-  } catch (error) {
-    repUsersList.value = []
-    messageError.value = error.message || 'Не удалось загрузить представителей команд.'
-  }
-}
-
-async function refreshRepresentativeAccessByEmail(email) {
-  const user = repUserByEmail.value.get(String(email || '').toLowerCase())
-  if (!user) {
-    repFoundEmail.value = ''
-    repUserAccess.value = null
-    repSelectedTeamId.value = ''
-    return
-  }
-
-  await refreshRepresentativeAccessById(user.id)
-}
-
-async function refreshRepresentativeAccessById(userId) {
-  const payload = await authorizedApiRequest(`/api/admin/access/users/${userId}`, {
-    method: 'GET',
-  })
-
-  repUserAccess.value = payload
-  const normalizedEmail = String(payload?.email || '').toLowerCase()
-  repFoundEmail.value = normalizedEmail
-  repSelectedEmail.value = normalizedEmail
-  repSelectedTeamId.value = payload?.teamScopes?.[0]?.teamId ? String(payload.teamScopes[0].teamId) : ''
-
-  const index = repUsersList.value.findIndex((item) => String(item.email || '').toLowerCase() === normalizedEmail)
-  if (index >= 0) {
-    repUsersList.value[index] = {
-      ...repUsersList.value[index],
-      id: payload.userId,
-      email: payload.email,
-      name: payload.name,
-      roles: Array.isArray(payload.roles) ? payload.roles : [],
-    }
-  }
-}
-
-function findRepresentative() {
-  resetMessages()
-  const emailFilter = String(repSearch.value || repSelectedEmail.value || '').trim()
-  if (!emailFilter) {
-    messageError.value = 'Введите email или выберите представителя.'
-    return
-  }
-
-  void loadRepresentativeUsers({ email: emailFilter, pagenum: 0, pagesize: 50 }).then(async () => {
-    const selected = String(repSelectedEmail.value || '').trim().toLowerCase()
-    if (selected) {
-      await refreshRepresentativeAccessByEmail(selected)
-      return
-    }
-
-    if (repUsersList.value.length === 1) {
-      const onlyEmail = String(repUsersList.value[0].email || '').toLowerCase()
-      await refreshRepresentativeAccessByEmail(onlyEmail)
-      return
-    }
-
-    if (!repUsersList.value.length) {
-      messageError.value = 'Представитель не найден.'
-      repFoundEmail.value = ''
-      repUserAccess.value = null
-      repSelectedTeamId.value = ''
-      return
-    }
-
-    messageError.value = 'Выберите представителя из найденного списка.'
-  })
-}
-
-async function saveRepresentativeTeam() {
-  resetMessages()
-  const user = repFoundUser.value
-  if (!user) {
-    messageError.value = 'Сначала выберите представителя.'
-    return
-  }
-
-  const nextTeamId = Number(repSelectedTeamId.value)
-  if (!Number.isFinite(nextTeamId) || nextTeamId <= 0) {
-    messageError.value = 'Выберите команду.'
-    return
-  }
-
-  const currentScopes = repTeamScopes.value
-  if (currentScopes.length === 1 && Number(currentScopes[0].teamId) === nextTeamId) {
-    messageError.value = 'Эта команда уже назначена представителю.'
-    return
-  }
-
-  try {
-    for (const scope of currentScopes) {
-      await authorizedApiRequest(`/api/admin/access/users/${user.id}/team-scopes/${scope.teamId}`, {
-        method: 'DELETE',
-      })
-    }
-
-    await authorizedApiRequest(`/api/admin/access/users/${user.id}/team-scopes`, {
-      method: 'POST',
-      body: JSON.stringify({
-        teamId: nextTeamId,
-        canEditRoster: true,
-        canEditApplication: true,
-      }),
-    })
-
-    await refreshRepresentativeAccessById(user.id)
-    messageOk.value = currentScopes.length ? 'Команда представителя обновлена.' : 'Команда представителю назначена.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось назначить команду представителю.'
-  }
-}
-
-async function unassignRepresentativeTeam() {
-  resetMessages()
-  const user = repFoundUser.value
-  if (!user) {
-    messageError.value = 'Сначала выберите представителя.'
-    return
-  }
-
-  if (!repTeamScopes.value.length) {
-    messageError.value = 'У представителя нет активной привязки к команде.'
-    return
-  }
-
-  try {
-    for (const scope of repTeamScopes.value) {
-      await authorizedApiRequest(`/api/admin/access/users/${user.id}/team-scopes/${scope.teamId}`, {
-        method: 'DELETE',
-      })
-    }
-
-    await refreshRepresentativeAccessById(user.id)
-    repSelectedTeamId.value = ''
-    messageOk.value = 'Команда откреплена от представителя.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось открепить команду.'
-  }
-}
-
-async function refreshFoundUserAccess() {
-  const user = rolesFoundUser.value
-  if (!user) return null
-
-  const payload = await authorizedApiRequest(`/api/admin/access/users/${user.id}`, {
-    method: 'GET',
-  })
-
-  const normalizedEmail = String(payload?.email || '').toLowerCase()
-  const index = roleUsersList.value.findIndex((item) => String(item.email || '').toLowerCase() === normalizedEmail)
-  if (index >= 0) {
-    roleUsersList.value[index] = {
-      ...roleUsersList.value[index],
-      id: payload.userId,
-      email: payload.email,
-      name: payload.name,
-      roles: Array.isArray(payload.roles) ? payload.roles : [],
-      mustChangePassword: Boolean(payload.mustChangePassword),
-    }
-  }
-
-  return payload
-}
-
-async function syncRepresentativeUsersAfterRoleChange(payload) {
-  const normalizedEmail = String(payload?.email || '').toLowerCase()
-  const roles = Array.isArray(payload?.roles) ? payload.roles : []
-  const hasTeamRepRole = roles.includes('TEAM_REP')
-  const currentSearch = String(repSearch.value || '').trim()
-  const isCurrentRepresentativeTarget =
-    String(repSelectedEmail.value || '').toLowerCase() === normalizedEmail ||
-    String(repFoundEmail.value || '').toLowerCase() === normalizedEmail
-
-  if (activeTab.value === 'representatives' || hasTeamRepRole || isCurrentRepresentativeTarget) {
-    await loadRepresentativeUsers({
-      email: currentSearch,
-      pagenum: 0,
-      pagesize: currentSearch ? 50 : 20,
-    })
-  }
-
-  if (!hasTeamRepRole && isCurrentRepresentativeTarget) {
-    repSelectedEmail.value = ''
-    repFoundEmail.value = ''
-    repUserAccess.value = null
-    repSelectedTeamId.value = ''
-    return
-  }
-
-  if (hasTeamRepRole && currentSearch && normalizedEmail.includes(currentSearch.toLowerCase())) {
-    repSelectedEmail.value = normalizedEmail
-  }
-}
-
 function unbanUser(email) {
   resetMessages()
   const user = userByEmail.value.get(String(email || '').trim().toLowerCase())
@@ -3574,7 +2570,7 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
+<style>
 .admin-temporal-input {
   min-height: 44px;
   border-radius: 12px;
