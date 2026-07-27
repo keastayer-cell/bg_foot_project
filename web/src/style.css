@@ -513,6 +513,10 @@ a {
 	}
 
 	.topnav a {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
 		padding: 7px 10px;
 		font-size: 0.9rem;
 		text-align: center;

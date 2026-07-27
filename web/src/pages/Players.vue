@@ -690,9 +690,22 @@ onMounted(async () => {
     flex-direction: column;
   }
 
+  .player-filters input {
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
   .players-row {
     align-items: start;
     flex-direction: column;
+  }
+
+  .players-name-btn {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 0;
+    display: flex;
+    align-items: center;
   }
 
   .players-birth-meta {

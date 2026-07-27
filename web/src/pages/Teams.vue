@@ -203,6 +203,11 @@ onMounted(async () => {
     flex-direction: column;
   }
 
+  .team-filters input {
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
   .team-filters > * {
     width: 100%;
   }
