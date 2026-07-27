@@ -86,16 +86,18 @@
 
 ## Этап 6. CI/CD и эксплуатация
 
-- [ ] **НЕ СДЕЛАНО — CI на PR: backend tests, frontend build, lint, migration validation.**
-  PR workflow отсутствует; deploy workflow собирает backend с `-DskipTests`, lint и validation миграций отсутствуют.
-- [ ] **НЕ СДЕЛАНО — deploy test: сборка, миграции, health-check, rollback-подсказки.**
-  Сборка и health-check есть, но отдельной проверки миграций и документированного rollback нет.
-- [ ] **НЕ СДЕЛАНО — логи: journald/logrotate, без секретов.**
-- [ ] **НЕ СДЕЛАНО — backup/restore БД test/prod.**
-- [ ] **НЕ СДЕЛАНО — smoke-check после deploy отдельным скриптом.**
-  Проверки встроены в SSH deploy-команду, отдельного переиспользуемого smoke-скрипта нет.
+- [x] **СДЕЛАНО — CI на PR: backend tests, frontend build, lint, migration validation.**
+  CI проверяет backend, mailer, ESLint/Vitest/build frontend, append-only Flyway history и применение миграций на PostgreSQL 16.
+- [x] **СДЕЛАНО — deploy test: сборка, миграции, health-check, rollback-подсказки.**
+  В release входят три модуля; перед deploy создаётся DB/runtime backup, а при провале автоматически возвращаются jars/frontend.
+- [x] **СДЕЛАНО — логи: journald/logrotate, без секретов.**
+  Зафиксированы лимиты/retention journald, rate limits сервисов, Nginx logrotate и тихие `test`/`prod` профили.
+- [x] **СДЕЛАНО — backup/restore БД test/prod.**
+  Добавлены защищённые backup/restore scripts, checksum, retention и ежедневные systemd timers.
+- [x] **СДЕЛАНО — smoke-check после deploy отдельным скриптом.**
+  Переиспользуемый скрипт проверяет backend, frontend и readiness mailer локально и из GitHub Actions.
 
-**Статус этапа 6: НЕ ЗАВЕРШЁН.** Имеется только базовый test deploy.
+**Статус этапа 6: ЗАВЕРШЁН.** Полный runbook находится в `docs/operations.md`, отчёт — в `docs/refactoring-stage-6-operations.md`.
 
 ## Этап 7. Продуктовая полировка
 
@@ -110,4 +112,4 @@
 
 ## Фактический порядок дальнейшей работы
 
-1. Последовательно выполнить этапы 4–7.
+1. Выполнить этап 7.

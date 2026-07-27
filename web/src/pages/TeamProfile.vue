@@ -328,17 +328,6 @@ function initials(value) {
   return parts.slice(0, 2).map((part) => part[0]).join('').toUpperCase()
 }
 
-function formatDate(value) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  }).format(date)
-}
-
 function formatBirthDate(value) {
   if (!value) return '-'
   const date = new Date(value)
@@ -347,19 +336,6 @@ function formatBirthDate(value) {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-  }).format(date)
-}
-
-function formatDateTime(value) {
-  if (!value) return 'Дата не указана'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Дата не указана'
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   }).format(date)
 }
 

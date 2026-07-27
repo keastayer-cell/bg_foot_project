@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 

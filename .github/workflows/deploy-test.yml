@@ -13,6 +13,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       VITE_API_BASE_URL: http://${{ secrets.TEST_VPS_HOST }}
@@ -34,35 +36,43 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Build backend
-        run: mvn -DskipTests clean package -f app/pom.xml
+      - name: Validate migration files
+        run: bash scripts/validate-migrations.sh
 
-      - name: Build frontend
+      - name: Test and build backend
+        run: mvn --batch-mode --no-transfer-progress clean verify -f app/pom.xml
+
+      - name: Test and build mailer
+        run: mvn --batch-mode --no-transfer-progress clean verify -f mailer/pom.xml
+
+      - name: Test and build frontend
         working-directory: web
         run: |
           npm ci
+          npm run lint
+          npm test
           npm run build
 
-      - name: Pack frontend
-        run: tar -C web/dist -czf football-stats-web-dist.tgz .
+      - name: Pack release
+        run: |
+          mkdir -p release
+          cp app/target/football-stats-app-0.0.1-SNAPSHOT.jar release/app.jar
+          cp mailer/target/football-stats-mailer-0.0.1-SNAPSHOT.jar release/mailer.jar
+          tar -C web/dist -czf release/web-dist.tgz .
+          cp scripts/deploy-test-remote.sh release/
+          cp scripts/smoke-check.sh release/
+          cp scripts/db-backup.sh release/
+          cp -R ops release/
+          printf '%s\n' '${{ github.sha }}' > release/git-sha
 
-      - name: Upload backend jar
+      - name: Upload release
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.TEST_VPS_HOST }}
           username: ${{ secrets.TEST_VPS_USER }}
           password: ${{ secrets.TEST_VPS_PASSWORD }}
-          source: app/target/football-stats-app-0.0.1-SNAPSHOT.jar
-          target: /root/
-
-      - name: Upload frontend bundle
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.TEST_VPS_HOST }}
-          username: ${{ secrets.TEST_VPS_USER }}
-          password: ${{ secrets.TEST_VPS_PASSWORD }}
-          source: football-stats-web-dist.tgz
-          target: /root/
+          source: release
+          target: /tmp/bg-foot-${{ github.sha }}
 
       - name: Deploy on test VPS
         uses: appleboy/ssh-action@v1
@@ -72,36 +82,21 @@ jobs:
           password: ${{ secrets.TEST_VPS_PASSWORD }}
           script: |
             set -euo pipefail
-            mv /root/app/target/football-stats-app-0.0.1-SNAPSHOT.jar /opt/football-stats-app/app.jar
-            rm -rf /var/www/football-stats-web/*
-            tar -xzf /root/football-stats-web-dist.tgz -C /var/www/football-stats-web
-            rm -f /root/football-stats-web-dist.tgz
-            systemctl restart football-stats-app
-            nginx -t
-            systemctl reload nginx
+            release_root=/tmp/bg-foot-${{ github.sha }}/release
+            chmod +x "$release_root"/*.sh
+            RELEASE_ID=${{ github.sha }} bash "$release_root/deploy-test-remote.sh" "$release_root"
+            rm -rf /tmp/bg-foot-${{ github.sha }}
 
-            echo "== wait for local backend health =="
-            for attempt in $(seq 1 30); do
-              if curl -fsS http://127.0.0.1:8080/api/health >/dev/null 2>/dev/null; then
-                break
-              fi
-              if [[ "$attempt" -eq 30 ]]; then
-                echo "Backend health check did not become ready in time" >&2
-                systemctl status football-stats-app --no-pager -l || true
-                journalctl -u football-stats-app -n 120 --no-pager || true
-                exit 1
-              fi
-              printf 'waiting for backend... (%s/30)\n' "$attempt"
-              sleep 2
-            done
+      - name: Public post-deploy smoke
+        run: bash scripts/smoke-check.sh --base-url "http://${{ secrets.TEST_VPS_HOST }}" --retries 15
 
-            echo "== local backend health =="
-            curl -fsS http://127.0.0.1:8080/api/health
+      - name: Rollback guidance
+        if: failure()
+        run: |
+          {
+            echo '### Test deploy failed'
             echo
-
-            echo "== public backend health =="
-            curl -fsS http://127.0.0.1/api/health
-            echo
-
-            echo "== public home status =="
-            curl -I -fsS http://127.0.0.1/ | head -n 1
+            echo 'The remote deploy automatically restores the previous jars and frontend bundle.'
+            echo 'Flyway migrations are forward-only and are not rolled back automatically.'
+            echo 'Inspect the backup path in the deploy log before considering an explicit database restore.'
+          } >> "$GITHUB_STEP_SUMMARY"

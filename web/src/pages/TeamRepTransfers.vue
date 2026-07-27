@@ -198,7 +198,7 @@ import SearchableSelect from '../components/SearchableSelect.vue'
 import { useAuth } from '../store/auth'
 import { createTeamRepTransfersApi } from '../api/teamRepTransfers'
 
-const props = defineProps({
+defineProps({
   embedded: {
     type: Boolean,
     default: false,
@@ -473,13 +473,6 @@ function formatTransferStatus(status) {
   return status || '—'
 }
 
-function formatTransferWindow(startDate, endDate) {
-  if (!startDate && !endDate) return 'без ограничений'
-  if (startDate && endDate) return `${formatDateOnly(startDate)} - ${formatDateOnly(endDate)}`
-  if (startDate) return `с ${formatDateOnly(startDate)}`
-  return `до ${formatDateOnly(endDate)}`
-}
-
 function statusChipClass(status) {
   if (status === 'APPROVED') return 'team-rep-season-chip-open'
   if (status === 'REJECTED') return 'team-rep-season-chip-closed'
@@ -498,18 +491,6 @@ function formatDateOnly(value) {
   }).format(date)
 }
 
-function formatDateTime(value) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
-}
 </script>
 
 <style scoped>

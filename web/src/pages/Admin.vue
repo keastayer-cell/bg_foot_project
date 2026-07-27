@@ -939,10 +939,6 @@ function downloadBlobFile(blob, fileName) {
   }
 }
 
-function formatSeasonApplicationDeadline(value) {
-  return value ? formatDateOnly(value) : 'Без ограничения'
-}
-
 function banUser() {
   resetMessages()
 

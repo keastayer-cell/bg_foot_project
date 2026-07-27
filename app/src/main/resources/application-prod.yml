@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:football_db}?currentSchema=${DB_SCHEMA:work}
+    username: ${DB_USER:football_app}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${DB_SCHEMA:work}
+
+logging:
+  level:
+    org.springframework.web: info
+    org.hibernate.SQL: warn
+    org.hibernate.orm.jdbc.bind: warn

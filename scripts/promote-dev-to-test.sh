@@ -6,10 +6,18 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 START_BRANCH="$(git -C "$REPO_ROOT" branch --show-current)"
 
 run_local_build_checks() {
-  echo "== build backend (mvn -DskipTests package) =="
-  mvn -f "$REPO_ROOT/app/pom.xml" -DskipTests package
+  echo "== validate migrations =="
+  bash "$REPO_ROOT/scripts/validate-migrations.sh"
 
-  echo "== build frontend (npm run build) =="
+  echo "== test and build backend =="
+  mvn -f "$REPO_ROOT/app/pom.xml" clean verify
+
+  echo "== test and build mailer =="
+  mvn -f "$REPO_ROOT/mailer/pom.xml" clean verify
+
+  echo "== lint, test and build frontend =="
+  npm --prefix "$REPO_ROOT/web" run lint
+  npm --prefix "$REPO_ROOT/web" test
   npm --prefix "$REPO_ROOT/web" run build
 }
 

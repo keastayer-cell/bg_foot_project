@@ -4,9 +4,9 @@ function detectRoundKey(tour) {
   const title = String(tour?.name || '').toLowerCase()
 
   if (/треть|3\s*мест|бронз/.test(title)) return 'THIRD_PLACE'
-  if (/1\s*[\/\\-]\s*8|1\/8|восьм|round\s*of\s*16/.test(title)) return 'ROUND_OF_16'
-  if (/1\s*[\/\\-]\s*4|1\/4|четверт|quarter/.test(title)) return 'QUARTERFINAL'
-  if (/1\s*[\/\\-]\s*2|1\/2|полуфин|semi/.test(title)) return 'SEMIFINAL'
+  if (/1\s*[/\\-]\s*8|1\/8|восьм|round\s*of\s*16/.test(title)) return 'ROUND_OF_16'
+  if (/1\s*[/\\-]\s*4|1\/4|четверт|quarter/.test(title)) return 'QUARTERFINAL'
+  if (/1\s*[/\\-]\s*2|1\/2|полуфин|semi/.test(title)) return 'SEMIFINAL'
   if (/финал|final/.test(title)) return 'FINAL'
   return ''
 }

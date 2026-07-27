@@ -92,6 +92,7 @@ mvn -f mailer/pom.xml spring-boot:run
 ```bash
 mvn -f app/pom.xml test
 mvn -f mailer/pom.xml test
+npm --prefix web run lint
 npm --prefix web test
 npm --prefix web run build
 npm --prefix web run test:e2e
@@ -126,12 +127,12 @@ bash ./scripts/promote-dev-to-test.sh
 
 1. проверяет ветку `dev` и чистое рабочее дерево;
 2. обновляет `dev`;
-3. выполняет backend и frontend build;
+3. проверяет миграции, backend, mailer, frontend lint/tests/build;
 4. отправляет `dev`;
 5. объединяет `dev -> test`;
 6. отправляет `test` и возвращается в `dev`.
 
-Push в `test` запускает `.github/workflows/deploy-test.yml`. Workflow собирает артефакты, копирует их на test VPS, перезапускает backend и Nginx, затем проверяет локальный/public health и главную страницу.
+Push в `test` запускает `.github/workflows/deploy-test.yml`. Workflow проверяет все модули, создаёт backup БД, доставляет backend, mailer и frontend, применяет Flyway migrations при старте backend и запускает отдельный локальный/public smoke-check. При провале health предыдущие jars и frontend возвращаются автоматически; миграции БД автоматически не откатываются.
 
 Параметры сервера находятся только в GitHub Actions secrets:
 
@@ -141,7 +142,7 @@ Push в `test` запускает `.github/workflows/deploy-test.yml`. Workflow 
 
 ## Production
 
-Автоматического production workflow в репозитории пока нет. Не переносите test deploy на production вручную без backup БД, проверенного rollback и отдельного production checklist.
+Автоматического production workflow в репозитории пока нет. Общие backup/restore, ротация логов, smoke-check и процедура rollback описаны в [эксплуатационной документации](docs/operations.md). Production restore требует отдельного подтверждения и выполняется только во время согласованного downtime.
 
 ## Документация
 
@@ -149,5 +150,9 @@ Push в `test` запускает `.github/workflows/deploy-test.yml`. Workflow 
 - [Baseline этапа 1](docs/refactoring-stage-1-baseline.md)
 - [Отчёт этапа 2](docs/refactoring-stage-2-tests.md)
 - [Отчёт этапа 3](docs/refactoring-stage-3-frontend.md)
+- [Отчёт этапа 4](docs/refactoring-stage-4-backend.md)
+- [Отчёт этапа 5](docs/refactoring-stage-5-mailer.md)
+- [Отчёт этапа 6](docs/refactoring-stage-6-operations.md)
+- [Эксплуатация](docs/operations.md)
 
 Документация внутри репозитория является актуальной. Локальные каталоги вне репозитория не считаются source of truth.

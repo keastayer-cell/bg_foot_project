@@ -95,21 +95,6 @@ function isUnauthorizedError(error) {
   return Number(error?.status) === 401
 }
 
-function maskSensitive(value) {
-  if (!value || typeof value !== 'object') return value
-
-  if (Array.isArray(value)) {
-    return value.map((item) => maskSensitive(item))
-  }
-
-  const result = {}
-  for (const [key, fieldValue] of Object.entries(value)) {
-    const secret = /password|token|secret|authorization/i.test(key)
-    result[key] = secret ? '***' : maskSensitive(fieldValue)
-  }
-  return result
-}
-
 async function apiRequest(path, options = {}) {
   try {
     return await requestJson(apiBaseUrl, path, options)

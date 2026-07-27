@@ -91,7 +91,12 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception ex, HttpServletRequest request) {
-        log.error("Unhandled API error for {} {}", request.getMethod(), request.getRequestURI(), ex);
+        log.error(
+            "Unhandled API error for {} {} type={}",
+            request.getMethod(),
+            request.getRequestURI(),
+            ex.getClass().getSimpleName()
+        );
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "Внутренняя ошибка сервера.", request);
     }
 

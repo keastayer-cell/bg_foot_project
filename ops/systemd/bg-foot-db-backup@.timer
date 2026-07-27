@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily BG Foot PostgreSQL backup (%i)
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+RandomizedDelaySec=20m
+Persistent=true
+Unit=bg-foot-db-backup@%i.service
+
+[Install]
+WantedBy=timers.target

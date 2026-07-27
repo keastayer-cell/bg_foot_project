@@ -57,7 +57,7 @@ public class ApiRequestLoggingFilter extends OncePerRequestFilter {
             );
 
             if (failure != null) {
-                log.error("{} failure={} error={}", message, failure.getClass().getSimpleName(), safeMessage(failure), failure);
+                log.error("{} failure={}", message, failure.getClass().getSimpleName());
             } else if (status >= 500) {
                 log.error("{}", message);
             } else if (status >= 400) {
@@ -105,11 +105,4 @@ public class ApiRequestLoggingFilter extends OncePerRequestFilter {
         return "anonymous";
     }
 
-    private String safeMessage(Throwable throwable) {
-        String message = throwable.getMessage();
-        if (message == null || message.isBlank()) {
-            return "n/a";
-        }
-        return message.replace('\n', ' ').replace('\r', ' ');
-    }
 }
