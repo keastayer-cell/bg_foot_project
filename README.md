@@ -154,6 +154,7 @@ DB/JWT/SMTP credentials в GitHub не передаются. Они находя
 - [Отчёт этапа 5](docs/Рефакторинг%2028.07.2026/refactoring-stage-5-mailer.md)
 - [Отчёт этапа 6](docs/Рефакторинг%2028.07.2026/refactoring-stage-6-operations.md)
 - [Эксплуатация](docs/operations.md)
+- [Журнал замечаний](docs/Замечания.md)
 - [Управление секретами](docs/Рефакторинг%2028.07.2026/secrets-management.md)
 
 Документация внутри репозитория является актуальной. Локальные каталоги вне репозитория не считаются source of truth.
