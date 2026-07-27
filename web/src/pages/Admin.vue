@@ -11,436 +11,11 @@
       @select="selectAdminTab"
     />
 
-    <article class="card admin-panel" v-if="activeTab === 'seasons'">
-      <div class="admin-panel-head">
-        <h3 class="section-title">Сезоны и регламент</h3>
-        <p class="muted-text">Создание сезона, настройка регламента и состава участников.</p>
-      </div>
-      <div class="admin-inline-message" v-if="messageError || messageOk">
-        <p class="error-text" v-if="messageError">{{ messageError }}</p>
-        <p class="success-text" v-if="messageOk">{{ messageOk }}</p>
-      </div>
-      <div class="admin-subnav">
-        <button
-          class="btn-ghost admin-subnav-btn"
-          :class="{ 'admin-subnav-active': seasonSubMode === 'create' }"
-          type="button"
-          @click="seasonSubMode = 'create'; cancelEditSeason(); seasonEditSelectId = ''"
-        >Создать сезон</button>
-        <button
-          class="btn-ghost admin-subnav-btn"
-          :class="{ 'admin-subnav-active': seasonSubMode === 'edit' }"
-          type="button"
-          @click="seasonSubMode = 'edit'"
-        >Редактировать</button>
-      </div>
+    <AdminSeasonsPanel
+      v-if="activeTab === 'seasons'"
+      :panel="seasonPanel"
+    />
 
-      <div class="admin-form admin-surface">
-        <form v-if="seasonSubMode === 'create'" class="admin-form admin-season-form" @submit.prevent="createSeason">
-          <div class="admin-season-grid">
-            <label class="admin-season-field admin-season-field-wide">
-              Название сезона
-              <input v-model.trim="seasonForm.name" type="text" placeholder="Например: 2026/27" required />
-            </label>
-            <label class="admin-season-field">
-              Количество кругов
-              <select v-model="seasonForm.roundsCount">
-                <option value="1">1 круг</option>
-                <option value="2">2 круга</option>
-                <option value="3">3 круга</option>
-                <option value="4">4 круга</option>
-              </select>
-            </label>
-            <label class="admin-season-field">
-              Дедлайн заявки
-              <input v-model="seasonForm.applicationDeadline" type="date" />
-            </label>
-            <label class="admin-season-field">
-              Лимит игроков в заявке
-              <input v-model="seasonForm.maxRosterSize" type="number" min="1" placeholder="Пусто = без лимита" />
-            </label>
-            <label class="admin-season-field">
-              Старт окна трансферов
-              <input v-model="seasonForm.transferWindowStartDate" type="date" />
-            </label>
-            <label class="admin-season-field">
-              Конец окна трансферов
-              <input v-model="seasonForm.transferWindowEndDate" type="date" />
-            </label>
-            <label class="admin-season-field">
-              Пропуск за ЖК
-              <input v-model="seasonForm.yellowCardsForSuspension" type="number" min="0" placeholder="0 = выключено" />
-            </label>
-            <label class="admin-season-field">
-              Пропуск за КК
-              <input v-model="seasonForm.redCardsForSuspension" type="number" min="0" placeholder="0 = выключено" />
-            </label>
-            <label :class="['admin-season-field', 'admin-season-toggle-field', { 'admin-season-field-wide': !seasonForm.playoffEnabled }]">
-              Плей-офф
-              <span class="admin-season-toggle-control">
-                <input v-model="seasonForm.playoffEnabled" type="checkbox" />
-                <span>Включить плей-офф</span>
-              </span>
-            </label>
-            <label v-if="seasonForm.playoffEnabled" class="admin-season-field">
-              Команд в плей-офф
-              <select v-model="seasonForm.playoffTeamCount">
-                <option value="">— выберите —</option>
-                <option v-for="count in playoffTeamOptions" :key="`create-playoff-${count}`" :value="String(count)">{{ count }}</option>
-              </select>
-            </label>
-            <label v-if="seasonForm.playoffEnabled && Number(seasonForm.playoffTeamCount || 0) >= 4" class="admin-season-field admin-season-toggle-field">
-              Матч за 3 место
-              <span class="admin-season-toggle-control">
-                <input v-model="seasonForm.thirdPlaceEnabled" type="checkbox" />
-                <span>Добавить бронзовый матч</span>
-              </span>
-            </label>
-          </div>
-
-          <section class="admin-season-section">
-            <div class="admin-season-section-head">
-              <div class="admin-season-section-copy">
-                <h4 class="admin-list-title">Команды сезона</h4>
-                <p class="muted-text">Сначала собери состав сезона, затем при необходимости настрой регламент таблицы.</p>
-              </div>
-            </div>
-            <div class="actions-row admin-season-team-row">
-              <select v-model="seasonTeamToAddId">
-                <option value="">— выберите команду —</option>
-                <option v-for="team in seasonAvailableTeams" :key="`season-create-team-${team.id}`" :value="String(team.id)">{{ team.name }}</option>
-              </select>
-              <button class="btn-ghost" type="button" @click="addSeasonTeamToForm">Добавить команду</button>
-            </div>
-            <p class="muted-text admin-season-selected-note">Выбрано: {{ seasonSelectedTeams.length }}</p>
-            <p v-if="!seasonSelectedTeams.length" class="muted-text admin-season-empty-state">Пока не выбрано ни одной команды.</p>
-            <div v-else class="admin-list-items admin-season-team-list">
-              <article v-for="team in seasonSelectedTeams" :key="`season-create-selected-${team.id}`" class="admin-list-item admin-season-picked-item">
-                <div class="admin-season-picked-copy">
-                  <strong>{{ team.name }}</strong>
-                  <p class="muted-text">Команда включена в состав сезона.</p>
-                </div>
-                <button class="btn-danger btn-sm" type="button" @click="removeSeasonTeamFromForm(team.id)">Убрать</button>
-              </article>
-            </div>
-            <div class="admin-season-meta-grid">
-              <article class="admin-season-meta-card">
-                <span class="admin-season-meta-label">Регулярный этап</span>
-                <strong>{{ seasonRegularToursCount }} туров</strong>
-                <p class="muted-text">При {{ seasonSelectedTeams.length }} командах.</p>
-              </article>
-              <article class="admin-season-meta-card">
-                <span class="admin-season-meta-label">Дисциплина</span>
-                <strong>{{ Number(seasonForm.yellowCardsForSuspension || 0) || 0 }} ЖК / {{ Number(seasonForm.redCardsForSuspension || 0) || 0 }} КК</strong>
-                <p class="muted-text">Порог автоматического пропуска.</p>
-              </article>
-              <article class="admin-season-meta-card">
-                <span class="admin-season-meta-label">Регламент состава</span>
-                <strong>{{ seasonForm.maxRosterSize || 'Без лимита' }}</strong>
-                <p class="muted-text">Статус: {{ seasonForm.status === 'ACTIVE' ? 'Активный' : seasonForm.status === 'CLOSED' ? 'Закрыт' : 'Черновик' }}.</p>
-              </article>
-              <article class="admin-season-meta-card">
-                <span class="admin-season-meta-label">Трансферы</span>
-                <strong>{{ seasonForm.transferWindowStartDate || seasonForm.transferWindowEndDate ? `${seasonForm.transferWindowStartDate || '...'} - ${seasonForm.transferWindowEndDate || '...'}` : 'Без окна' }}</strong>
-                <p class="muted-text">Пустые даты означают отсутствие ограничений.</p>
-              </article>
-              <article v-if="seasonForm.playoffEnabled && seasonForm.playoffTeamCount" class="admin-season-meta-card admin-season-meta-card-accent">
-                <span class="admin-season-meta-label">Плей-офф</span>
-                <strong>{{ seasonForm.playoffTeamCount }} команд</strong>
-                <p class="muted-text">{{ seasonForm.thirdPlaceEnabled ? 'С матчем за 3 место.' : 'Без матча за 3 место.' }}</p>
-              </article>
-            </div>
-          </section>
-
-          <section class="admin-season-section admin-season-section-compact">
-            <div class="admin-season-section-head admin-season-section-head-compact">
-              <div class="admin-season-section-copy">
-                <h4 class="admin-list-title">Судьи сезона</h4>
-                <p class="muted-text">Эти судьи будут доступны при заполнении протоколов матчей сезона.</p>
-              </div>
-            </div>
-            <div class="actions-row admin-season-team-row">
-              <select v-model="seasonRefereeToAddId">
-                <option value="">— выберите судью —</option>
-                <option v-for="referee in seasonAvailableReferees" :key="`season-create-referee-${referee.id}`" :value="String(referee.id)">{{ referee.fullName }}</option>
-              </select>
-              <button class="btn-ghost" type="button" @click="addSeasonRefereeToForm">Добавить судью</button>
-            </div>
-            <p class="muted-text admin-season-selected-note">Привязано: {{ seasonSelectedReferees.length }}</p>
-            <p v-if="!seasonSelectedReferees.length" class="muted-text admin-season-empty-state">Судьи к сезону пока не привязаны.</p>
-            <div v-else class="admin-list-items admin-season-team-list">
-              <article v-for="referee in seasonSelectedReferees" :key="`season-create-referee-selected-${referee.id}`" class="admin-list-item admin-referee-list-item admin-season-picked-item">
-                <div class="admin-season-picked-copy">
-                  <strong>{{ referee.fullName }}</strong>
-                  <p class="muted-text">{{ referee.city || 'Город не указан' }}<span v-if="referee.birthDate"> · {{ formatDateOnly(referee.birthDate) }}</span></p>
-                </div>
-                <button class="btn-danger btn-sm" type="button" @click="removeSeasonRefereeFromForm(referee.id)">Убрать</button>
-              </article>
-            </div>
-          </section>
-
-          <section class="admin-season-section admin-season-section-compact admin-season-rules-panel">
-            <div class="admin-season-section-head admin-season-section-head-compact">
-              <div>
-                <h4 class="admin-list-title">Тай-брейки таблицы</h4>
-                <p class="muted-text">Блок опущен вниз и работает как компактный список приоритетов.</p>
-              </div>
-              <button
-                class="btn-ghost btn-sm"
-                type="button"
-                @click="addSeasonRankingRule"
-                :disabled="seasonForm.rankingRules.length >= tieBreakerRuleOptions.length"
-              >Добавить критерий</button>
-            </div>
-            <p v-if="!seasonForm.rankingRules.length" class="muted-text">Дополнительные тай-брейки не выбраны.</p>
-            <div v-else class="admin-ranking-rule-list">
-              <div v-for="(rule, index) in seasonForm.rankingRules" :key="`create-rule-${index}`" class="admin-ranking-rule-card">
-                <span class="admin-ranking-rule-badge">{{ index + 1 }}</span>
-                <label class="admin-ranking-rule-field">
-                  <span class="admin-ranking-rule-label">Приоритет {{ index + 1 }}</span>
-                  <select v-model="seasonForm.rankingRules[index]">
-                    <option value="">— выберите критерий —</option>
-                    <option
-                      v-for="option in availableTieBreakerRuleOptions(index)"
-                      :key="`create-rule-${index}-${option.value}`"
-                      :value="option.value"
-                    >{{ option.label }}</option>
-                  </select>
-                </label>
-                <button class="btn-danger btn-sm" type="button" @click="removeSeasonRankingRule(index)">Убрать</button>
-              </div>
-            </div>
-            <div class="admin-season-rules-footer">
-              <p class="muted-text">Сначала всегда считаются очки. Если после выбранных правил равенство остается, последним fallback используется алфавит.</p>
-              <p class="muted-text admin-season-rules-summary">Текущий порядок: {{ seasonRankingRulesSummary() }}</p>
-            </div>
-          </section>
-
-          <div class="actions-row admin-season-actions">
-            <button class="btn-primary" type="submit" :disabled="isSeasonCreateDisabled">Создать сезон</button>
-          </div>
-        </form>
-
-        <div v-else class="admin-form admin-season-form">
-          <div class="admin-season-edit-toolbar">
-            <label class="admin-season-edit-picker">
-              Выберите сезон
-              <select v-model="seasonEditSelectId" @change="onSeasonSelectChange">
-                <option value="">— выберите —</option>
-                <option v-for="item in seasonsList" :key="item.id" :value="String(item.id)">{{ item.name }}</option>
-              </select>
-            </label>
-            <div v-if="editingSeasonId" class="admin-season-export-wrap">
-              <button class="btn-ghost" type="button" @click="toggleSeasonProtocolMenu" :disabled="downloadingSeasonProtocols">
-                {{ downloadingSeasonProtocols ? seasonProtocolProgressText || 'Подготовка архива...' : 'Скачать протоколы' }}
-              </button>
-              <div v-if="seasonProtocolMenuOpen" class="admin-season-export-menu">
-                <button class="btn-ghost admin-season-export-action" type="button" @click="downloadSeasonProtocolsArchive" :disabled="downloadingSeasonProtocols">
-                  Скачать все подтвержденные (.zip)
-                </button>
-              </div>
-            </div>
-          </div>
-          <template v-if="editingSeasonId">
-            <div class="admin-season-grid">
-              <label class="admin-season-field admin-season-field-wide">
-                Название сезона
-                <input v-model.trim="seasonForm.name" type="text" />
-              </label>
-              <label class="admin-season-field">
-                Количество кругов
-                <select v-model="seasonForm.roundsCount">
-                  <option value="1">1 круг</option>
-                  <option value="2">2 круга</option>
-                  <option value="3">3 круга</option>
-                  <option value="4">4 круга</option>
-                </select>
-              </label>
-              <label class="admin-season-field">
-                Статус сезона
-                <select v-model="seasonForm.status">
-                  <option value="ACTIVE">Активный</option>
-                  <option value="DRAFT">Черновик</option>
-                  <option value="CLOSED">Закрыт</option>
-                </select>
-              </label>
-              <label class="admin-season-field">
-                Дедлайн заявки
-                <input v-model="seasonForm.applicationDeadline" type="date" />
-              </label>
-              <label class="admin-season-field">
-                Лимит игроков в заявке
-                <input v-model="seasonForm.maxRosterSize" type="number" min="1" placeholder="Пусто = без лимита" />
-              </label>
-              <label class="admin-season-field">
-                Старт окна трансферов
-                <input v-model="seasonForm.transferWindowStartDate" type="date" />
-              </label>
-              <label class="admin-season-field">
-                Конец окна трансферов
-                <input v-model="seasonForm.transferWindowEndDate" type="date" />
-              </label>
-              <label class="admin-season-field">
-                Пропуск за ЖК
-                <input v-model="seasonForm.yellowCardsForSuspension" type="number" min="0" placeholder="0 = выключено" />
-              </label>
-              <label class="admin-season-field">
-                Пропуск за КК
-                <input v-model="seasonForm.redCardsForSuspension" type="number" min="0" placeholder="0 = выключено" />
-              </label>
-              <label :class="['admin-season-field', 'admin-season-toggle-field', { 'admin-season-field-wide': !seasonForm.playoffEnabled }]">
-                Плей-офф
-                <span class="admin-season-toggle-control">
-                  <input v-model="seasonForm.playoffEnabled" type="checkbox" />
-                  <span>Включить плей-офф</span>
-                </span>
-              </label>
-              <label v-if="seasonForm.playoffEnabled" class="admin-season-field">
-                Команд в плей-офф
-                <select v-model="seasonForm.playoffTeamCount">
-                  <option value="">— выберите —</option>
-                  <option v-for="count in playoffTeamOptions" :key="`edit-playoff-${count}`" :value="String(count)">{{ count }}</option>
-                </select>
-              </label>
-              <label v-if="seasonForm.playoffEnabled && Number(seasonForm.playoffTeamCount || 0) >= 4" class="admin-season-field admin-season-toggle-field">
-                Матч за 3 место
-                <span class="admin-season-toggle-control">
-                  <input v-model="seasonForm.thirdPlaceEnabled" type="checkbox" />
-                  <span>Добавить бронзовый матч</span>
-                </span>
-              </label>
-            </div>
-
-            <section class="admin-season-section">
-              <div class="admin-season-section-head">
-                <div class="admin-season-section-copy">
-                  <h4 class="admin-list-title">Команды сезона</h4>
-                  <p class="muted-text">Состав сезона и краткая сводка по формату собраны в одном месте.</p>
-                </div>
-              </div>
-              <div class="actions-row admin-season-team-row">
-                <select v-model="seasonTeamToAddId">
-                  <option value="">— выберите команду —</option>
-                  <option v-for="team in seasonAvailableTeams" :key="`season-edit-team-${team.id}`" :value="String(team.id)">{{ team.name }}</option>
-                </select>
-                <button class="btn-ghost" type="button" @click="addSeasonTeamToForm">Добавить команду</button>
-              </div>
-              <p class="muted-text admin-season-selected-note">Выбрано: {{ seasonSelectedTeams.length }}</p>
-              <p v-if="!seasonSelectedTeams.length" class="muted-text admin-season-empty-state">Пока не выбрано ни одной команды.</p>
-              <div v-else class="admin-list-items admin-season-team-list">
-                <article v-for="team in seasonSelectedTeams" :key="`season-edit-selected-${team.id}`" class="admin-list-item admin-season-picked-item">
-                  <div class="admin-season-picked-copy">
-                    <strong>{{ team.name }}</strong>
-                    <p class="muted-text">Команда включена в состав сезона.</p>
-                  </div>
-                  <button class="btn-danger btn-sm" type="button" @click="removeSeasonTeamFromForm(team.id)">Убрать</button>
-                </article>
-              </div>
-              <div class="admin-season-meta-grid">
-                <article class="admin-season-meta-card">
-                  <span class="admin-season-meta-label">Регулярный этап</span>
-                  <strong>{{ seasonRegularToursCount }} туров</strong>
-                  <p class="muted-text">При {{ seasonSelectedTeams.length }} командах.</p>
-                </article>
-                <article class="admin-season-meta-card">
-                  <span class="admin-season-meta-label">Дисциплина</span>
-                  <strong>{{ Number(seasonForm.yellowCardsForSuspension || 0) || 0 }} ЖК / {{ Number(seasonForm.redCardsForSuspension || 0) || 0 }} КК</strong>
-                  <p class="muted-text">Порог автоматического пропуска.</p>
-                </article>
-                <article class="admin-season-meta-card">
-                  <span class="admin-season-meta-label">Регламент состава</span>
-                  <strong>{{ seasonForm.maxRosterSize || 'Без лимита' }}</strong>
-                  <p class="muted-text">Статус: {{ seasonForm.status === 'ACTIVE' ? 'Активный' : seasonForm.status === 'CLOSED' ? 'Закрыт' : 'Черновик' }}.</p>
-                </article>
-                <article class="admin-season-meta-card">
-                  <span class="admin-season-meta-label">Трансферы</span>
-                  <strong>{{ seasonForm.transferWindowStartDate || seasonForm.transferWindowEndDate ? `${seasonForm.transferWindowStartDate || '...'} - ${seasonForm.transferWindowEndDate || '...'}` : 'Без окна' }}</strong>
-                  <p class="muted-text">Пустые даты означают отсутствие ограничений.</p>
-                </article>
-                <article v-if="seasonForm.playoffEnabled && seasonForm.playoffTeamCount" class="admin-season-meta-card admin-season-meta-card-accent">
-                  <span class="admin-season-meta-label">Плей-офф</span>
-                  <strong>{{ seasonForm.playoffTeamCount }} команд</strong>
-                  <p class="muted-text">{{ seasonForm.thirdPlaceEnabled ? 'С матчем за 3 место.' : 'Без матча за 3 место.' }}</p>
-                </article>
-              </div>
-            </section>
-
-            <section class="admin-season-section admin-season-section-compact">
-              <div class="admin-season-section-head admin-season-section-head-compact">
-                <div class="admin-season-section-copy">
-                  <h4 class="admin-list-title">Судьи сезона</h4>
-                  <p class="muted-text">Привязанные судьи будут доступны на карточках матчей этого сезона.</p>
-                </div>
-              </div>
-              <div class="actions-row admin-season-team-row">
-                <select v-model="seasonRefereeToAddId">
-                  <option value="">— выберите судью —</option>
-                  <option v-for="referee in seasonAvailableReferees" :key="`season-edit-referee-${referee.id}`" :value="String(referee.id)">{{ referee.fullName }}</option>
-                </select>
-                <button class="btn-ghost" type="button" @click="addSeasonRefereeToForm">Добавить судью</button>
-              </div>
-              <p class="muted-text admin-season-selected-note">Привязано: {{ seasonSelectedReferees.length }}</p>
-              <p v-if="!seasonSelectedReferees.length" class="muted-text admin-season-empty-state">Судьи к сезону пока не привязаны.</p>
-              <div v-else class="admin-list-items admin-season-team-list">
-                <article v-for="referee in seasonSelectedReferees" :key="`season-edit-referee-selected-${referee.id}`" class="admin-list-item admin-referee-list-item admin-season-picked-item">
-                  <div class="admin-season-picked-copy">
-                    <strong>{{ referee.fullName }}</strong>
-                    <p class="muted-text">{{ referee.city || 'Город не указан' }}<span v-if="referee.birthDate"> · {{ formatDateOnly(referee.birthDate) }}</span></p>
-                  </div>
-                  <button class="btn-danger btn-sm" type="button" @click="removeSeasonRefereeFromForm(referee.id)">Убрать</button>
-                </article>
-              </div>
-            </section>
-
-            <section class="admin-season-section admin-season-section-compact admin-season-rules-panel">
-              <div class="admin-season-section-head admin-season-section-head-compact">
-                <div>
-                  <h4 class="admin-list-title">Тай-брейки таблицы</h4>
-                  <p class="muted-text">Компактный блок внизу формы, чтобы не мешал базовым параметрам сезона.</p>
-                </div>
-                <button
-                  class="btn-ghost btn-sm"
-                  type="button"
-                  @click="addSeasonRankingRule"
-                  :disabled="seasonForm.rankingRules.length >= tieBreakerRuleOptions.length"
-                >Добавить критерий</button>
-              </div>
-              <p v-if="!seasonForm.rankingRules.length" class="muted-text">Дополнительные тай-брейки не выбраны.</p>
-              <div v-else class="admin-ranking-rule-list">
-                <div v-for="(rule, index) in seasonForm.rankingRules" :key="`edit-rule-${index}`" class="admin-ranking-rule-card">
-                  <span class="admin-ranking-rule-badge">{{ index + 1 }}</span>
-                  <label class="admin-ranking-rule-field">
-                    <span class="admin-ranking-rule-label">Приоритет {{ index + 1 }}</span>
-                    <select v-model="seasonForm.rankingRules[index]">
-                      <option value="">— выберите критерий —</option>
-                      <option
-                        v-for="option in availableTieBreakerRuleOptions(index)"
-                        :key="`edit-rule-${index}-${option.value}`"
-                        :value="option.value"
-                      >{{ option.label }}</option>
-                    </select>
-                  </label>
-                  <button class="btn-danger btn-sm" type="button" @click="removeSeasonRankingRule(index)">Убрать</button>
-                </div>
-              </div>
-              <div class="admin-season-rules-footer">
-                <p class="muted-text">Сначала всегда считаются очки. Если после выбранных правил равенство остается, последним fallback используется алфавит.</p>
-                <p class="muted-text admin-season-rules-summary">Текущий порядок: {{ seasonRankingRulesSummary() }}</p>
-              </div>
-            </section>
-
-            <div class="actions-row admin-season-actions">
-              <button class="btn-ghost" type="button" @click="completeRegularSeason" :disabled="completingRegularSeason">
-                {{ completingRegularSeason ? 'Выполняется...' : seasonCompletionActionLabel }}
-              </button>
-              <button class="btn-primary" type="button" @click="saveEditSeason">Сохранить изменения</button>
-              <button class="btn-danger" type="button" @click="deactivateSeason(editingSeasonId)">Удалить сезон</button>
-              <button class="btn-ghost" type="button" @click="cancelEditSeason(); seasonEditSelectId = ''">Отмена</button>
-            </div>
-          </template>
-        </div>
-      </div>
-    </article>
 
     <article class="card admin-panel" v-if="activeTab === 'teams'">
       <div class="admin-panel-head">
@@ -887,6 +462,11 @@ import { useStore } from '../store/store'
 import { useAdminAccess } from '../composables/useAdminAccess'
 import { useAdminPlayers } from '../composables/useAdminPlayers'
 import { useAdminReferees } from '../composables/useAdminReferees'
+import {
+  PLAYOFF_TEAM_OPTIONS,
+  TIE_BREAKER_RULE_OPTIONS,
+  useAdminSeasonRules,
+} from '../composables/useAdminSeasonRules'
 import { useAdminTabs } from '../composables/useAdminTabs'
 import AdminTabNavigation from '../components/AdminTabNavigation.vue'
 import AdminBanPanel from '../components/admin/AdminBanPanel.vue'
@@ -894,6 +474,7 @@ import AdminPlayersPanel from '../components/admin/AdminPlayersPanel.vue'
 import AdminRefereesPanel from '../components/admin/AdminRefereesPanel.vue'
 import AdminRepresentativesPanel from '../components/admin/AdminRepresentativesPanel.vue'
 import AdminRolesPanel from '../components/admin/AdminRolesPanel.vue'
+import AdminSeasonsPanel from '../components/admin/AdminSeasonsPanel.vue'
 import SearchableSelect from '../components/SearchableSelect.vue'
 import AdminLeagueContent from '../components/AdminLeagueContent.vue'
 
@@ -995,13 +576,8 @@ const {
   successMessage: messageOk,
 })
 
-const playoffTeamOptions = [4, 8, 16]
-const tieBreakerRuleOptions = [
-  { value: 'GOAL_DIFFERENCE', label: 'Разница мячей' },
-  { value: 'GOALS_FOR', label: 'Забитые мячи' },
-  { value: 'WINS', label: 'Количество побед' },
-  { value: 'HEAD_TO_HEAD', label: 'Личные встречи' },
-]
+const playoffTeamOptions = PLAYOFF_TEAM_OPTIONS
+const tieBreakerRuleOptions = TIE_BREAKER_RULE_OPTIONS
 
 const seasonForm = reactive({
   name: '',
@@ -1189,12 +765,20 @@ const teamSeasonRemoveOptions = computed(() => {
   }))
 })
 
-const seasonRegularToursCount = computed(() => {
-  return calculateRegularToursCount(seasonSelectedTeams.value.length, Number(seasonForm.roundsCount || 1))
-})
-
-const isSeasonCreateDisabled = computed(() => {
-  return !String(seasonForm.name || '').trim() || seasonSelectedTeams.value.length < 1
+const {
+  addRankingRule: addSeasonRankingRule,
+  availableTieBreakerRuleOptions,
+  buildPayload: buildSeasonPayload,
+  isCreateDisabled: isSeasonCreateDisabled,
+  normalizeRankingRulesForForm: normalizeSeasonRankingRulesForForm,
+  rankingRulesSummary: seasonRankingRulesSummary,
+  regularToursCount: seasonRegularToursCount,
+  removeRankingRule: removeSeasonRankingRule,
+  validateForm: validateSeasonForm,
+} = useAdminSeasonRules({
+  form: seasonForm,
+  refereeIds: seasonRefereeIds,
+  selectedTeamCount: computed(() => seasonSelectedTeams.value.length),
 })
 
 const selectedTourSeason = computed(() => {
@@ -1212,6 +796,48 @@ const seasonCompletionActionLabel = computed(() => {
   return selectedSeasonEditItem.value.playoffEnabled
     ? 'Завершить регулярную часть и сформировать плей-офф'
     : 'Завершить сезон'
+})
+
+const seasonPanel = reactive({
+  addSeasonRankingRule,
+  addSeasonRefereeToForm,
+  addSeasonTeamToForm,
+  availableTieBreakerRuleOptions,
+  cancelEditSeason,
+  completeRegularSeason,
+  completingRegularSeason,
+  createSeason,
+  deactivateSeason,
+  downloadSeasonProtocolsArchive,
+  downloadingSeasonProtocols,
+  editingSeasonId,
+  formatDateOnly,
+  isSeasonCreateDisabled,
+  messageError,
+  messageOk,
+  onSeasonSelectChange,
+  playoffTeamOptions,
+  removeSeasonRankingRule,
+  removeSeasonRefereeFromForm,
+  removeSeasonTeamFromForm,
+  saveEditSeason,
+  seasonAvailableReferees,
+  seasonAvailableTeams,
+  seasonCompletionActionLabel,
+  seasonEditSelectId,
+  seasonForm,
+  seasonProtocolMenuOpen,
+  seasonProtocolProgressText,
+  seasonRankingRulesSummary,
+  seasonRefereeToAddId,
+  seasonRegularToursCount,
+  seasonsList,
+  seasonSelectedReferees,
+  seasonSelectedTeams,
+  seasonSubMode,
+  seasonTeamToAddId,
+  tieBreakerRuleOptions,
+  toggleSeasonProtocolMenu,
 })
 
 const selectedTour = computed(() => {
@@ -2338,120 +1964,8 @@ function protocolStatusBadgeClass(status) {
   }
 }
 
-function buildSeasonPayload() {
-  const roundsCount = Number(seasonForm.roundsCount || 1)
-  const playoffEnabled = Boolean(seasonForm.playoffEnabled)
-  const playoffTeamCount = playoffEnabled && seasonForm.playoffTeamCount
-    ? Number(seasonForm.playoffTeamCount)
-    : null
-
-  return {
-    name: seasonForm.name,
-    roundsCount,
-    playoffEnabled,
-    playoffTeamCount,
-    thirdPlaceEnabled: playoffEnabled ? Boolean(seasonForm.thirdPlaceEnabled) : false,
-    applicationDeadline: seasonForm.applicationDeadline || null,
-    status: seasonForm.status || 'ACTIVE',
-    maxRosterSize: seasonForm.maxRosterSize ? Number(seasonForm.maxRosterSize) : null,
-    transferWindowStartDate: seasonForm.transferWindowStartDate || null,
-    transferWindowEndDate: seasonForm.transferWindowEndDate || null,
-    rankingRules: buildSeasonRankingRulesPayload(),
-    refereeIds: seasonRefereeIds.value,
-    yellowCardsForSuspension: Number(seasonForm.yellowCardsForSuspension || 0),
-    redCardsForSuspension: Number(seasonForm.redCardsForSuspension || 0),
-  }
-}
-
-function validateSeasonForm() {
-  const rankingRules = normalizedSeasonTieBreakers()
-  const playoffEnabled = Boolean(seasonForm.playoffEnabled)
-  const playoffTeamCount = playoffEnabled && seasonForm.playoffTeamCount
-    ? Number(seasonForm.playoffTeamCount)
-    : 0
-
-  if (rankingRules.length !== new Set(rankingRules).size) {
-    return 'Правила таблицы не должны повторяться.'
-  }
-  if (playoffEnabled && playoffTeamCount > 0 && playoffTeamCount < 4 && seasonForm.thirdPlaceEnabled) {
-    return 'Матч за 3 место можно включить только для плей-офф на 4 команды и больше.'
-  }
-  if (seasonForm.maxRosterSize && Number(seasonForm.maxRosterSize) < 1) {
-    return 'Максимальный размер заявки должен быть не меньше 1.'
-  }
-  if (seasonForm.transferWindowStartDate && seasonForm.transferWindowEndDate && seasonForm.transferWindowStartDate > seasonForm.transferWindowEndDate) {
-    return 'Дата начала окна трансферов не может быть позже даты окончания.'
-  }
-  return ''
-}
-
 function formatSeasonApplicationDeadline(value) {
   return value ? formatDateOnly(value) : 'Без ограничения'
-}
-
-function normalizedSeasonTieBreakers() {
-  return (seasonForm.rankingRules || [])
-    .map((rule) => String(rule || '').trim())
-    .filter(Boolean)
-}
-
-function buildSeasonRankingRulesPayload() {
-  return ['POINTS', ...normalizedSeasonTieBreakers(), 'ALPHABETICAL']
-}
-
-function normalizeSeasonRankingRulesForForm(rawRules) {
-  const tieBreakers = Array.isArray(rawRules)
-    ? rawRules.filter((rule) => rule !== 'POINTS' && rule !== 'ALPHABETICAL')
-    : []
-
-  if (!tieBreakers.length) {
-    return ['GOAL_DIFFERENCE', 'GOALS_FOR']
-  }
-
-  return tieBreakers.map((rule) => String(rule || '')).filter(Boolean)
-}
-
-function availableTieBreakerRuleOptions(index) {
-  const usedRules = new Set(
-    (seasonForm.rankingRules || [])
-      .filter((_, ruleIndex) => ruleIndex !== index)
-      .map((rule) => String(rule || '').trim())
-      .filter(Boolean)
-  )
-
-  return tieBreakerRuleOptions.filter((option) => !usedRules.has(option.value) || option.value === seasonForm.rankingRules[index])
-}
-
-function addSeasonRankingRule() {
-  const usedRules = new Set(normalizedSeasonTieBreakers())
-  const nextRule = tieBreakerRuleOptions.find((option) => !usedRules.has(option.value))
-  seasonForm.rankingRules = [...seasonForm.rankingRules, nextRule?.value || '']
-}
-
-function removeSeasonRankingRule(index) {
-  seasonForm.rankingRules = seasonForm.rankingRules.filter((_, ruleIndex) => ruleIndex !== index)
-}
-
-function standingsRuleLabel(rule) {
-  return tieBreakerRuleOptions.find((option) => option.value === rule)?.label || rule
-}
-
-function seasonRankingRulesSummary() {
-  const labels = normalizedSeasonTieBreakers().map((rule) => standingsRuleLabel(rule))
-  if (!labels.length) {
-    return 'только очки, затем алфавит'
-  }
-  return `очки, затем ${labels.join(' -> ')}, затем алфавит`
-}
-
-function calculateRegularToursCount(teamCount, roundsCount) {
-  const normalizedTeamCount = Number(teamCount || 0)
-  const normalizedRoundsCount = Number(roundsCount || 0)
-  if (normalizedTeamCount < 2 || normalizedRoundsCount < 1) {
-    return 0
-  }
-  const toursPerRound = normalizedTeamCount % 2 === 0 ? normalizedTeamCount - 1 : normalizedTeamCount
-  return toursPerRound * normalizedRoundsCount
 }
 
 function formatPlayerOptionLabel(player) {
