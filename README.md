@@ -98,11 +98,27 @@ npm --prefix web run test:e2e
 ```
 
 Frontend e2e сам запускает Vite dev server и использует перехват API-запросов, поэтому локальный backend ему не нужен.
-Перед первым e2e-запуском установите браузер:
+Перед первым e2e-запуском установите Chromium для desktop/Android и WebKit для iOS:
 
 ```bash
 cd web
-npx playwright install chromium
+npx playwright install chromium webkit
+```
+
+Полная матрица включает desktop Chrome, компактный и современный Android Chrome, компактный и современный iPhone WebKit. Её можно запускать целиком или по платформе:
+
+```bash
+# Все desktop и mobile проекты
+npm --prefix web run test:e2e
+
+# Только четыре мобильных проекта
+npm --prefix web run test:e2e:mobile
+
+# Только Android Chromium
+npm --prefix web run test:e2e:android
+
+# Только iPhone WebKit
+npm --prefix web run test:e2e:ios
 ```
 
 Для визуального запуска пользовательских сценариев используйте Playwright UI:
@@ -122,6 +138,8 @@ npm --prefix web run test:e2e:debug
 ```
 
 Текущий smoke-набор изолирован от локальной БД: он проверяет frontend-сценарии на предсказуемых API-ответах. Полноценные live E2E через локальные backend и PostgreSQL должны храниться отдельным набором с тестовыми пользователями и очисткой созданных данных.
+
+CI автоматически устанавливает Chromium/WebKit и запускает всю матрицу. Mobile layout-тесты дополнительно проверяют настоящий device viewport, отсутствие горизонтального переполнения, компактность фильтров и минимальную высоту основных touch-targets.
 
 ## Ветки
 
