@@ -19,25 +19,25 @@
   `app/pom.xml`, `mailer/pom.xml` и `.github/workflows/deploy-test.yml` используют Java 21.
 - [x] **СДЕЛАНО — убедиться, что backend, frontend и mailer собираются из чистого checkout.**
   Backend и mailer проходят Maven build/test, frontend проходит production build.
-- [ ] **НЕ СДЕЛАНО — зафиксировать README: как запускать, как деплоить, где source of truth.**
-  README содержит только часть команд и ссылается на внешний локальный путь `/Users/korytov/projects/football-stat-readme`, недоступный из репозитория. Нет самодостаточной инструкции запуска всего стека, окружения, mailer, полного deploy-flow и source of truth для текущей рабочей копии.
+- [x] **СДЕЛАНО — зафиксировать README: как запускать, как деплоить, где source of truth.**
+  Корневой README стал самодостаточным: описаны требования, PostgreSQL, env-файлы, запуск всех трёх модулей, health endpoints, тесты, ветки, test deploy и отсутствие production workflow.
 
-**Статус этапа 1: НЕ ЗАВЕРШЁН.** Осталось привести README и эксплуатационные ссылки в самодостаточное состояние.
+**Статус этапа 1: ЗАВЕРШЁН.** Все пункты проверены в чистом checkout.
 
 ## Этап 2. Защитить критичные сценарии тестами
 
-- [ ] **НЕ СДЕЛАНО — backend smoke-тест: приложение стартует, `/api/health` отвечает.**
-  `@SpringBootTest`/MockMvc smoke-теста нет. Health проверяется только после test deploy.
-- [ ] **НЕ СДЕЛАНО — auth-тесты: login, refresh, logout, reset password, `tokenVersion`.**
-  Есть 3 теста `JwtService` и 2 теста auth rate limiter, но полные auth-flow отсутствуют.
-- [ ] **НЕ СДЕЛАНО — access-control тесты ролей `SUPER_ADMIN`, `REFEREE`, `TEAM_REP`, `GUEST`.**
-  Frontend route guard покрыт ролями, но backend endpoint/security integration-тестов нет.
-- [ ] **НЕ СДЕЛАНО — бизнес-тесты заявок, дозаявок, трансферов и турнирной таблицы.**
-  Тестов этих сервисов и пользовательских сценариев нет.
-- [ ] **НЕ СДЕЛАНО — frontend build и минимальные e2e smoke: главная, логин, админка, кабинет представителя.**
-  Production build и 55 unit/route-тестов проходят, но браузерного e2e runner и перечисленных smoke-сценариев нет.
+- [x] **СДЕЛАНО — backend smoke-тест: приложение стартует, `/api/health` отвечает.**
+  `ApplicationSmokeTest` поднимает Spring context на изолированной H2 и через MockMvc проверяет статус `UP`.
+- [x] **СДЕЛАНО — auth-тесты: login, refresh, logout, reset password, `tokenVersion`.**
+  Покрыты login, выдача/rotation/revoke refresh token, создание и завершение password reset, очистка одноразового токена и отклонение устаревших access/refresh sessions.
+- [x] **СДЕЛАНО — access-control тесты ролей `SUPER_ADMIN`, `REFEREE`, `TEAM_REP`, `GUEST`.**
+  Backend `ApiAccessRuleServiceTest` фиксирует разрешения по роли, HTTP method и URL pattern; frontend guard tests проверяют маршрутные ограничения.
+- [x] **СДЕЛАНО — бизнес-тесты заявок, дозаявок, трансферов и турнирной таблицы.**
+  Проверены утверждение заявки, синхронизация дозаявки со статусом `APPROVED`, подтверждение трансфера и расчёт таблицы по `VERIFIED` протоколу.
+- [x] **СДЕЛАНО — frontend build и минимальные e2e smoke: главная, логин, админка, кабинет представителя.**
+  Playwright запускает 4 браузерных smoke-сценария с реальным Vue router/auth flow и изолированным API mock; production build и 55 Vitest тестов проходят.
 
-**Статус этапа 2: НЕ ЗАВЕРШЁН.** Создан только начальный тестовый контур; критичные integration/e2e и бизнес-сценарии ещё не защищены.
+**Статус этапа 2: ЗАВЕРШЁН.** Backend: 18 тестов; frontend: 55 unit/route + 4 e2e; mailer: 2 теста.
 
 ## Этап 3. Разобрать frontend-монолиты
 
@@ -105,7 +105,5 @@
 
 ## Фактический порядок дальнейшей работы
 
-1. Закрыть README из этапа 1.
-2. Закрыть integration/business/e2e тесты этапа 2 до рискованных backend-изменений.
-3. Завершить `Match.vue`, `TeamRepDashboard.vue` и API-слой этапа 3.
-4. Последовательно выполнить этапы 4–7.
+1. Завершить `Match.vue`, `TeamRepDashboard.vue` и API-слой этапа 3.
+2. Последовательно выполнить этапы 4–7.

@@ -1,52 +1,153 @@
-# bg_foot_project
+# BG Foot
 
-Monorepo проекта Football Stats.
+Монорепозиторий футбольной лиги:
 
-## Что здесь лежит
+- `app` — Spring Boot backend и Flyway migrations;
+- `web` — Vue/Vite frontend;
+- `mailer` — обработчик очереди уведомлений;
+- `docs` — документация и roadmap;
+- `scripts` — локальные Git/deploy helpers.
 
-- `app` — backend на Spring Boot
-- `web` — frontend на Vue
-- `.github/workflows` — CI/CD
+Source of truth: репозиторий `keastayer-cell/bg_foot_project`, рабочая ветка `dev`. Актуальные runtime migrations находятся только в `app/src/main/resources/db/migration`.
 
-## Где читать актуальную документацию
+## Требования
 
-Полный комплект project docs вынесен отдельно в:
+- Java 21;
+- Maven 3.9+;
+- Node.js 20+ и npm;
+- PostgreSQL 15+.
 
-- `/Users/korytov/projects/football-stat-readme`
-
-Ключевые файлы там:
-
-- `FOOTBALL_STATS_WORKFLOW_RU.md`
-- `FOOTBALL_STATS_SESSION_CONTEXT.md`
-- `FOOTBALL_STATS_RELEASES.md`
-- `SYSTEM_DESCRIPTION_DETAILED_RU.md`
-
-## Что важно помнить
-
-- основной рабочий код находится в этом monorepo
-- актуальные runtime-миграции лежат в `app/src/main/resources/db/migration`
-- legacy root `db/migration` больше не используется как источник Flyway migration
-
-## Быстрый promote в test
-
-Чтобы не выполнять вручную цепочку `checkout/pull/merge/push`, используйте:
+Проверить окружение:
 
 ```bash
-cd /Users/korytov/projects/bg_foot_project
+java -version
+mvn -version
+node --version
+npm --version
+psql --version
+```
+
+## Локальная база
+
+Создайте пользователя и БД с правами на схемы `public`, `work` и `mailer`:
+
+```sql
+CREATE ROLE football_app LOGIN PASSWORD 'local-password';
+CREATE DATABASE football_db OWNER football_app;
+```
+
+Flyway создаёт и обновляет структуру при запуске backend. Для локальной разработки не применяйте SQL-файлы вручную.
+
+## Настройка
+
+Создайте локальные env-файлы, которые исключены из Git:
+
+```bash
+cp app/.env.example app/.env
+cp web/.env.example web/.env
+cp mailer/.env.example mailer/.env
+```
+
+Обязательно замените `DB_PASSWORD`, `MAILER_DB_PASSWORD` и `JWT_SECRET`. Секрет JWT должен содержать не менее 32 байт. Для безопасного локального запуска mailer используйте:
+
+```dotenv
+MAILER_TRANSPORT_TYPE=log
+```
+
+Режим `smtp` включайте только с рабочими SMTP credentials.
+
+## Запуск
+
+Backend:
+
+```bash
+mvn -f app/pom.xml spring-boot:run
+```
+
+Frontend во втором терминале:
+
+```bash
+npm --prefix web install
+npm --prefix web run dev
+```
+
+Mailer в третьем терминале:
+
+```bash
+mvn -f mailer/pom.xml spring-boot:run
+```
+
+Адреса по умолчанию:
+
+- frontend: `http://127.0.0.1:5173`;
+- backend: `http://127.0.0.1:8080`;
+- backend health: `http://127.0.0.1:8080/api/health`;
+- mailer health: `http://127.0.0.1:8090/actuator/health`;
+- mailer readiness: `http://127.0.0.1:8090/actuator/health/readiness`.
+
+## Проверки
+
+Полный локальный набор:
+
+```bash
+mvn -f app/pom.xml test
+mvn -f mailer/pom.xml test
+npm --prefix web test
+npm --prefix web run build
+npm --prefix web run test:e2e
+```
+
+Frontend e2e сам запускает Vite dev server и использует перехват API-запросов, поэтому локальный backend ему не нужен.
+Перед первым e2e-запуском установите браузер:
+
+```bash
+cd web
+npx playwright install chromium
+```
+
+## Ветки
+
+- `dev` — текущая разработка;
+- `test` — test deployment;
+- `main` — стабильная история проекта;
+- `prod` — production deployment history.
+
+Все изменения сначала фиксируются в `dev`. Перед продвижением рабочее дерево должно быть чистым.
+
+## Test deploy
+
+Локальный promote:
+
+```bash
 bash ./scripts/promote-dev-to-test.sh
 ```
 
-Или VS Code task `Promote Dev To Test`.
+Скрипт:
 
-Скрипт ожидает:
+1. проверяет ветку `dev` и чистое рабочее дерево;
+2. обновляет `dev`;
+3. выполняет backend и frontend build;
+4. отправляет `dev`;
+5. объединяет `dev -> test`;
+6. отправляет `test` и возвращается в `dev`.
 
-- текущую ветку `dev`
-- чистый working tree
-- доступный remote `origin`
+Push в `test` запускает `.github/workflows/deploy-test.yml`. Workflow собирает артефакты, копирует их на test VPS, перезапускает backend и Nginx, затем проверяет локальный/public health и главную страницу.
 
-Перед любым `push` он теперь обязательно делает локальную проверку сборки:
+Параметры сервера находятся только в GitHub Actions secrets:
 
-- `mvn -f app/pom.xml -DskipTests package`
-- `npm --prefix web run build`
+- `TEST_VPS_HOST`;
+- `TEST_VPS_USER`;
+- `TEST_VPS_PASSWORD`.
 
-После этого он сам делает `push origin dev`, переключается на `test`, подтягивает `origin/test`, делает merge `dev -> test`, пушит `test` и возвращается на `dev`.
+## Production
+
+Автоматического production workflow в репозитории пока нет. Не переносите test deploy на production вручную без backup БД, проверенного rollback и отдельного production checklist.
+
+## Документация
+
+- [Полный roadmap](docs/refactoring-roadmap.md)
+- [Baseline этапа 1](docs/refactoring-stage-1-baseline.md)
+- [Отчёт этапа 2](docs/refactoring-stage-2-tests.md)
+- [Отчёт этапа 3](docs/refactoring-stage-3-frontend.md)
+
+Документация внутри репозитория является актуальной. Локальные каталоги вне репозитория не считаются source of truth.

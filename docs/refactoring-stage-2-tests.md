@@ -4,49 +4,54 @@
 
 ## Цель этапа
 
-Добавить первую тестовую сетку для критичных частей проекта, чтобы дальнейший рефакторинг начинался не вслепую.
+Защитить критичные auth, access-control и бизнес-сценарии до дальнейшего рефакторинга.
 
-## Что покрыто
+## Backend
 
-### Backend `app`
+- `ApplicationSmokeTest`: Spring context стартует, `/api/health` возвращает `UP`.
+- `AuthServiceTest`: login, password reset, одноразовый reset token, `tokenVersion`.
+- `RefreshTokenServiceTest`: issue, rotation, logout/revoke, устаревшая версия сессии.
+- `ApiAccessRuleServiceTest`: `SUPER_ADMIN`, `REFEREE`, `TEAM_REP`, `GUEST`, HTTP methods и URL patterns.
+- `SeasonApplicationServiceTest`: утверждение заявки и синхронизация дозаявки.
+- `TeamRepTransferServiceTest`: подтверждение трансфера и перенос игрока.
+- `SeasonStandingsServiceTest`: очки и позиции по подтверждённому протоколу.
+- Сохранены ранее добавленные `JwtServiceTest` и `AuthRateLimitFilterTest`.
 
-- `JwtServiceTest`
-  - генерация и парсинг пользовательского JWT;
-  - guest token с ролью `GUEST`;
-  - отказ запуска сервиса с коротким `JWT_SECRET`.
+Для smoke-теста добавлен профиль `application-test.yml` с изолированной H2 в PostgreSQL compatibility mode. Production datasource и Flyway этим профилем не затрагиваются.
 
-- `AuthRateLimitFilterTest`
-  - лимит `/api/auth/login`: первые 10 запросов проходят, следующий получает `429`;
-  - нерелевантные POST endpoint'ы не ограничиваются auth rate limiter'ом.
+## Frontend
 
-### Mailer
+- 55 Vitest unit/route-тестов.
+- Playwright smoke:
+  - главная страница;
+  - login через реальную форму;
+  - `/admin` для `SUPER_ADMIN`;
+  - `/team-rep-dashboard` для `TEAM_REP`.
 
-- `TemplateRendererTest`
-  - подстановка переменных из payload и event metadata;
-  - ошибка при незаполненных макросах.
+E2E запускает реальный Vite/Vue frontend, а backend API перехватывается на уровне браузера. Это делает smoke воспроизводимым без локальной PostgreSQL.
+
+## Mailer
+
+- 2 теста `TemplateRendererTest`.
+- Чистая Maven package-сборка.
 
 ## Команды проверки
 
 ```bash
-mvn -f app/pom.xml test
-mvn -f mailer/pom.xml test
+mvn -f app/pom.xml clean test
+mvn -f mailer/pom.xml clean test package
+npm --prefix web test
 npm --prefix web run build
+npm --prefix web run test:e2e
 ```
 
-## Результат проверки
+## Результат
 
-- Backend `app`: 5 тестов, 0 failures, 0 errors.
+- Backend: 18 тестов, 0 failures, 0 errors.
+- Frontend: 55 unit/route + 4 e2e, все проходят.
 - Mailer: 2 теста, 0 failures, 0 errors.
-- Frontend production build проходит успешно.
+- Backend, frontend и mailer собираются успешно.
 
-## Что осталось на следующие шаги
+## Статус
 
-- Добавить backend smoke-тест старта приложения и `/api/health`.
-- Покрыть login, refresh, logout, reset password и `tokenVersion`.
-- Добавить Spring MVC/security тесты для ролей и `ApiAccessRuleFilter`.
-- Добавить тесты бизнес-логики заявок, трансферов, таблицы и протоколов матчей.
-- Добавить frontend тестовый раннер или e2e smoke для ключевых пользовательских путей.
-
-## Статус исходного этапа
-
-Этап выполнен частично и не закрыт. Текущие 5 backend-тестов, 2 mailer-теста и frontend unit/route-контур полезны, но не заменяют перечисленные smoke, auth-flow, access-control, бизнес- и e2e-сценарии.
+Этап завершён. Все пять пунктов исходного чек-листа подтверждены автоматическими проверками.

@@ -23,34 +23,34 @@
 
 CI `deploy-test.yml` использует Java 21 и Node 20. Backend и mailer в текущем GitHub checkout также настроены на Java 21.
 
-## Выполненные проверки
+## Финальные проверки
 
 ```bash
-mvn -f app/pom.xml -DskipTests package
-mvn -f mailer/pom.xml -DskipTests package
-npm --prefix web ci
+mvn -f app/pom.xml clean test
+mvn -f mailer/pom.xml clean test package
+npm --prefix web test
 npm --prefix web run build
+npm --prefix web run test:e2e
 ```
 
 Результат:
 
-- backend `app` собирается успешно;
-- mailer собирается успешно;
-- frontend собирается успешно;
-- тестовых source-файлов пока не найдено, поэтому Maven сообщает `No sources to compile` для testCompile.
+- backend `app` собирается и проходит 18 тестов;
+- mailer собирается и проходит 2 теста;
+- frontend проходит 55 unit/route-тестов, production build и 4 e2e smoke.
 
 ## Изменения этапа
 
 - В `web/package.json` добавлено `"type": "module"`, чтобы Vite работал в ESM-режиме и не показывал предупреждение про deprecated CJS Node API.
+- Корневой README больше не зависит от внешней локальной документации и описывает source of truth, окружение, запуск, проверки и test deploy.
+- Локальный режим mailer по умолчанию изменён на безопасный `MAILER_TRANSPORT_TYPE=log`.
 - Добавлен этот baseline-документ для фиксации выполненных проверок и дальнейшей поэтапной работы.
 
 ## Риски для следующих этапов
 
-- В проекте не найдено тестов для backend, mailer и frontend. Это главный риск перед рефакторингом бизнес-логики.
 - Крупные frontend-компоненты требуют декомпозиции: `Admin.vue`, `Tours.vue`, `Match.vue`, `TeamRepDashboard.vue`.
-- API debug logging в `web/src/main.js` сейчас включен глобально через monkey-patch `window.fetch`; перед production-полировкой его нужно спрятать за env-флаг.
-- Нужно решить, какая локальная папка будет основной рабочей копией: старая грязная копия или новый чистый checkout.
+- Production workflow, backup и rollback пока не реализованы; это задачи этапа 6.
 
 ## Статус исходного этапа
 
-Этап выполнен частично. Чистый checkout, ветки, Java 21 и сборка проверены. Пункт о самодостаточном README не завершён: текущие README ссылаются на внешний локальный каталог `/Users/korytov/projects/football-stat-readme` и не описывают полный запуск/deploy внутри репозитория.
+Этап завершён. Чистый checkout, ветки, Java 21, сборки всех модулей и самодостаточная документация проверены.

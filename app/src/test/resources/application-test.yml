@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: "jdbc:h2:mem:football_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=MINUTE;INIT=CREATE SCHEMA IF NOT EXISTS work\\;CREATE SCHEMA IF NOT EXISTS mailer"
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        default_schema: work
+  task:
+    scheduling:
+      enabled: false
+
+JWT_SECRET: 0123456789abcdef0123456789abcdef
+JWT_EXPIRES_MINUTES: 30
+JWT_REFRESH_EXPIRES_DAYS: 30
+AUTH_REFRESH_COOKIE_SECURE: false
+MAILER_TRIGGER_ENABLED: false
+APP_SUPER_ADMIN_EMAIL: ""
