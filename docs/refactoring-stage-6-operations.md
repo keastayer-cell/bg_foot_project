@@ -36,3 +36,12 @@
 ## Остаточный риск
 
 `npm audit --omit=dev` не находит production-уязвимостей. Полный audit сообщает advisory в dev toolchain Vite 5/ESLint 9; автоматическое исправление требует breaking upgrade Vite 8/ESLint 10. Этот major-upgrade не смешивался с эксплуатационным этапом и должен выполняться отдельно с полной frontend-регрессией.
+
+## Унификация секретов
+
+- Local backend/mailer используют один корневой `.env`.
+- Серверы используют `/etc/bg-foot/<env>/common.env`, `app.env`, `mailer.env`.
+- Backend, mailer и backup читают один `common.env`, без копирования DB password.
+- Добавлены instance-based systemd units для `test`/`prod`.
+- GitHub Environment хранит только SSH key/fingerprint; DB/JWT/SMTP остаются на сервере.
+- CI запрещает tracked runtime env/private keys и проверяет secret contract.

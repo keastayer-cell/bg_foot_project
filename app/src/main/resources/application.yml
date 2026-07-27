@@ -3,7 +3,7 @@ spring:
     name: football-stats-app
 
   config:
-    import: optional:file:.env[.properties]
+    import: optional:file:${BG_FOOT_ENV_FILE:.env}[.properties]
 
   profiles:
     active: ${APP_PROFILE:local}

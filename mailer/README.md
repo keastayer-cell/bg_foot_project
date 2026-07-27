@@ -57,7 +57,7 @@ SPRING_PROFILES_ACTIVE=prod java -jar target/football-stats-mailer-0.0.1-SNAPSHO
 - `Restart Mailer (8090)`
 - `Rebuild + Restart Mailer (8090)`
 
-Перед запуском заполните `.env` в папке `mailer` по примеру `.env.example`.
+Для локального запуска заполните единый `.env` в корне репозитория по примеру `../.env.example`. На сервере mailer получает общие DB-параметры из `/etc/bg-foot/<env>/common.env`, а SMTP-настройки из `/etc/bg-foot/<env>/mailer.env`.
 
 ## Проверка
 

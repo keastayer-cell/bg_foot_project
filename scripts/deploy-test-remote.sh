@@ -4,14 +4,17 @@ set -euo pipefail
 
 RELEASE_DIR="${1:-}"
 RELEASE_ID="${RELEASE_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
+DEPLOY_ENV="${DEPLOY_ENV:-test}"
 APP_JAR_PATH="${APP_JAR_PATH:-/opt/football-stats-app/app.jar}"
 MAILER_JAR_PATH="${MAILER_JAR_PATH:-/opt/football-stats-mailer/mailer.jar}"
 WEB_ROOT="${WEB_ROOT:-/var/www/football-stats-web}"
-APP_ENV_FILE="${APP_ENV_FILE:-/opt/football-stats-app/.env}"
+ENV_ROOT="${ENV_ROOT:-/etc/bg-foot}"
+ENV_DIR="$ENV_ROOT/$DEPLOY_ENV"
+COMMON_ENV_FILE="$ENV_DIR/common.env"
 RELEASES_ROOT="${RELEASES_ROOT:-/opt/bg-foot-releases}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/bg-foot}"
-APP_SERVICE="${APP_SERVICE:-football-stats-app}"
-MAILER_SERVICE="${MAILER_SERVICE:-football-stats-mailer}"
+APP_SERVICE="${APP_SERVICE:-football-stats-app@$DEPLOY_ENV}"
+MAILER_SERVICE="${MAILER_SERVICE:-football-stats-mailer@$DEPLOY_ENV}"
 LOCAL_BASE_URL="${LOCAL_BASE_URL:-http://127.0.0.1}"
 LOCAL_MAILER_URL="${LOCAL_MAILER_URL:-http://127.0.0.1:8090}"
 
@@ -24,15 +27,15 @@ if [[ -z "$RELEASE_DIR" || ! -d "$RELEASE_DIR" ]]; then
   exit 2
 fi
 
-for artifact in app.jar mailer.jar web-dist.tgz smoke-check.sh db-backup.sh; do
+for artifact in app.jar mailer.jar web-dist.tgz smoke-check.sh db-backup.sh validate-server-environment.sh; do
   if [[ ! -f "$RELEASE_DIR/$artifact" ]]; then
     echo "Missing release artifact: $artifact" >&2
     exit 1
   fi
 done
 for policy in \
-  ops/systemd/football-stats-app.service.d/logging.conf \
-  ops/systemd/football-stats-mailer.service.d/logging.conf \
+  ops/systemd/football-stats-app@.service \
+  ops/systemd/football-stats-mailer@.service \
   ops/journald/60-bg-foot.conf \
   ops/logrotate/bg-foot-nginx; do
   if [[ ! -f "$RELEASE_DIR/$policy" ]]; then
@@ -40,10 +43,11 @@ for policy in \
     exit 1
   fi
 done
-if [[ ! -f "$APP_ENV_FILE" ]]; then
-  echo "Application environment file is required for backup: $APP_ENV_FILE" >&2
-  exit 1
-fi
+for env_file in common.env app.env mailer.env; do
+  [[ -f "$ENV_DIR/$env_file" ]] || { echo "Missing server environment file: $ENV_DIR/$env_file" >&2; exit 1; }
+done
+
+ENV_ROOT="$ENV_ROOT" bash "$RELEASE_DIR/validate-server-environment.sh" --env "$DEPLOY_ENV"
 
 exec 9>/var/lock/bg-foot-deploy.lock
 if ! flock -n 9; then
@@ -53,7 +57,7 @@ fi
 
 set -a
 # shellcheck disable=SC1090
-source "$APP_ENV_FILE"
+source "$COMMON_ENV_FILE"
 set +a
 
 release_state="$RELEASES_ROOT/$RELEASE_ID"
@@ -71,10 +75,10 @@ rollback_runtime() {
 
   echo "Deployment failed. Restoring previous application artifacts." >&2
   if [[ -f "$previous_state/app.jar" ]]; then
-    install -m 0644 "$previous_state/app.jar" "$APP_JAR_PATH"
+    cp -p "$previous_state/app.jar" "$APP_JAR_PATH"
   fi
   if [[ -f "$previous_state/mailer.jar" ]]; then
-    install -m 0644 "$previous_state/mailer.jar" "$MAILER_JAR_PATH"
+    cp -p "$previous_state/mailer.jar" "$MAILER_JAR_PATH"
   fi
   if [[ -f "$previous_state/web-dist.tgz" ]]; then
     rm -rf "${WEB_ROOT:?}/"*
@@ -92,7 +96,7 @@ trap rollback_runtime ERR
 echo "== database backup =="
 database_backup_path="$(
   BACKUP_DIR="$BACKUP_DIR" \
-  bash "$RELEASE_DIR/db-backup.sh" --env test
+  bash "$RELEASE_DIR/db-backup.sh" --env "$DEPLOY_ENV"
 )"
 echo "Database backup created: $database_backup_path"
 
@@ -111,11 +115,11 @@ printf '%s\n' \
   >"$release_state/manifest"
 
 install -D -m 0644 \
-  "$RELEASE_DIR/ops/systemd/football-stats-app.service.d/logging.conf" \
-  "/etc/systemd/system/$APP_SERVICE.service.d/logging.conf"
+  "$RELEASE_DIR/ops/systemd/football-stats-app@.service" \
+  /etc/systemd/system/football-stats-app@.service
 install -D -m 0644 \
-  "$RELEASE_DIR/ops/systemd/football-stats-mailer.service.d/logging.conf" \
-  "/etc/systemd/system/$MAILER_SERVICE.service.d/logging.conf"
+  "$RELEASE_DIR/ops/systemd/football-stats-mailer@.service" \
+  /etc/systemd/system/football-stats-mailer@.service
 install -D -m 0644 \
   "$RELEASE_DIR/ops/journald/60-bg-foot.conf" \
   /etc/systemd/journald.conf.d/60-bg-foot.conf
@@ -142,8 +146,11 @@ systemctl try-reload-or-restart systemd-journald.service
 logrotate --debug "$nginx_logrotate_policy" >/dev/null
 
 deployment_started=true
-install -D -m 0644 "$RELEASE_DIR/app.jar" "$APP_JAR_PATH"
-install -D -m 0644 "$RELEASE_DIR/mailer.jar" "$MAILER_JAR_PATH"
+getent group bg-foot >/dev/null || groupadd --system bg-foot
+id bg-foot >/dev/null 2>&1 || useradd --system --gid bg-foot --home-dir /nonexistent --shell /usr/sbin/nologin bg-foot
+install -d -m 0750 -o root -g bg-foot "$(dirname "$APP_JAR_PATH")" "$(dirname "$MAILER_JAR_PATH")"
+install -D -m 0640 -o root -g bg-foot "$RELEASE_DIR/app.jar" "$APP_JAR_PATH"
+install -D -m 0640 -o root -g bg-foot "$RELEASE_DIR/mailer.jar" "$MAILER_JAR_PATH"
 
 web_staging="${WEB_ROOT}.next-${RELEASE_ID}"
 rm -rf "$web_staging"
@@ -156,6 +163,7 @@ rm -rf "$web_staging"
 nginx -t
 systemctl restart "$APP_SERVICE"
 systemctl restart "$MAILER_SERVICE"
+systemctl enable "$APP_SERVICE" "$MAILER_SERVICE"
 systemctl reload nginx
 
 bash "$RELEASE_DIR/smoke-check.sh" \

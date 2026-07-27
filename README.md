@@ -40,15 +40,14 @@ Flyway создаёт и обновляет структуру при запус
 
 ## Настройка
 
-Создайте локальные env-файлы, которые исключены из Git:
+Создайте единый локальный env-файл в корне репозитория и отдельный публичный Vite-файл:
 
 ```bash
-cp app/.env.example app/.env
-cp web/.env.example web/.env
-cp mailer/.env.example mailer/.env
+cp .env.example .env
+cp web/.env.example web/.env.local
 ```
 
-Обязательно замените `DB_PASSWORD`, `MAILER_DB_PASSWORD` и `JWT_SECRET`. Секрет JWT должен содержать не менее 32 байт. Для безопасного локального запуска mailer используйте:
+Корневой `.env` читают backend и mailer при запуске из корня проекта. Обязательно замените `DB_PASSWORD` и `JWT_SECRET`. Секрет JWT должен содержать не менее 32 байт. Для безопасного локального запуска mailer используйте:
 
 ```dotenv
 MAILER_TRANSPORT_TYPE=log
@@ -134,11 +133,12 @@ bash ./scripts/promote-dev-to-test.sh
 
 Push в `test` запускает `.github/workflows/deploy-test.yml`. Workflow проверяет все модули, создаёт backup БД, доставляет backend, mailer и frontend, применяет Flyway migrations при старте backend и запускает отдельный локальный/public smoke-check. При провале health предыдущие jars и frontend возвращаются автоматически; миграции БД автоматически не откатываются.
 
-Параметры сервера находятся только в GitHub Actions secrets:
+Deploy использует GitHub Environment `test`. В нём настраиваются:
 
-- `TEST_VPS_HOST`;
-- `TEST_VPS_USER`;
-- `TEST_VPS_PASSWORD`.
+- secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_HOST_FINGERPRINT`;
+- variable: `PUBLIC_BASE_URL`.
+
+DB/JWT/SMTP credentials в GitHub не передаются. Они находятся только в `/etc/bg-foot/test` на сервере. Полная модель описана в [управлении секретами](docs/secrets-management.md).
 
 ## Production
 
@@ -154,5 +154,6 @@ Push в `test` запускает `.github/workflows/deploy-test.yml`. Workflow 
 - [Отчёт этапа 5](docs/refactoring-stage-5-mailer.md)
 - [Отчёт этапа 6](docs/refactoring-stage-6-operations.md)
 - [Эксплуатация](docs/operations.md)
+- [Управление секретами](docs/secrets-management.md)
 
 Документация внутри репозитория является актуальной. Локальные каталоги вне репозитория не считаются source of truth.

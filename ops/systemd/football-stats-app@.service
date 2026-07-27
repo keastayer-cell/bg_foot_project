@@ -1,0 +1,24 @@
+[Unit]
+Description=BG Foot backend (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bg-foot
+Group=bg-foot
+WorkingDirectory=/opt/football-stats-app
+EnvironmentFile=/etc/bg-foot/%i/common.env
+EnvironmentFile=/etc/bg-foot/%i/app.env
+ExecStart=/usr/bin/java -jar /opt/football-stats-app/app.jar
+Restart=on-failure
+RestartSec=5s
+SuccessExitStatus=143
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=football-stats-app-%i
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=1000
+
+[Install]
+WantedBy=multi-user.target

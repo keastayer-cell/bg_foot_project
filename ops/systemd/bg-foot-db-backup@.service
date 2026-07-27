@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-EnvironmentFile=/etc/bg-foot/%i.env
+EnvironmentFile=/etc/bg-foot/%i/common.env
 ExecStart=/usr/local/sbin/bg-foot-db-backup --env %i
 UMask=0077
 Nice=10

@@ -2,9 +2,9 @@
 .vscode/
 
 # local env
-.env
-mailer/.env
+/.env
 *.local
+ops/env/*.env
 
 # backend
 app/target/

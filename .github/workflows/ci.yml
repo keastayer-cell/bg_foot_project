@@ -118,5 +118,7 @@ jobs:
       - uses: actions/checkout@v5
       - name: Validate shell syntax
         run: bash -n scripts/*.sh
+      - name: Validate secret layout
+        run: bash scripts/validate-secret-layout.sh
       - name: Validate operational scripts
         run: bash scripts/test-ops-scripts.sh

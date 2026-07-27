@@ -1,0 +1,24 @@
+[Unit]
+Description=BG Foot mailer (%i)
+After=network-online.target football-stats-app@%i.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bg-foot
+Group=bg-foot
+WorkingDirectory=/opt/football-stats-mailer
+EnvironmentFile=/etc/bg-foot/%i/common.env
+EnvironmentFile=/etc/bg-foot/%i/mailer.env
+ExecStart=/usr/bin/java -jar /opt/football-stats-mailer/mailer.jar
+Restart=on-failure
+RestartSec=5s
+SuccessExitStatus=143
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=football-stats-mailer-%i
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=500
+
+[Install]
+WantedBy=multi-user.target

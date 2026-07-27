@@ -10,12 +10,6 @@ if (( EUID != 0 )); then
 fi
 
 install -D -m 0644 \
-  "$REPO_ROOT/ops/systemd/football-stats-app.service.d/logging.conf" \
-  /etc/systemd/system/football-stats-app.service.d/logging.conf
-install -D -m 0644 \
-  "$REPO_ROOT/ops/systemd/football-stats-mailer.service.d/logging.conf" \
-  /etc/systemd/system/football-stats-mailer.service.d/logging.conf
-install -D -m 0644 \
   "$REPO_ROOT/ops/journald/60-bg-foot.conf" \
   /etc/systemd/journald.conf.d/60-bg-foot.conf
 

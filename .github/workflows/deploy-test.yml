@@ -13,15 +13,27 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: test
     permissions:
       contents: read
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      VITE_API_BASE_URL: http://${{ secrets.TEST_VPS_HOST }}
+      VITE_API_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Validate deployment configuration
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST_FINGERPRINT: ${{ secrets.VPS_HOST_FINGERPRINT }}
+        run: |
+          for name in VPS_HOST VPS_USER VPS_SSH_KEY VPS_HOST_FINGERPRINT VITE_API_BASE_URL; do
+            [[ -n "${!name:-}" ]] || { echo "Missing GitHub Environment value: $name" >&2; exit 1; }
+          done
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -62,24 +74,27 @@ jobs:
           cp scripts/deploy-test-remote.sh release/
           cp scripts/smoke-check.sh release/
           cp scripts/db-backup.sh release/
+          cp scripts/validate-server-environment.sh release/
           cp -R ops release/
           printf '%s\n' '${{ github.sha }}' > release/git-sha
 
       - name: Upload release
         uses: appleboy/scp-action@v1
         with:
-          host: ${{ secrets.TEST_VPS_HOST }}
-          username: ${{ secrets.TEST_VPS_USER }}
-          password: ${{ secrets.TEST_VPS_PASSWORD }}
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
           source: release
           target: /tmp/bg-foot-${{ github.sha }}
 
       - name: Deploy on test VPS
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.TEST_VPS_HOST }}
-          username: ${{ secrets.TEST_VPS_USER }}
-          password: ${{ secrets.TEST_VPS_PASSWORD }}
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
           script: |
             set -euo pipefail
             release_root=/tmp/bg-foot-${{ github.sha }}/release
@@ -88,7 +103,7 @@ jobs:
             rm -rf /tmp/bg-foot-${{ github.sha }}
 
       - name: Public post-deploy smoke
-        run: bash scripts/smoke-check.sh --base-url "http://${{ secrets.TEST_VPS_HOST }}" --retries 15
+        run: bash scripts/smoke-check.sh --base-url "${{ vars.PUBLIC_BASE_URL }}" --retries 15
 
       - name: Rollback guidance
         if: failure()

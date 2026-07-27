@@ -32,8 +32,8 @@ Push в `test` запускает `.github/workflows/deploy-test.yml`.
 
 Test-сервер должен содержать:
 
-- `/opt/football-stats-app/.env` с DB-параметрами и `APP_PROFILE=test`;
-- systemd units `football-stats-app` и `football-stats-mailer`;
+- `/etc/bg-foot/test/common.env`, `app.env`, `mailer.env`;
+- systemd units `football-stats-app@test` и `football-stats-mailer@test`;
 - Nginx, обслуживающий `/var/www/football-stats-web`;
 - PostgreSQL client tools (`pg_dump`, `pg_restore`);
 - каталоги `/opt/football-stats-app`, `/opt/football-stats-mailer`, `/var/backups/bg-foot`.
@@ -84,19 +84,20 @@ bash scripts/db-backup.sh --env test
 
 Backup создаётся в custom format, получает SHA-256 checksum и права согласно `umask 077`. По умолчанию файлы хранятся 14 дней в `/var/backups/bg-foot/<env>`.
 
-Для ежедневного запуска создайте `/etc/bg-foot/test.env` и/или `/etc/bg-foot/prod.env`:
+Для ежедневного запуска подготовьте `/etc/bg-foot/test/common.env` и/или `/etc/bg-foot/prod/common.env`:
 
 ```dotenv
 DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_NAME=football_db
+DB_SCHEMA=work
 DB_USER=football_app
 DB_PASSWORD=replace-with-secret
 BACKUP_DIR=/var/backups/bg-foot
 BACKUP_RETENTION_DAYS=14
 ```
 
-Файл должен принадлежать root и иметь mode `0600`. Затем из checkout:
+Файл должен принадлежать root и иметь mode `0600`. Он является тем же `common.env`, который читают backend и mailer. Затем из checkout:
 
 ```bash
 sudo bash scripts/install-backup-policy.sh
@@ -110,7 +111,7 @@ systemctl list-timers 'bg-foot-db-backup@*'
 Restore заменяет существующие объекты и требует downtime. Сначала остановите backend и mailer, затем укажите среду дважды:
 
 ```bash
-sudo systemctl stop football-stats-app football-stats-mailer
+sudo systemctl stop football-stats-app@test football-stats-mailer@test
 
 DB_HOST=127.0.0.1 \
 DB_PORT=5432 \
@@ -148,7 +149,7 @@ sudo bash scripts/install-logging-policy.sh
 Диагностика с ограниченным объёмом:
 
 ```bash
-journalctl -u football-stats-app --since '-30 min' -n 300 --no-pager
-journalctl -u football-stats-mailer --since '-30 min' -n 300 --no-pager
+journalctl -u football-stats-app@test --since '-30 min' -n 300 --no-pager
+journalctl -u football-stats-mailer@test --since '-30 min' -n 300 --no-pager
 journalctl --disk-usage
 ```

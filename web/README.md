@@ -13,24 +13,16 @@ Frontend модуля Football Stats внутри monorepo.
 ## Локальный запуск
 
 ```bash
-cd /Users/korytov/projects/bg_foot_project/web
-npm install
-npm run dev
+npm --prefix web install
+npm --prefix web run dev
 ```
 
 ## Где читать актуальную документацию
 
-Единый комплект документов вынесен в:
-
-- `/Users/korytov/projects/football-stat-readme`
-
-Ключевые файлы:
-
-- `FOOTBALL_STATS_WORKFLOW_RU.md`
-- `FOOTBALL_STATS_SESSION_CONTEXT.md`
+Актуальная документация хранится в корневом `README.md` и каталоге `docs/` этого репозитория.
 
 ## Что важно помнить
 
-- основной рабочий репозиторий: `/Users/korytov/projects/bg_foot_project`
-- frontend-specific session docs больше не поддерживаются отдельными markdown-файлами внутри `web`
+- `web/.env.local` содержит только публичные `VITE_*` параметры
+- DB/JWT/SMTP/SSH secrets во frontend env запрещены
 - при изменении backend API нужно синхронизировать API Explorer

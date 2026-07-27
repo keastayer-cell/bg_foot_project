@@ -25,12 +25,12 @@ systemctl daemon-reload
 
 enabled_count=0
 for deploy_env in test prod; do
-  if [[ -f "/etc/bg-foot/$deploy_env.env" ]]; then
-    chmod 0600 "/etc/bg-foot/$deploy_env.env"
+  if [[ -f "/etc/bg-foot/$deploy_env/common.env" ]]; then
+    bash "$REPO_ROOT/scripts/validate-server-environment.sh" --env "$deploy_env"
     systemctl enable --now "bg-foot-db-backup@$deploy_env.timer"
     enabled_count=$((enabled_count + 1))
   else
-    echo "Skipping $deploy_env timer: /etc/bg-foot/$deploy_env.env does not exist."
+    echo "Skipping $deploy_env timer: /etc/bg-foot/$deploy_env/common.env does not exist."
   fi
 done
 
