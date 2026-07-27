@@ -57,8 +57,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuth } from '../store/auth'
+import { createCatalogApi } from '../api/catalog'
 
 const { optionalAuthApiRequest } = useAuth()
+const catalogApi = createCatalogApi(optionalAuthApiRequest)
 
 const teams = ref([])
 const search = ref('')
@@ -76,7 +78,7 @@ async function loadTeams() {
   errorText.value = ''
 
   try {
-    const payload = await optionalAuthApiRequest('/api/teams?active_flag=1')
+    const payload = await catalogApi.getActiveTeams()
     const content = Array.isArray(payload) ? payload : []
     teams.value = content
       .map((item) => ({

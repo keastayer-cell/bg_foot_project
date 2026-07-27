@@ -1,0 +1,311 @@
+.team-rep-page {
+  display: grid;
+  gap: 16px;
+}
+
+.team-rep-card-head {
+  align-items: start;
+}
+
+.team-rep-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.team-rep-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.team-rep-value {
+  font-weight: 600;
+}
+
+.team-rep-form {
+  display: grid;
+  gap: 12px;
+}
+
+.team-rep-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.team-rep-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goalkeeper-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  font-size: 0.9em;
+  line-height: 1;
+}
+
+.team-rep-season-actions {
+  align-items: center;
+}
+
+.team-rep-season-actions-row {
+  align-items: center;
+}
+
+.team-rep-badge-row,
+.team-rep-season-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.team-rep-season-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(97, 232, 162, 0.08);
+  border: 1px solid rgba(97, 232, 162, 0.18);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.team-rep-season-chip-open {
+  background: rgba(97, 232, 162, 0.1);
+  border-color: rgba(97, 232, 162, 0.28);
+}
+
+.team-rep-season-chip-closed {
+  background: rgba(255, 184, 107, 0.1);
+  border-color: rgba(255, 184, 107, 0.28);
+}
+
+.team-rep-season-chip-review {
+  background: rgba(123, 180, 255, 0.12);
+  border-color: rgba(123, 180, 255, 0.32);
+}
+
+.team-rep-review-note {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 184, 107, 0.25);
+  background: rgba(255, 184, 107, 0.08);
+}
+
+.team-rep-review-note p {
+  margin: 0;
+}
+
+.team-rep-review-note-approved {
+  border-color: rgba(97, 232, 162, 0.28);
+  background: rgba(97, 232, 162, 0.08);
+}
+
+.team-rep-review-note-returned,
+.team-rep-review-note-rejected {
+  border-color: rgba(255, 154, 139, 0.28);
+  background: rgba(255, 154, 139, 0.08);
+}
+
+.team-rep-filter-hint {
+  margin-top: 6px;
+}
+
+.team-rep-transfer-alert {
+  margin-top: 14px;
+}
+
+.team-rep-transfer-alert-btn {
+  width: 100%;
+}
+
+.team-rep-player-list {
+  display: grid;
+  gap: 10px;
+}
+
+.team-rep-player-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.team-rep-player-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.team-rep-player-row-actions {
+  justify-content: flex-start;
+  margin-top: 0;
+}
+
+.team-rep-player-photo,
+.team-rep-player-photo-preview {
+  width: 84px;
+  height: 84px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+}
+
+.team-rep-modal {
+  width: min(720px, calc(100vw - 24px));
+}
+
+.incoming-transfer-modal {
+  width: min(760px, calc(100vw - 24px));
+}
+
+.team-rep-season-modal {
+  width: min(560px, calc(100vw - 24px));
+}
+
+.incoming-transfer-list {
+  display: grid;
+  gap: 12px;
+}
+
+.incoming-transfer-item {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.team-rep-inline-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.team-rep-inline-picker.compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.team-rep-season-picker-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.team-rep-selected-count {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.team-rep-season-modal-head-actions {
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.btn-compact {
+  min-width: 0;
+  padding-inline: 12px;
+}
+
+@media (max-width: 860px) {
+  .team-rep-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .team-rep-season-actions,
+  .team-rep-season-actions-row,
+  .team-rep-card-head {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .team-rep-player-item {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .team-rep-modal,
+  .team-rep-season-modal {
+    width: calc(100vw - 20px);
+  }
+
+  .team-rep-player-photo,
+  .team-rep-player-photo-preview {
+    width: 72px;
+    height: 72px;
+  }
+
+  .team-rep-card-head > .btn-primary,
+  .team-rep-card-head > .btn-ghost,
+  .team-rep-season-actions-row > *,
+  .team-rep-player-row-actions > *,
+  .team-rep-season-modal-head-actions > * {
+    width: 100%;
+  }
+
+  .team-rep-season-picker-meta > * {
+    width: 100%;
+  }
+
+  .pagination-bar > * {
+    width: 100%;
+  }
+
+  .team-rep-player-row-actions,
+  .team-rep-season-modal-head-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .team-rep-inline-picker select,
+  .team-rep-form input,
+  .team-rep-form select {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .team-rep-page {
+    gap: 14px;
+  }
+
+  .team-rep-profile-card,
+  .team-rep-history-card,
+  .team-rep-players-card {
+    padding: 14px;
+  }
+
+  .team-rep-player-item {
+    padding: 12px;
+  }
+
+  .team-rep-player-photo,
+  .team-rep-player-photo-preview {
+    width: 64px;
+    height: 64px;
+  }
+}

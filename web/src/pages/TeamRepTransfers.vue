@@ -196,6 +196,7 @@ import { computed, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import SearchableSelect from '../components/SearchableSelect.vue'
 import { useAuth } from '../store/auth'
+import { createTeamRepTransfersApi } from '../api/teamRepTransfers'
 
 const props = defineProps({
   embedded: {
@@ -205,6 +206,7 @@ const props = defineProps({
 })
 
 const { isAuthenticated, hasRole, loadCurrentUser, authorizedApiRequest } = useAuth()
+const transfersApi = createTeamRepTransfersApi(authorizedApiRequest)
 const router = useRouter()
 const pageSize = 20
 
@@ -315,10 +317,7 @@ async function loadSeasons() {
   pageError.value = ''
 
   try {
-    const payload = await authorizedApiRequest(
-      isPrivilegedTransferManager.value ? '/api/seasons?active_flag=0' : '/api/team-rep/seasons',
-      { method: 'GET' }
-    )
+    const payload = await transfersApi.getSeasons(isPrivilegedTransferManager.value)
     teamSeasons.value = Array.isArray(payload) ? payload : []
     if (selectedSeasonId.value) {
       const stillExists = teamSeasons.value.some((season) => String(season.id) === String(selectedSeasonId.value))
@@ -338,9 +337,7 @@ async function loadOverview(seasonId, pageNum = 0) {
   pageError.value = ''
 
   try {
-    overview.value = await authorizedApiRequest(`/api/team-rep/seasons/${encodeURIComponent(seasonId)}/transfers?pagenum=${pageNum}&pagesize=${pageSize}`, {
-      method: 'GET',
-    })
+    overview.value = await transfersApi.getOverview(seasonId, pageNum, pageSize)
     if (overview.value?.privilegedAccess) {
       const exists = (overview.value.targetTeams || []).some((team) => String(team.id) === String(targetTeamId.value))
       if (!exists) {
@@ -392,10 +389,7 @@ async function loadCandidates(seasonId, teamId, currentTargetTeamId) {
   pageError.value = ''
 
   try {
-    const payload = await authorizedApiRequest(
-      `/api/team-rep/seasons/${encodeURIComponent(seasonId)}/transfer-candidates/${encodeURIComponent(teamId)}?toTeamId=${encodeURIComponent(currentTargetTeamId)}`,
-      { method: 'GET' }
-    )
+    const payload = await transfersApi.getCandidates(seasonId, teamId, currentTargetTeamId)
     candidates.value = Array.isArray(payload) ? payload : []
   } catch (error) {
     pageError.value = error.message || 'Не удалось загрузить список игроков для трансфера.'
@@ -415,14 +409,11 @@ async function submitTransferRequest() {
   pageSuccess.value = ''
 
   try {
-    await authorizedApiRequest(`/api/team-rep/seasons/${encodeURIComponent(selectedSeasonId.value)}/transfers`, {
-      method: 'POST',
-      body: JSON.stringify({
-        fromTeamId: Number(sourceTeamId.value),
-        toTeamId: Number(resolvedTargetTeamId.value),
-        playerId: Number(selectedPlayerId.value),
-        requestComment: requestComment.value || null,
-      }),
+    await transfersApi.create(selectedSeasonId.value, {
+      fromTeamId: Number(sourceTeamId.value),
+      toTeamId: Number(resolvedTargetTeamId.value),
+      playerId: Number(selectedPlayerId.value),
+      requestComment: requestComment.value || null,
     })
     pageSuccess.value = 'Трансферная заявка отправлена.'
     closeTransferRequestModal()
@@ -445,12 +436,7 @@ async function processTransferAction(requestId, action) {
   pageSuccess.value = ''
 
   try {
-    await authorizedApiRequest(`/api/team-rep/transfers/${encodeURIComponent(requestId)}/${encodeURIComponent(action)}`, {
-      method: 'POST',
-      body: JSON.stringify({
-        decisionComment: null,
-      }),
-    })
+    await transfersApi.process(requestId, action)
     if (action === 'approve') {
       pageSuccess.value = 'Трансфер подтвержден.'
     } else if (action === 'reject') {

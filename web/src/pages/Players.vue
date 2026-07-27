@@ -148,9 +148,11 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../store/auth'
+import { createCatalogApi } from '../api/catalog'
 import { useDebounce } from '../composables/useDebounce'
 
 const { optionalAuthApiRequest, isAuthenticated, loadCurrentUser } = useAuth()
+const catalogApi = createCatalogApi(optionalAuthApiRequest)
 
 const search = ref('')
 const debouncedSearch = useDebounce(search, 1000)
@@ -195,7 +197,7 @@ async function loadPlayers(nameQuery = '', requestedPage = 0) {
       params.set('name', query)
     }
 
-    const payload = await optionalAuthApiRequest(`/api/players?${params.toString()}`)
+    const payload = await catalogApi.getPlayers(params)
     const content = Array.isArray(payload?.content) ? payload.content : []
 
     players.value = content.map((item) => ({
@@ -244,8 +246,8 @@ async function fetchPlayerModalData(playerId) {
 
   try {
     const [detailsPayload, historyPayload] = await Promise.all([
-      optionalAuthApiRequest(`/api/players/${encodeURIComponent(playerId)}`),
-      optionalAuthApiRequest(`/api/players/${encodeURIComponent(playerId)}/history`),
+      catalogApi.getPlayer(playerId),
+      catalogApi.getPlayerHistory(playerId),
     ])
 
     playerDetails.value = detailsPayload || null

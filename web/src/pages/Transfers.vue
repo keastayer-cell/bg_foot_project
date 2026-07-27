@@ -57,8 +57,10 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../store/auth'
+import { createCatalogApi } from '../api/catalog'
 
 const { optionalAuthApiRequest } = useAuth()
+const catalogApi = createCatalogApi(optionalAuthApiRequest)
 const pageSize = 20
 
 const seasons = ref([])
@@ -89,7 +91,7 @@ async function loadSeasons() {
   pageError.value = ''
 
   try {
-    const payload = await optionalAuthApiRequest('/api/seasons?active_flag=1', { method: 'GET' })
+    const payload = await catalogApi.getSeasons(1)
     seasons.value = Array.isArray(payload)
       ? payload.filter((item) => String(item?.status || '') === 'ACTIVE')
       : []
@@ -113,10 +115,7 @@ async function loadSeasonDataPage(seasonId, pageNum) {
   pageError.value = ''
 
   try {
-    const payload = await optionalAuthApiRequest(
-      `/api/seasons/${encodeURIComponent(seasonId)}/transfers?pagenum=${pageNum}&pagesize=${pageSize}`,
-      { method: 'GET' }
-    )
+    const payload = await catalogApi.getSeasonTransfers(seasonId, pageNum, pageSize)
     transfers.value = Array.isArray(payload?.content) ? payload.content : []
     currentPage.value = Number(payload?.number || 0)
     totalPages.value = Number(payload?.totalPages || 0)

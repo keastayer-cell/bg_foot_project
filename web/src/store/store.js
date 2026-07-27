@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { requestJson } from '../api/http'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 
@@ -442,8 +443,7 @@ function saveMatchStats(payload) {
 
 async function loadSeasons() {
   try {
-    const response = await fetch(`${apiBaseUrl}/api/seasons`)
-    const payload = await response.json().catch(() => [])
+    const payload = await requestJson(apiBaseUrl, '/api/seasons')
     const seasonNames = Array.isArray(payload)
       ? payload
           .filter((item) => item && item.active && String(item.status || '') === 'ACTIVE')

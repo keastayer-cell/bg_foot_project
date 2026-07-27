@@ -122,6 +122,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
+import { createAdminSeasonsApi } from '../api/adminSeasons'
 import { useStore } from '../store/store'
 import { useAdminAccess } from '../composables/useAdminAccess'
 import { useAdminPlayers } from '../composables/useAdminPlayers'
@@ -149,6 +150,7 @@ const USERS_KEY = 'football_stats_admin_users_registry'
 const router = useRouter()
 
 const { authorizedApiRequest, authorizedApiRequestRaw, hasRole } = useAuth()
+const adminSeasonsApi = createAdminSeasonsApi(authorizedApiRequest, authorizedApiRequestRaw)
 const { loadSeasons } = useStore()
 const { activeTab, visibleTabGroups, selectAdminTab } = useAdminTabs({
   hasRole,
@@ -624,14 +626,7 @@ async function createSeason() {
   }
 
   try {
-    const createdSeason = await authorizedApiRequest('/api/seasons', {
-      method: 'POST',
-      body: JSON.stringify(buildSeasonPayload()),
-    })
-    await authorizedApiRequest(`/api/seasons/${createdSeason.id}/teams`, {
-      method: 'PUT',
-      body: JSON.stringify({ teamIds: seasonTeamIds.value }),
-    })
+    const createdSeason = await adminSeasonsApi.create(buildSeasonPayload(), seasonTeamIds.value)
     await loadSeasonRegistry()
     await loadSeasons()
     if (String(tourSeasonId.value || '') === String(createdSeason.id)) {
@@ -744,16 +739,10 @@ async function saveEditSeason() {
   }
 
   try {
-    await authorizedApiRequest(`/api/seasons/${editingSeasonId.value}`, {
-      method: 'PUT',
-      body: JSON.stringify(buildSeasonPayload()),
-    })
+    await adminSeasonsApi.update(editingSeasonId.value, buildSeasonPayload())
 
     if (seasonTeamsChanged()) {
-      await authorizedApiRequest(`/api/seasons/${editingSeasonId.value}/teams`, {
-        method: 'PUT',
-        body: JSON.stringify({ teamIds: seasonTeamIds.value }),
-      })
+      await adminSeasonsApi.setTeams(editingSeasonId.value, seasonTeamIds.value)
     }
 
     await loadSeasonRegistry()
@@ -777,9 +766,7 @@ async function completeRegularSeason() {
   completingRegularSeason.value = true
 
   try {
-    const updatedSeason = await authorizedApiRequest(`/api/seasons/${editingSeasonId.value}/complete-regular-season`, {
-      method: 'POST',
-    })
+    const updatedSeason = await adminSeasonsApi.completeRegularSeason(editingSeasonId.value)
     await loadSeasonRegistry()
     await loadSeasons()
     const actualSeason = seasonsList.value.find((item) => String(item.id) === String(updatedSeason?.id || editingSeasonId.value))
@@ -815,9 +802,7 @@ async function deactivateSeason(seasonId) {
   resetMessages()
 
   try {
-    await authorizedApiRequest(`/api/seasons/${seasonId}`, {
-      method: 'DELETE',
-    })
+    await adminSeasonsApi.deactivate(seasonId)
     if (String(editingSeasonId.value || '') === String(seasonId)) {
       cancelEditSeason()
       seasonEditSelectId.value = ''
@@ -832,9 +817,7 @@ async function deactivateSeason(seasonId) {
 
 async function loadSeasonRegistry() {
   try {
-    const payload = await authorizedApiRequest('/api/seasons?active_flag=1', {
-      method: 'GET',
-    })
+    const payload = await adminSeasonsApi.getActive()
     seasonsList.value = Array.isArray(payload) ? payload : []
   } catch (error) {
     seasonsList.value = []
@@ -861,9 +844,7 @@ async function downloadSeasonProtocolsArchive() {
   seasonProtocolProgressText.value = 'Подготовка архива на сервере...'
 
   try {
-    const response = await authorizedApiRequestRaw(`/api/seasons/${editingSeasonId.value}/protocols/export`, {
-      method: 'GET',
-    })
+    const response = await adminSeasonsApi.exportProtocols(editingSeasonId.value)
     const archiveBlob = await response.blob()
     const disposition = response.headers.get('content-disposition') || ''
     const fileNameMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i)
@@ -883,9 +864,7 @@ async function downloadSeasonProtocolsArchive() {
 
 async function loadSeasonTeams(seasonId) {
   try {
-    const payload = await authorizedApiRequest(`/api/seasons/${seasonId}/teams`, {
-      method: 'GET',
-    })
+    const payload = await adminSeasonsApi.getTeams(seasonId)
     return Array.isArray(payload) ? payload.map((team) => team.id) : []
   } catch (error) {
     messageError.value = error.message || 'Не удалось загрузить команды сезона.'

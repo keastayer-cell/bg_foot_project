@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { requestJson, requestRaw } from '../api/http'
 
 const PERSISTENT_SESSION_KEY = 'football_stats_persistent_session'
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
@@ -110,48 +111,18 @@ function maskSensitive(value) {
 }
 
 async function apiRequest(path, options = {}) {
-  const url = `${apiBaseUrl}${path}`
-  const requestOptions = {
-    ...options,
-    credentials: options.credentials || 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
-  }
-
-  let response
   try {
-    response = await fetch(url, requestOptions)
+    return await requestJson(apiBaseUrl, path, options)
   } catch (error) {
-    throw new Error('Сервер недоступен. Попробуйте позже.')
+    if (Number.isFinite(error?.status)) {
+      throw createHttpError(error.message, error.status, error.body)
+    }
+    throw error
   }
-
-  const body = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw createHttpError(body.error || 'Не удалось выполнить запрос.', response.status, body)
-  }
-
-  return body
 }
 
 async function apiRequestRaw(path, options = {}) {
-  const method = (options.method || 'GET').toUpperCase()
-  const url = `${apiBaseUrl}${path}`
-  const requestOptions = {
-    ...options,
-    credentials: options.credentials || 'include',
-    headers: {
-      ...(options.headers || {}),
-    },
-  }
-
-  try {
-    return await fetch(url, requestOptions)
-  } catch {
-    throw new Error('Сервер недоступен. Попробуйте позже.')
-  }
+  return requestRaw(apiBaseUrl, path, options)
 }
 
 function applyAuthResponse(payload) {

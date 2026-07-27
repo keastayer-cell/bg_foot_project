@@ -76,6 +76,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { findEndpointByKey } from '../data/apiExplorerCatalog'
 import { useAuth } from '../store/auth'
+import { requestRaw } from '../api/http'
 
 const route = useRoute()
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
@@ -219,7 +220,7 @@ async function runTest() {
 
     const startedAt = performance.now()
     isRunning.value = true
-    const response = await fetch(`${apiBaseUrl}${path}`, {
+    const response = await requestRaw(apiBaseUrl, path, {
       method: endpoint.value.method,
       headers,
       body,

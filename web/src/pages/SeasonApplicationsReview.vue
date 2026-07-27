@@ -152,9 +152,11 @@
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
+import { createSeasonApplicationsApi } from '../api/seasonApplications'
 
 const router = useRouter()
 const { authorizedApiRequest, hasRole } = useAuth()
+const seasonApplicationsApi = createSeasonApplicationsApi(authorizedApiRequest)
 
 const loading = ref(false)
 const actionLoadingKey = ref('')
@@ -186,7 +188,7 @@ watch(selectedSeasonId, async () => {
 
 async function loadSeasons() {
   try {
-    const payload = await authorizedApiRequest('/api/seasons?active_flag=0', { method: 'GET' })
+    const payload = await seasonApplicationsApi.getSeasons()
     seasons.value = Array.isArray(payload) ? payload : []
   } catch {
     seasons.value = []
@@ -198,8 +200,7 @@ async function loadQueue() {
   pageError.value = ''
 
   try {
-    const seasonQuery = selectedSeasonId.value ? `?seasonId=${encodeURIComponent(selectedSeasonId.value)}` : ''
-    const payload = await authorizedApiRequest(`/api/season-applications${seasonQuery}`, { method: 'GET' })
+    const payload = await seasonApplicationsApi.getQueue(selectedSeasonId.value)
     queueItems.value = Array.isArray(payload?.items) ? payload.items : []
   } catch (error) {
     pageError.value = error.message || 'Не удалось загрузить сезонные заявки.'
@@ -225,12 +226,7 @@ async function processDecision(applicationId, action) {
   pageSuccess.value = ''
 
   try {
-    await authorizedApiRequest(`/api/season-applications/${encodeURIComponent(applicationId)}/${action}`, {
-      method: 'POST',
-      body: JSON.stringify({
-        decisionComment: comment,
-      }),
-    })
+    await seasonApplicationsApi.process(applicationId, action, comment)
     pageSuccess.value = action === 'approve'
       ? 'Команда допущена к сезону.'
       : 'Заявка отклонена.'
@@ -282,9 +278,7 @@ async function openDetailsModal(item) {
   pageError.value = ''
 
   try {
-    modalDetails.value = await authorizedApiRequest(`/api/season-applications/${encodeURIComponent(item.applicationId)}`, {
-      method: 'GET',
-    })
+    modalDetails.value = await seasonApplicationsApi.getDetails(item.applicationId)
   } catch (error) {
     pageError.value = error.message || 'Не удалось загрузить состав заявки.'
     detailsModalOpen.value = false

@@ -221,6 +221,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useAuth } from '../store/auth'
+import { createAdminLeagueApi } from '../api/adminLeague'
 
 const props = defineProps({
   seasonsList: {
@@ -232,6 +233,7 @@ const props = defineProps({
 const emit = defineEmits(['refresh-seasons'])
 
 const { authorizedApiRequest } = useAuth()
+const leagueApi = createAdminLeagueApi(authorizedApiRequest)
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 
 const messageError = ref('')
@@ -312,22 +314,19 @@ function buildVenuePayload() {
 }
 
 async function loadOfficials() {
-  const payload = await authorizedApiRequest('/api/admin/league/officials?active_flag=1', { method: 'GET' })
+  const payload = await leagueApi.officials.list()
   officialsList.value = Array.isArray(payload) ? payload : []
 }
 
 async function loadVenues() {
-  const payload = await authorizedApiRequest('/api/admin/league/venues?active_flag=1', { method: 'GET' })
+  const payload = await leagueApi.venues.list()
   venuesList.value = Array.isArray(payload) ? payload : []
 }
 
 async function createOfficial() {
   resetMessages()
   try {
-    await authorizedApiRequest('/api/admin/league/officials', {
-      method: 'POST',
-      body: JSON.stringify(buildOfficialPayload()),
-    })
+    await leagueApi.officials.create(buildOfficialPayload())
     await loadOfficials()
     resetOfficialForm()
     messageOk.value = 'Карточка руководства создана.'
@@ -339,10 +338,7 @@ async function createOfficial() {
 async function saveOfficial() {
   resetMessages()
   try {
-    await authorizedApiRequest(`/api/admin/league/officials/${editingOfficialId.value}`, {
-      method: 'PUT',
-      body: JSON.stringify(buildOfficialPayload()),
-    })
+    await leagueApi.officials.update(editingOfficialId.value, buildOfficialPayload())
     await loadOfficials()
     switchOfficialMode('create')
     messageOk.value = 'Карточка руководства обновлена.'
@@ -354,7 +350,7 @@ async function saveOfficial() {
 async function deactivateOfficial(officialId) {
   resetMessages()
   try {
-    await authorizedApiRequest(`/api/admin/league/officials/${officialId}`, { method: 'DELETE' })
+    await leagueApi.officials.deactivate(officialId)
     await loadOfficials()
     switchOfficialMode('create')
     messageOk.value = 'Карточка руководства удалена.'
@@ -366,10 +362,7 @@ async function deactivateOfficial(officialId) {
 async function createVenue() {
   resetMessages()
   try {
-    await authorizedApiRequest('/api/admin/league/venues', {
-      method: 'POST',
-      body: JSON.stringify(buildVenuePayload()),
-    })
+    await leagueApi.venues.create(buildVenuePayload())
     await loadVenues()
     resetVenueForm()
     messageOk.value = 'Площадка создана.'
@@ -381,10 +374,7 @@ async function createVenue() {
 async function saveVenue() {
   resetMessages()
   try {
-    await authorizedApiRequest(`/api/admin/league/venues/${editingVenueId.value}`, {
-      method: 'PUT',
-      body: JSON.stringify(buildVenuePayload()),
-    })
+    await leagueApi.venues.update(editingVenueId.value, buildVenuePayload())
     await loadVenues()
     switchVenueMode('create')
     messageOk.value = 'Площадка обновлена.'
@@ -396,7 +386,7 @@ async function saveVenue() {
 async function deactivateVenue(venueId) {
   resetMessages()
   try {
-    await authorizedApiRequest(`/api/admin/league/venues/${venueId}`, { method: 'DELETE' })
+    await leagueApi.venues.deactivate(venueId)
     await loadVenues()
     switchVenueMode('create')
     messageOk.value = 'Площадка удалена.'
@@ -413,10 +403,7 @@ async function saveSeasonRegulation() {
   }
 
   try {
-    await authorizedApiRequest(`/api/admin/league/seasons/${regulationSeasonId.value}/regulation`, {
-      method: 'PUT',
-      body: JSON.stringify({ documentDataUrl: regulationDataUrl.value }),
-    })
+    await leagueApi.saveRegulation(regulationSeasonId.value, regulationDataUrl.value)
     regulationDataUrl.value = ''
     regulationFileName.value = ''
     await emit('refresh-seasons')
@@ -434,9 +421,7 @@ async function removeSeasonRegulation() {
   }
 
   try {
-    await authorizedApiRequest(`/api/admin/league/seasons/${regulationSeasonId.value}/regulation`, {
-      method: 'DELETE',
-    })
+    await leagueApi.removeRegulation(regulationSeasonId.value)
     await emit('refresh-seasons')
     messageOk.value = 'PDF положения сезона удален.'
   } catch (error) {

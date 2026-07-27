@@ -58,6 +58,23 @@ async function mockBackend(page, role = 'USER') {
       })
       return
     }
+    if (path === '/api/matches/101') {
+      await route.fulfill({
+        json: {
+          id: 101,
+          seasonName: 'Season 2026',
+          tourName: 'Tour 1',
+          kickoffAt: '2026-07-27T18:00:00Z',
+          homeTeam: { id: 1, name: 'Alpha' },
+          awayTeam: { id: 2, name: 'Beta' },
+          homeLineup: { teamId: 1, teamName: 'Alpha', players: [], availablePlayers: [] },
+          awayLineup: { teamId: 2, teamName: 'Beta', players: [], availablePlayers: [] },
+          availableReferees: [],
+          protocol: { status: 'SCHEDULED', events: [] },
+        },
+      })
+      return
+    }
     await route.fulfill({ json: [] })
   })
 }
@@ -111,4 +128,13 @@ test('opens the team representative dashboard', async ({ page }) => {
   await expect(page).toHaveURL(/\/team-rep-dashboard$/)
   await expect(page.getByRole('heading', { name: 'Кабинет сезонных заявок команды' })).toBeVisible()
   await expect(page.getByText('Alpha', { exact: true })).toBeVisible()
+})
+
+test('opens a public match after the page decomposition', async ({ page }) => {
+  await mockBackend(page)
+  await page.goto('/match/101')
+
+  await expect(page.getByRole('heading', { name: 'Alpha', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Beta', exact: true })).toBeVisible()
+  await expect(page.getByText('Season 2026 · Tour 1')).toBeVisible()
 })

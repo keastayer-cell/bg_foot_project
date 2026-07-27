@@ -144,8 +144,10 @@ import { useSeasonMatrix } from '../composables/useSeasonMatrix'
 import { useSeasonPlayerStats } from '../composables/useSeasonPlayerStats'
 import { useSeasonPlayoff } from '../composables/useSeasonPlayoff'
 import { useAuth } from '../store/auth'
+import { createCatalogApi } from '../api/catalog'
 
 const { optionalAuthApiRequest } = useAuth()
+const catalogApi = createCatalogApi(optionalAuthApiRequest)
 
 const seasons = ref([])
 const selectedSeasonId = ref('')
@@ -260,7 +262,7 @@ async function loadSeasons() {
   resetError()
 
   try {
-    const payload = await optionalAuthApiRequest('/api/seasons?active_flag=1', { method: 'GET' })
+    const payload = await catalogApi.getSeasons(1)
     seasons.value = Array.isArray(payload)
       ? payload.filter((item) => String(item?.status || '') === 'ACTIVE')
       : []
@@ -281,8 +283,8 @@ async function loadSeasonData(seasonId) {
 
   try {
     const [overviewPayload, playerStatsPayload] = await Promise.all([
-      optionalAuthApiRequest(`/api/seasons/${encodeURIComponent(seasonId)}/overview`, { method: 'GET' }),
-      optionalAuthApiRequest(`/api/seasons/${encodeURIComponent(seasonId)}/player-stats`, { method: 'GET' }),
+      catalogApi.getSeasonOverview(seasonId),
+      catalogApi.getSeasonPlayerStats(seasonId),
     ])
 
     seasonTeams.value = Array.isArray(overviewPayload?.teams) ? overviewPayload.teams : []

@@ -42,6 +42,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { completePasswordReset } from '../api/auth'
 
 const route = useRoute()
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
@@ -76,22 +77,7 @@ async function submitReset() {
 
   submitting.value = true
   try {
-    const response = await fetch(`${apiBaseUrl}/api/auth/password-reset/complete`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        token: token.value,
-        newPassword: newPassword.value,
-      }),
-    })
-
-    const body = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(body.error || 'Не удалось сохранить новый пароль.')
-    }
+    await completePasswordReset(apiBaseUrl, token.value, newPassword.value)
 
     newPassword.value = ''
     confirmPassword.value = ''

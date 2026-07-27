@@ -188,11 +188,13 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useAuth } from '../store/auth'
+import { createCatalogApi } from '../api/catalog'
 
 const PAGE_SIZE = 5
 
 const route = useRoute()
 const { optionalAuthApiRequest } = useAuth()
+const catalogApi = createCatalogApi(optionalAuthApiRequest)
 
 const loading = ref(false)
 const errorText = ref('')
@@ -253,7 +255,7 @@ async function loadTeamProfile() {
   resetSeasonRoster()
 
   try {
-    teamProfile.value = await optionalAuthApiRequest(`/api/teams/${encodeURIComponent(teamId)}`, { method: 'GET' })
+    teamProfile.value = await catalogApi.getTeam(teamId)
     applySeasonSelectionFromRoute()
   } catch (error) {
     errorText.value = error.message || 'Не удалось загрузить профиль команды.'
@@ -289,10 +291,7 @@ async function loadSeasonRoster() {
   seasonRepresentativeName.value = ''
 
   try {
-    const payload = await optionalAuthApiRequest(
-      `/api/teams/${encodeURIComponent(route.params.id)}/seasons/${encodeURIComponent(selectedSeason.value.id)}/roster`,
-      { method: 'GET' }
-    )
+    const payload = await catalogApi.getTeamSeasonRoster(route.params.id, selectedSeason.value.id)
     seasonRoster.value = Array.isArray(payload?.players) ? payload.players : []
     seasonRosterStatus.value = payload?.status || 'WAITING_FILL'
     seasonRepresentativeName.value = String(payload?.representativeName || '').trim()

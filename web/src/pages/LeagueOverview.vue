@@ -112,8 +112,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useAuth } from '../store/auth'
+import { createCatalogApi } from '../api/catalog'
 
 const { optionalAuthApiRequest } = useAuth()
+const catalogApi = createCatalogApi(optionalAuthApiRequest)
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 
 const sectionLinks = [
@@ -136,7 +138,7 @@ onMounted(async () => {
   loading.value = true
   pageError.value = ''
   try {
-    const payload = await optionalAuthApiRequest('/api/league/overview', { method: 'GET' })
+    const payload = await catalogApi.getLeagueOverview()
     officials.value = Array.isArray(payload?.officials) ? payload.officials : []
     venues.value = Array.isArray(payload?.venues) ? payload.venues : []
     seasonDocuments.value = Array.isArray(payload?.seasonDocuments) ? payload.seasonDocuments : []
