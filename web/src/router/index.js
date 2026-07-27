@@ -14,7 +14,7 @@ import TeamRepDashboard from '../pages/TeamRepDashboard.vue'
 import TeamRepTransfers from '../pages/TeamRepTransfers.vue'
 import SeasonApplicationsReview from '../pages/SeasonApplicationsReview.vue'
 import LeagueOverview from '../pages/LeagueOverview.vue'
-import { useAuth } from '../store/auth'
+import { requireRouteAccess } from './authGuard'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -37,24 +37,6 @@ const router = createRouter({
   ]
 })
 
-router.beforeEach(async (to) => {
-  if (!to.meta.requiresAuth) return true
-
-  const { isAuthenticated, hasRole, ensureSession } = useAuth()
-  if (!isAuthenticated.value) {
-    await ensureSession({ forceRefresh: true })
-  }
-
-  if (!isAuthenticated.value) {
-    return '/'
-  }
-
-  if (to.meta.requiresSuperAdmin && !hasRole('SUPER_ADMIN')) return '/'
-  if (to.meta.requiresAdminPanel && !hasRole('SUPER_ADMIN') && !hasRole('REFEREE')) return '/'
-  if (to.meta.requiresTeamRep && !hasRole('TEAM_REP') && !hasRole('SUPER_ADMIN')) return '/'
-  if (to.meta.requiresTransferManager && !hasRole('TEAM_REP') && !hasRole('SUPER_ADMIN') && !hasRole('REFEREE')) return '/'
-
-  return true
-})
+router.beforeEach(requireRouteAccess)
 
 export default router
