@@ -23,6 +23,12 @@ VITE_DEBUG_API_LOGS=true
 - Проверка доступа к маршрутам вынесена из `web/src/router/index.js` в `web/src/router/authGuard.js`.
 - `router/index.js` теперь отвечает в основном за декларацию маршрутов, а auth-логика стала отдельным модулем.
 
+### Frontend unit tests
+
+- Подключен Vitest и добавлена единая команда `npm --prefix web test`.
+- Auth guard покрыт сценариями публичного маршрута, восстановления сессии и проверки всех ролевых ограничений.
+- API debug logger покрыт сценариями выключенного режима, однократной установки, пропуска внешних запросов и маскирования пароля.
+
 ## Почему это первый шаг
 
 Крупные страницы `Admin.vue`, `Tours.vue`, `Match.vue`, `TeamRepDashboard.vue` требуют декомпозиции, но резать их без e2e-тестов рискованно. Этот этап убирает глобальный production-риск и отделяет routing/auth boundary, не трогая сложную бизнес-разметку страниц.
@@ -30,6 +36,7 @@ VITE_DEBUG_API_LOGS=true
 ## Команды проверки
 
 ```bash
+npm --prefix web test
 npm --prefix web run build
 mvn -f app/pom.xml test
 mvn -f mailer/pom.xml test
@@ -38,10 +45,11 @@ mvn -f mailer/pom.xml test
 ## Результат проверки
 
 - Frontend production build проходит успешно.
+- Frontend: 15 unit-тестов проходят успешно.
 - Backend `app`: 5 тестов, 0 failures, 0 errors.
 - Mailer: 2 теста, 0 failures, 0 errors.
 
 ## Что осталось на следующие шаги
 
-- Добавить frontend тестовый раннер или e2e smoke.
-- После этого начать декомпозицию `Admin.vue` по вкладкам и `Tours.vue` по composables.
+- Добавить e2e smoke для ключевых пользовательских маршрутов.
+- Начать декомпозицию `Admin.vue` по вкладкам и `Tours.vue` по composables.
