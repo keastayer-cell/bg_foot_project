@@ -23,100 +23,11 @@
     />
 
 
-    <article class="card admin-panel" v-if="activeTab === 'tours'">
-      <div class="admin-panel-head">
-        <h3 class="section-title">Туры и матчи</h3>
-        <p class="muted-text">Управление календарём сезона, публикацией туров и матчами внутри тура.</p>
-      </div>
+    <AdminToursPanel
+      v-if="activeTab === 'tours'"
+      :panel="tourPanel"
+    />
 
-      <div class="admin-form admin-surface">
-        <label>
-          Сезон
-          <select v-model="tourSeasonId" @change="onTourSeasonChange">
-            <option value="">— выберите —</option>
-            <option v-for="item in seasonsList" :key="item.id" :value="String(item.id)">{{ item.name }}</option>
-          </select>
-        </label>
-        <p v-if="selectedTourSeason" class="muted-text">
-          Регулярный этап рассчитан автоматически: {{ selectedTourSeason.regularToursCount }} туров, {{ selectedTourSeason.roundsCount }} круг(а), {{ tourTeamsList.length }} команд.
-        </p>
-        <p v-if="selectedTourSeason?.playoffEnabled" class="muted-text">
-          Плей-офф включен на {{ selectedTourSeason.playoffTeamCount }} команд. Наполнение сетки будет добавлено следующим этапом.
-        </p>
-      </div>
-
-      <div class="admin-form admin-surface" v-if="tourSeasonId">
-        <label>
-          Выберите тур
-          <select v-model="selectedTourId" @change="onTourSelectChange">
-            <option value="">— выберите —</option>
-            <option v-for="tour in toursList" :key="tour.id" :value="String(tour.id)">{{ tour.name }}</option>
-          </select>
-        </label>
-        <p v-if="!toursList.length" class="muted-text">Для выбранного сезона туры еще не сформированы. Проверьте состав команд и количество кругов.</p>
-      </div>
-
-      <div v-if="selectedTour" class="admin-grid">
-        <form class="admin-form admin-surface" @submit.prevent="createTourMatch">
-          <h4 class="admin-list-title">Добавить матч в тур {{ selectedTour.name }}</h4>
-          <label>
-            Команда 1
-            <select v-model="matchForm.homeTeamId">
-              <option value="">— выберите —</option>
-              <option v-for="team in tourTeamsList" :key="`home-${team.id}`" :value="String(team.id)">{{ team.name }}</option>
-            </select>
-          </label>
-          <label>
-            Команда 2
-            <select v-model="matchForm.awayTeamId">
-              <option value="">— выберите —</option>
-              <option v-for="team in availableAwayTeams" :key="`away-${team.id}`" :value="String(team.id)">{{ team.name }}</option>
-            </select>
-          </label>
-          <label>
-            Время матча
-            <input v-model="matchForm.kickoffAt" type="datetime-local" class="admin-temporal-input admin-temporal-input-wide" step="60" />
-          </label>
-          <p v-if="selectedTourMatchLimitMessage" class="error-text">{{ selectedTourMatchLimitMessage }}</p>
-          <div class="actions-row">
-            <button class="btn-primary" type="submit" :disabled="Boolean(selectedTourMatchLimitMessage)">Добавить матч</button>
-          </div>
-          <p class="muted-text">Публично на сайт попадут только опубликованные туры.</p>
-        </form>
-
-        <div class="admin-list admin-surface">
-          <div class="tour-matches-header">
-            <h4 class="admin-list-title">Матчи тура</h4>
-            <button class="btn-ghost tour-publish-button" type="button" :disabled="!canPublishSelectedTour" @click="publishSelectedTour">
-              {{ selectedTour.published ? 'Опубликован' : 'Опубликовать тур' }}
-            </button>
-          </div>
-          <p v-if="!tourMatchesList.length" class="muted-text">В этом туре пока нет матчей.</p>
-          <div class="admin-list-items" v-else>
-            <article class="admin-list-item tour-match-item" v-for="match in tourMatchesList" :key="match.id">
-              <div class="tour-match-copy">
-                <strong>{{ match.homeTeamName }} - {{ match.awayTeamName }}</strong>
-                <span class="muted-text">{{ formatDateTime(match.kickoffAt) }}</span>
-                <span class="muted-text" v-if="tourMatchScoreLabel(match)">{{ tourMatchScoreLabel(match) }}</span>
-                <span class="tour-match-status-badge" :class="protocolStatusBadgeClass(match.protocolStatus)">
-                  {{ matchProtocolStatusLabel(match.protocolStatus) }}
-                </span>
-              </div>
-              <button
-                class="btn-danger btn-sm"
-                type="button"
-                @click="deleteTourMatch(match.id)"
-                :disabled="!canDeleteTourMatch(match)"
-                :title="tourMatchDeleteTitle(match)"
-              >
-                Удалить
-              </button>
-            </article>
-          </div>
-          <p class="muted-text tour-publish-note">Публично на сайт попадут только опубликованные туры.</p>
-        </div>
-      </div>
-    </article>
 
     <AdminPlayersPanel
       v-if="activeTab === 'players'"
@@ -221,6 +132,7 @@ import {
   useAdminSeasonRules,
 } from '../composables/useAdminSeasonRules'
 import { useAdminTeams } from '../composables/useAdminTeams'
+import { useAdminTours } from '../composables/useAdminTours'
 import { useAdminTabs } from '../composables/useAdminTabs'
 import AdminTabNavigation from '../components/AdminTabNavigation.vue'
 import AdminBanPanel from '../components/admin/AdminBanPanel.vue'
@@ -230,6 +142,7 @@ import AdminRepresentativesPanel from '../components/admin/AdminRepresentativesP
 import AdminRolesPanel from '../components/admin/AdminRolesPanel.vue'
 import AdminSeasonsPanel from '../components/admin/AdminSeasonsPanel.vue'
 import AdminTeamsPanel from '../components/admin/AdminTeamsPanel.vue'
+import AdminToursPanel from '../components/admin/AdminToursPanel.vue'
 import AdminLeagueContent from '../components/AdminLeagueContent.vue'
 
 const USERS_KEY = 'football_stats_admin_users_registry'
@@ -244,10 +157,6 @@ const { activeTab, visibleTabGroups, selectAdminTab } = useAdminTabs({
 
 const seasonsList = ref([])
 const teamsList = ref([])
-const tourTeamsList = ref([])
-const toursList = ref([])
-const tourMatchesList = ref([])
-const seasonTourMatchesList = ref([])
 const usersRegistry = ref(loadFromStorage(USERS_KEY))
 
 const messageError = ref('')
@@ -349,12 +258,6 @@ const seasonForm = reactive({
   redCardsForSuspension: '0',
 })
 
-const matchForm = reactive({
-  homeTeamId: '',
-  awayTeamId: '',
-  kickoffAt: '',
-})
-
 const editingSeasonId = ref(null)
 const seasonSubMode = ref('create')
 const seasonEditSelectId = ref('')
@@ -417,8 +320,36 @@ const {
   successMessage: messageOk,
   formatDateOnly,
 })
-const tourSeasonId = ref('')
-const selectedTourId = ref('')
+const {
+  availableAwayTeams,
+  canDeleteTourMatch,
+  canPublishSelectedTour,
+  createMatch: createTourMatch,
+  deleteMatch: deleteTourMatch,
+  matchForm,
+  matchLimitMessage: selectedTourMatchLimitMessage,
+  matchProtocolStatusLabel,
+  matches: tourMatchesList,
+  onSeasonChange: onTourSeasonChange,
+  onTourChange: onTourSelectChange,
+  protocolStatusBadgeClass,
+  publish: publishSelectedTour,
+  refresh: refreshToursTabData,
+  seasonId: tourSeasonId,
+  selectedId: selectedTourId,
+  selectedSeason: selectedTourSeason,
+  selectedTour,
+  teams: tourTeamsList,
+  tourMatchDeleteTitle,
+  tourMatchScoreLabel,
+  tours: toursList,
+} = useAdminTours({
+  request: authorizedApiRequest,
+  seasons: seasonsList,
+  clearMessages: resetMessages,
+  errorMessage: messageError,
+  successMessage: messageOk,
+})
 const banForm = reactive({
   email: '',
   reason: '',
@@ -479,10 +410,6 @@ const {
   form: seasonForm,
   refereeIds: seasonRefereeIds,
   selectedTeamCount: computed(() => seasonSelectedTeams.value.length),
-})
-
-const selectedTourSeason = computed(() => {
-  return seasonsList.value.find((season) => String(season.id) === String(tourSeasonId.value)) || null
 })
 
 const selectedSeasonEditItem = computed(() => {
@@ -584,85 +511,32 @@ const teamPanel = reactive({
   willSelectedPlayersExceedSeasonLimit,
 })
 
-const selectedTour = computed(() => {
-  return toursList.value.find((tour) => String(tour.id) === String(selectedTourId.value)) || null
+const tourPanel = reactive({
+  availableAwayTeams,
+  canDeleteTourMatch,
+  canPublishSelectedTour,
+  createMatch: createTourMatch,
+  deleteMatch: deleteTourMatch,
+  formatDateTime,
+  matchForm,
+  matchLimitMessage: selectedTourMatchLimitMessage,
+  matchProtocolStatusLabel,
+  matches: tourMatchesList,
+  onSeasonChange: onTourSeasonChange,
+  onTourChange: onTourSelectChange,
+  protocolStatusBadgeClass,
+  publish: publishSelectedTour,
+  seasonId: tourSeasonId,
+  seasonsList,
+  selectedId: selectedTourId,
+  selectedSeason: selectedTourSeason,
+  selectedTour,
+  teams: tourTeamsList,
+  tourMatchDeleteTitle,
+  tourMatchScoreLabel,
+  tours: toursList,
 })
 
-const canPublishSelectedTour = computed(() => {
-  return Boolean(selectedTour.value) && !selectedTour.value.published && tourMatchesList.value.length > 0
-})
-
-function countSeasonHeadToHeadMeetings(firstTeamId, secondTeamId) {
-  const normalizedFirstTeamId = Number(firstTeamId || 0)
-  const normalizedSecondTeamId = Number(secondTeamId || 0)
-
-  if (normalizedFirstTeamId <= 0 || normalizedSecondTeamId <= 0) {
-    return 0
-  }
-
-  return seasonTourMatchesList.value.filter((match) => {
-    const homeTeamId = Number(match.homeTeamId || 0)
-    const awayTeamId = Number(match.awayTeamId || 0)
-    return (
-      (homeTeamId === normalizedFirstTeamId && awayTeamId === normalizedSecondTeamId)
-      || (homeTeamId === normalizedSecondTeamId && awayTeamId === normalizedFirstTeamId)
-    )
-  }).length
-}
-
-const availableAwayTeams = computed(() => {
-  const season = selectedTourSeason.value
-  const homeTeamId = Number(matchForm.homeTeamId || 0)
-
-  if (!season || homeTeamId <= 0) {
-    return tourTeamsList.value
-  }
-
-  const allowedMeetings = Math.max(Number(season.roundsCount || 1), 1)
-
-  return tourTeamsList.value.filter((team) => {
-    const awayTeamId = Number(team.id || 0)
-    if (awayTeamId <= 0 || awayTeamId === homeTeamId) {
-      return false
-    }
-    return countSeasonHeadToHeadMeetings(homeTeamId, awayTeamId) < allowedMeetings
-  })
-})
-
-const selectedTourMatchLimitMessage = computed(() => {
-  const season = selectedTourSeason.value
-  const homeTeamId = Number(matchForm.homeTeamId || 0)
-  const awayTeamId = Number(matchForm.awayTeamId || 0)
-
-  if (!season || homeTeamId <= 0 || awayTeamId <= 0 || homeTeamId === awayTeamId) {
-    return ''
-  }
-
-  const allowedMeetings = Math.max(Number(season.roundsCount || 1), 1)
-  const existingMeetings = countSeasonHeadToHeadMeetings(homeTeamId, awayTeamId)
-
-  if (existingMeetings < allowedMeetings) {
-    return ''
-  }
-
-  const homeTeam = tourTeamsList.value.find((team) => Number(team.id) === homeTeamId)
-  const awayTeam = tourTeamsList.value.find((team) => Number(team.id) === awayTeamId)
-  const homeTeamName = String(homeTeam?.name || 'Команда 1')
-  const awayTeamName = String(awayTeam?.name || 'Команда 2')
-
-  return `Пара ${homeTeamName} - ${awayTeamName} уже исчерпала лимит очных встреч для сезона: ${allowedMeetings} круг(а).`
-})
-
-watch(availableAwayTeams, (teams) => {
-  if (!matchForm.awayTeamId) {
-    return
-  }
-
-  const isStillAvailable = teams.some((team) => String(team.id) === String(matchForm.awayTeamId))
-  if (!isStillAvailable) {
-    matchForm.awayTeamId = ''
-  }
-})
 
 watch(activeTab, (tabId) => {
   if (tabId === 'representatives') {
@@ -1064,241 +938,6 @@ function showSeasonOperationError(message) {
 }
 
 
-async function onTourSeasonChange() {
-  resetMessages()
-  selectedTourId.value = ''
-  tourMatchesList.value = []
-  resetMatchForm()
-
-  if (!tourSeasonId.value) {
-    toursList.value = []
-    tourTeamsList.value = []
-    return
-  }
-
-  await Promise.all([loadTours(), loadTeamsForTourSeason()])
-}
-
-async function loadTours() {
-  if (!tourSeasonId.value) {
-    toursList.value = []
-    seasonTourMatchesList.value = []
-    return
-  }
-
-  try {
-    const payload = await authorizedApiRequest(`/api/tours?season_id=${encodeURIComponent(tourSeasonId.value)}&active_flag=1`, {
-      method: 'GET',
-    })
-    toursList.value = Array.isArray(payload) ? payload : []
-    await loadSeasonTourMatchesSnapshot()
-  } catch (error) {
-    toursList.value = []
-    seasonTourMatchesList.value = []
-    messageError.value = error.message || 'Не удалось загрузить туры.'
-  }
-}
-
-async function loadSeasonTourMatchesSnapshot() {
-  if (!toursList.value.length) {
-    seasonTourMatchesList.value = []
-    return
-  }
-
-  const payloads = await Promise.all(
-    toursList.value.map((tour) => authorizedApiRequest(`/api/tours/${tour.id}/matches?active_flag=1`, {
-      method: 'GET',
-    }))
-  )
-
-  seasonTourMatchesList.value = payloads.flatMap((payload) => Array.isArray(payload) ? payload : [])
-}
-
-async function loadTeamsForTourSeason() {
-  if (!tourSeasonId.value) {
-    tourTeamsList.value = []
-    return
-  }
-
-  try {
-    const payload = await authorizedApiRequest(`/api/teams?active_flag=1&season_id=${encodeURIComponent(tourSeasonId.value)}`, {
-      method: 'GET',
-    })
-    tourTeamsList.value = Array.isArray(payload) ? payload : []
-  } catch (error) {
-    tourTeamsList.value = []
-    messageError.value = error.message || 'Не удалось загрузить команды сезона для туров.'
-  }
-}
-
-async function onTourSelectChange() {
-  resetMessages()
-  resetMatchForm()
-
-  if (!selectedTourId.value) {
-    tourMatchesList.value = []
-    return
-  }
-
-  try {
-    const payload = await authorizedApiRequest(`/api/tours/${selectedTourId.value}/matches?active_flag=1`, {
-      method: 'GET',
-    })
-    tourMatchesList.value = Array.isArray(payload) ? payload : []
-  } catch (error) {
-    tourMatchesList.value = []
-    messageError.value = error.message || 'Не удалось загрузить матчи тура.'
-  }
-}
-
-async function refreshToursTabData() {
-  if (!tourSeasonId.value) {
-    return
-  }
-
-  await Promise.all([loadTours(), loadTeamsForTourSeason()])
-  if (selectedTourId.value) {
-    await onTourSelectChange()
-  }
-}
-
-async function publishSelectedTour() {
-  resetMessages()
-
-  if (!selectedTourId.value) {
-    messageError.value = 'Сначала выберите тур.'
-    return
-  }
-  if (!tourMatchesList.value.length) {
-    messageError.value = 'Нельзя публиковать пустой тур без матчей.'
-    return
-  }
-  if (selectedTour.value?.published) {
-    messageError.value = 'Этот тур уже опубликован.'
-    return
-  }
-
-  try {
-    await authorizedApiRequest(`/api/tours/${selectedTourId.value}/publish`, {
-      method: 'PUT',
-    })
-    await Promise.all([loadTours(), onTourSelectChange()])
-    messageOk.value = 'Тур опубликован.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось опубликовать тур.'
-  }
-}
-
-async function createTourMatch() {
-  resetMessages()
-
-  if (!selectedTourId.value) {
-    messageError.value = 'Сначала выберите тур.'
-    return
-  }
-  if (!matchForm.homeTeamId || !matchForm.awayTeamId) {
-    messageError.value = 'Выберите обе команды матча.'
-    return
-  }
-  if (String(matchForm.homeTeamId) === String(matchForm.awayTeamId)) {
-    messageError.value = 'Команды матча должны отличаться.'
-    return
-  }
-  if (!matchForm.kickoffAt) {
-    messageError.value = 'Укажите дату и время матча.'
-    return
-  }
-  if (selectedTourMatchLimitMessage.value) {
-    messageError.value = selectedTourMatchLimitMessage.value
-    return
-  }
-
-  try {
-    await authorizedApiRequest(`/api/tours/${selectedTourId.value}/matches`, {
-      method: 'POST',
-      body: JSON.stringify({
-        homeTeamId: Number(matchForm.homeTeamId),
-        awayTeamId: Number(matchForm.awayTeamId),
-        kickoffAt: new Date(matchForm.kickoffAt).toISOString(),
-      }),
-    })
-    await loadSeasonTourMatchesSnapshot()
-    await onTourSelectChange()
-    resetMatchForm()
-    messageOk.value = 'Матч добавлен в тур.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось добавить матч.'
-  }
-}
-
-async function deleteTourMatch(matchId) {
-  resetMessages()
-
-  if (!selectedTourId.value) {
-    messageError.value = 'Сначала выберите тур.'
-    return
-  }
-  const match = tourMatchesList.value.find((item) => Number(item.id) === Number(matchId))
-  if (match && !canDeleteTourMatch(match)) {
-    messageError.value = tourMatchDeleteTitle(match)
-    return
-  }
-  if (!window.confirm('Удалить матч из тура без возможности восстановления?')) {
-    return
-  }
-
-  try {
-    await authorizedApiRequest(`/api/tours/${selectedTourId.value}/matches/${matchId}`, {
-      method: 'DELETE',
-    })
-    await loadSeasonTourMatchesSnapshot()
-    await Promise.all([loadTours(), onTourSelectChange()])
-    messageOk.value = 'Матч удален из тура.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось удалить матч из тура.'
-  }
-}
-
-function resetMatchForm() {
-  matchForm.homeTeamId = ''
-  matchForm.awayTeamId = ''
-  matchForm.kickoffAt = ''
-}
-
-function canDeleteTourMatch(match) {
-  return String(match?.protocolStatus || 'SCHEDULED') === 'SCHEDULED'
-}
-
-function tourMatchScoreLabel(match) {
-  const homeScore = Number.isInteger(match?.homeScore) ? match.homeScore : null
-  const awayScore = Number.isInteger(match?.awayScore) ? match.awayScore : null
-  if (homeScore === null || awayScore === null) {
-    return ''
-  }
-  return `Счет: ${homeScore}:${awayScore}`
-}
-
-function tourMatchDeleteTitle(match) {
-  if (canDeleteTourMatch(match)) {
-    return 'Удалить матч из тура'
-  }
-  return 'Нельзя удалить матч, если по нему уже поданы составы или подтвержден протокол.'
-}
-
-function matchProtocolStatusLabel(status) {
-  switch (String(status || 'SCHEDULED')) {
-    case 'LINEUPS_SUBMITTED':
-      return 'Составы поданы'
-    case 'LIVE':
-      return 'Идет матч'
-    case 'FINISHED':
-      return 'Матч сыгран'
-    case 'VERIFIED':
-      return 'Протокол подтвержден'
-    default:
-      return 'Не сыгран'
-  }
-}
 
 function buildSeasonProtocolsArchiveName(seasonName) {
   const normalizedSeasonName = String(seasonName || 'season').replace(/[\\/:*?"<>|]/g, '_').trim() || 'season'
@@ -1318,16 +957,6 @@ function downloadBlobFile(blob, fileName) {
     link.remove()
   } finally {
     URL.revokeObjectURL(objectUrl)
-  }
-}
-
-function protocolStatusBadgeClass(status) {
-  return {
-    'is-scheduled': String(status || 'SCHEDULED') === 'SCHEDULED',
-    'is-lineups': String(status || '') === 'LINEUPS_SUBMITTED',
-    'is-live': String(status || '') === 'LIVE',
-    'is-finished': String(status || '') === 'FINISHED',
-    'is-verified': String(status || '') === 'VERIFIED',
   }
 }
 
