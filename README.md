@@ -138,7 +138,7 @@ Deploy использует GitHub Environment `test`. В нём настраи�
 - secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_HOST_FINGERPRINT`;
 - variable: `PUBLIC_BASE_URL`.
 
-DB/JWT/SMTP credentials в GitHub не передаются. Они находятся только в `/etc/bg-foot/test` на сервере. Полная модель описана в [управлении секретами](docs/secrets-management.md).
+DB/JWT/SMTP credentials в GitHub не передаются. Они находятся только в `/etc/bg-foot/test` на сервере. Полная модель описана в [управлении секретами](docs/Рефакторинг%2028.07.2026/secrets-management.md).
 
 ## Production
 
@@ -146,14 +146,14 @@ DB/JWT/SMTP credentials в GitHub не передаются. Они находя
 
 ## Документация
 
-- [Полный roadmap](docs/refactoring-roadmap.md)
-- [Baseline этапа 1](docs/refactoring-stage-1-baseline.md)
-- [Отчёт этапа 2](docs/refactoring-stage-2-tests.md)
-- [Отчёт этапа 3](docs/refactoring-stage-3-frontend.md)
-- [Отчёт этапа 4](docs/refactoring-stage-4-backend.md)
-- [Отчёт этапа 5](docs/refactoring-stage-5-mailer.md)
-- [Отчёт этапа 6](docs/refactoring-stage-6-operations.md)
+- [Полный roadmap](docs/Рефакторинг%2028.07.2026/refactoring-roadmap.md)
+- [Baseline этапа 1](docs/Рефакторинг%2028.07.2026/refactoring-stage-1-baseline.md)
+- [Отчёт этапа 2](docs/Рефакторинг%2028.07.2026/refactoring-stage-2-tests.md)
+- [Отчёт этапа 3](docs/Рефакторинг%2028.07.2026/refactoring-stage-3-frontend.md)
+- [Отчёт этапа 4](docs/Рефакторинг%2028.07.2026/refactoring-stage-4-backend.md)
+- [Отчёт этапа 5](docs/Рефакторинг%2028.07.2026/refactoring-stage-5-mailer.md)
+- [Отчёт этапа 6](docs/Рефакторинг%2028.07.2026/refactoring-stage-6-operations.md)
 - [Эксплуатация](docs/operations.md)
-- [Управление секретами](docs/secrets-management.md)
+- [Управление секретами](docs/Рефакторинг%2028.07.2026/secrets-management.md)
 
 Документация внутри репозитория является актуальной. Локальные каталоги вне репозитория не считаются source of truth.

@@ -34,5 +34,5 @@ mvn -f app/pom.xml clean package
 ## Что важно помнить
 
 - backend и mailer читают единый корневой `.env`
-- секреты и server layout описаны в `docs/secrets-management.md`
+- секреты и server layout описаны в `docs/Рефакторинг 28.07.2026/secrets-management.md`
 - если меняется API, нужно синхронизировать API Explorer во frontend
