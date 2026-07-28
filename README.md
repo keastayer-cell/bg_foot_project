@@ -55,26 +55,67 @@ MAILER_TRANSPORT_TYPE=log
 
 Режим `smtp` включайте только с рабочими SMTP credentials.
 
-## Запуск
+## Локальный запуск
 
-Backend:
+Для работающего сайта нужны PostgreSQL, backend и frontend. Запущенный только Vite
+откроет интерфейс на `5173`, но страницы с данными и авторизация без backend на
+`8080` работать не будут.
+
+Все команды ниже выполняются из корня репозитория.
+
+1. Убедитесь, что PostgreSQL запущен:
 
 ```bash
-mvn -f app/pom.xml spring-boot:run
+pg_isready -h 127.0.0.1 -p 5432
 ```
 
-Frontend во втором терминале:
+Для PostgreSQL из Homebrew:
+
+```bash
+brew services start postgresql@17
+```
+
+Ожидаемый результат `pg_isready`: `accepting connections`.
+
+2. Запустите backend в первом терминале:
+
+```bash
+BG_FOOT_ENV_FILE="$PWD/.env" mvn -f app/pom.xml spring-boot:run
+```
+
+Явный `BG_FOOT_ENV_FILE` необходим, потому что Maven запускает Spring Boot с
+рабочей директорией `app`, а локальный env-файл хранится в корне репозитория.
+Дождитесь сообщения `Tomcat started on port 8080`, затем проверьте:
+
+```bash
+curl -fsS http://127.0.0.1:8080/api/health
+```
+
+Ожидаемый ответ:
+
+```json
+{"status":"UP","service":"football-stats-app"}
+```
+
+3. Запустите frontend во втором терминале:
 
 ```bash
 npm --prefix web install
-npm --prefix web run dev
+npm --prefix web run dev -- --host 127.0.0.1
 ```
 
-Mailer в третьем терминале:
+После сообщения `Local: http://127.0.0.1:5173/` откройте этот адрес в браузере.
+
+4. Mailer нужен только для обработки уведомлений. Перед локальным запуском
+убедитесь, что в `.env` задан безопасный режим `MAILER_TRANSPORT_TYPE=log`, затем
+запустите его в третьем терминале:
 
 ```bash
-mvn -f mailer/pom.xml spring-boot:run
+BG_FOOT_ENV_FILE="$PWD/.env" mvn -f mailer/pom.xml spring-boot:run
 ```
+
+Не запускайте mailer с `MAILER_TRANSPORT_TYPE=smtp`, если не планируете реальную
+отправку накопившихся писем.
 
 Адреса по умолчанию:
 
@@ -83,6 +124,35 @@ mvn -f mailer/pom.xml spring-boot:run
 - backend health: `http://127.0.0.1:8080/api/health`;
 - mailer health: `http://127.0.0.1:8090/actuator/health`;
 - mailer readiness: `http://127.0.0.1:8090/actuator/health/readiness`.
+
+### Если PostgreSQL не запускается
+
+Проверьте состояние сервиса и последние строки журнала:
+
+```bash
+brew services list
+tail -n 100 /opt/homebrew/var/log/postgresql@17.log
+```
+
+Ошибка `lock file "postmaster.pid" already exists` может означать как уже
+работающий PostgreSQL, так и устаревший lock-файл после аварийного завершения.
+Сначала проверьте PID из первой строки файла:
+
+```bash
+PG_LOCK_PID="$(head -n 1 /opt/homebrew/var/postgresql@17/postmaster.pid)"
+ps -p "$PG_LOCK_PID" -o pid=,comm=,args=
+```
+
+Не удаляйте `postmaster.pid`, если этот PID принадлежит процессу PostgreSQL. Если
+PID отсутствует или уже принадлежит другому процессу, сохраните lock-файл в
+резервную копию и перезапустите сервис:
+
+```bash
+mv /opt/homebrew/var/postgresql@17/postmaster.pid \
+  /tmp/postmaster.pid.stale
+brew services restart postgresql@17
+pg_isready -h 127.0.0.1 -p 5432
+```
 
 ## Проверки
 
