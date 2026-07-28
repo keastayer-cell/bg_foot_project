@@ -12,7 +12,14 @@
         </label>
       </div>
 
-      <p v-if="pageError" class="error-text">{{ pageError }}</p>
+      <UiState
+        v-if="pageError"
+        tone="error"
+        title="Не удалось загрузить трансферы"
+        :message="pageError"
+        action-label="Повторить"
+        @action="loadSeasons"
+      />
     </article>
 
     <article class="card player-stats-card">
@@ -49,13 +56,23 @@
         <button class="btn-ghost" type="button" @click="changePage(currentPage + 1)" :disabled="loadingSeasonData || currentPage + 1 >= totalPages">Вперёд</button>
       </div>
 
-      <div v-else-if="!loadingSeasonData" class="transfer-list-empty" aria-hidden="true"></div>
+      <UiState
+        v-else-if="!loadingSeasonData && selectedSeasonId"
+        title="Трансферов пока нет"
+        message="Подтвержденные и ожидающие решения переходы этого сезона появятся здесь."
+      />
+      <UiState
+        v-else-if="!loadingSeasonData"
+        title="Нет активного сезона"
+        message="Список трансферов станет доступен после открытия сезона."
+      />
     </article>
   </section>
 </template>
 
 <script setup>
 import { onMounted, ref, watch } from 'vue'
+import UiState from '../components/UiState.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 

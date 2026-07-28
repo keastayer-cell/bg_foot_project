@@ -193,3 +193,37 @@ test('opens a public match after the page decomposition', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Beta', exact: true })).toBeVisible()
   await expect(page.getByText('Season 2026 · Tour 1')).toBeVisible()
 })
+
+test('shows a useful empty state for transfers', async ({ page }) => {
+  await mockBackend(page)
+  await page.goto('/transfers')
+
+  await expect(page.getByRole('heading', { name: 'Нет активного сезона' })).toBeVisible()
+  await expect(page.getByText('Список трансферов станет доступен после открытия сезона.')).toBeVisible()
+})
+
+test('requires confirmation before banning a user', async ({ page }) => {
+  await restoreSession(page, 'SUPER_ADMIN')
+  await page.goto('/admin')
+
+  if ((page.viewportSize()?.width || 0) <= 860) {
+    await page.getByRole('combobox', { name: 'Раздел' }).selectOption('ban')
+  } else {
+    await page.getByRole('button', { name: 'Блокировки' }).click()
+  }
+
+  await page.getByLabel('Email пользователя').fill('blocked@example.com')
+  await page.getByLabel('Причина').fill('Нарушение правил')
+  await page.getByRole('button', { name: 'Забанить' }).click()
+
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Заблокировать пользователя?' })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Отмена' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page.getByText('Пользователь заблокирован.')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Забанить' }).click()
+  await dialog.getByRole('button', { name: 'Заблокировать' }).click()
+  await expect(page.getByText('Пользователь заблокирован.')).toBeVisible()
+})

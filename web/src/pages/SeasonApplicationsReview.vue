@@ -17,8 +17,15 @@
           <button class="btn-ghost" type="button" @click="loadQueue" :disabled="loading">Обновить</button>
         </div>
       </div>
-      <p v-if="pageError" class="error-text">{{ pageError }}</p>
-      <p v-if="pageSuccess" class="success-text">{{ pageSuccess }}</p>
+      <UiState
+        v-if="pageError"
+        tone="error"
+        title="Операция не выполнена"
+        :message="pageError"
+        action-label="Повторить загрузку"
+        @action="loadQueue"
+      />
+      <UiState v-if="pageSuccess" tone="success" title="Готово" :message="pageSuccess" />
     </article>
 
     <article class="card review-queue-card">
@@ -27,8 +34,12 @@
         <span class="muted-text">{{ queueItems.length }}</span>
       </div>
 
-      <p v-if="loading && !queueItems.length" class="muted-text">Загрузка заявок...</p>
-      <p v-else-if="!queueItems.length" class="muted-text">Заявок пока нет.</p>
+      <UiState v-if="loading && !queueItems.length" tone="loading" title="Загружаем заявки" />
+      <UiState
+        v-else-if="!queueItems.length"
+        title="Очередь пуста"
+        message="Новые и возвращенные на проверку заявки появятся здесь."
+      />
 
       <div v-else class="review-queue-list compact">
         <article
@@ -151,10 +162,13 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import UiState from '../components/UiState.vue'
+import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useAuth } from '../store/auth'
 import { createSeasonApplicationsApi } from '../api/seasonApplications'
 
 const router = useRouter()
+const { confirmAction } = useConfirmDialog()
 const { authorizedApiRequest, hasRole } = useAuth()
 const seasonApplicationsApi = createSeasonApplicationsApi(authorizedApiRequest)
 
@@ -219,6 +233,16 @@ async function processDecision(applicationId, action) {
     rejectModalError.value = 'Для отклонения заявки нужно указать комментарий.'
     pageError.value = 'Для отклонения заявки нужно указать комментарий.'
     return
+  }
+
+  if (action === 'approve') {
+    const accepted = await confirmAction({
+      title: 'Согласовать заявку?',
+      message: `Команда «${item.teamName}» будет допущена к сезону с текущим составом из ${item.playersCount} игроков.`,
+      confirmLabel: 'Согласовать',
+      tone: 'warning',
+    })
+    if (!accepted) return
   }
 
   actionLoadingKey.value = `${action}:${applicationId}`

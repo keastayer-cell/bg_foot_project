@@ -5,10 +5,8 @@
       <p class="muted-text">Руководство лиги, места проведения и PDF положения по каждому сезону.</p>
     </div>
 
-    <div class="card" v-if="messageError || messageOk">
-      <p class="error-text" v-if="messageError">{{ messageError }}</p>
-      <p class="success-text" v-if="messageOk">{{ messageOk }}</p>
-    </div>
+    <UiState v-if="messageError" tone="error" title="Операция не выполнена" :message="messageError" />
+    <UiState v-if="messageOk" tone="success" title="Готово" :message="messageOk" />
 
     <div class="admin-grid admin-league-grid">
       <section class="card admin-league-section">
@@ -220,8 +218,10 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import UiState from './UiState.vue'
 import { useAuth } from '../store/auth'
 import { createAdminLeagueApi } from '../api/adminLeague'
+import { useConfirmDialog } from '../composables/useConfirmDialog'
 
 const props = defineProps({
   seasonsList: {
@@ -233,6 +233,7 @@ const props = defineProps({
 const emit = defineEmits(['refresh-seasons'])
 
 const { authorizedApiRequest } = useAuth()
+const { confirmAction } = useConfirmDialog()
 const leagueApi = createAdminLeagueApi(authorizedApiRequest)
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 
@@ -348,6 +349,14 @@ async function saveOfficial() {
 }
 
 async function deactivateOfficial(officialId) {
+  const official = officialsList.value.find((item) => String(item.id) === String(officialId))
+  const accepted = await confirmAction({
+    title: 'Удалить карточку руководства?',
+    message: `${official?.fullName || 'Карточка'} больше не будет отображаться на странице лиги.`,
+    confirmLabel: 'Удалить карточку',
+  })
+  if (!accepted) return
+
   resetMessages()
   try {
     await leagueApi.officials.deactivate(officialId)
@@ -384,6 +393,14 @@ async function saveVenue() {
 }
 
 async function deactivateVenue(venueId) {
+  const venue = venuesList.value.find((item) => String(item.id) === String(venueId))
+  const accepted = await confirmAction({
+    title: 'Удалить площадку?',
+    message: `${venue?.name || 'Площадка'} больше не будет отображаться на странице лиги.`,
+    confirmLabel: 'Удалить площадку',
+  })
+  if (!accepted) return
+
   resetMessages()
   try {
     await leagueApi.venues.deactivate(venueId)
@@ -419,6 +436,13 @@ async function removeSeasonRegulation() {
     messageError.value = 'Сначала выберите сезон.'
     return
   }
+
+  const accepted = await confirmAction({
+    title: 'Удалить положение сезона?',
+    message: `PDF для сезона «${selectedSeason.value?.name || 'выбранный сезон'}» станет недоступен для скачивания.`,
+    confirmLabel: 'Удалить PDF',
+  })
+  if (!accepted) return
 
   try {
     await leagueApi.removeRegulation(regulationSeasonId.value)

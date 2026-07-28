@@ -6,12 +6,14 @@
       <p class="muted">Загружаем список игроков...</p>
     </div>
 
-    <div class="card" v-else-if="errorText">
-      <p class="error-text">{{ errorText }}</p>
-      <div class="actions-row">
-        <button class="btn-primary" type="button" @click="loadPlayers">Повторить</button>
-      </div>
-    </div>
+    <UiState
+      v-else-if="errorText"
+      tone="error"
+      title="Не удалось загрузить игроков"
+      :message="errorText"
+      action-label="Повторить"
+      @action="loadPlayers"
+    />
 
     <div class="card player-filters" v-else>
       <input
@@ -50,12 +52,18 @@
       </button>
     </div>
 
-    <p class="empty-text" v-if="!loading && !errorText && players.length === 0 && search.trim()">
-      Ничего не найдено. Уточните фамилию или нажмите «Сбросить поиск».
-    </p>
-    <p class="empty-text" v-else-if="!loading && !errorText && players.length === 0">
-      Пока нет данных по игрокам.
-    </p>
+    <UiState
+      v-if="!loading && !errorText && players.length === 0 && search.trim()"
+      title="Игроки не найдены"
+      message="Уточните фамилию или сбросьте поиск."
+      action-label="Сбросить поиск"
+      @action="resetSearch"
+    />
+    <UiState
+      v-else-if="!loading && !errorText && players.length === 0"
+      title="Игроков пока нет"
+      message="Игроки появятся здесь после регистрации в лиге."
+    />
 
     <div v-if="showPlayerModal" class="modal-backdrop" @click.self="closePlayerModal">
       <article class="card player-modal">
@@ -147,6 +155,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import UiState from '../components/UiState.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 import { useDebounce } from '../composables/useDebounce'

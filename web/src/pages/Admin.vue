@@ -111,10 +111,8 @@
           @unban="unbanUser"
         />
 
-        <article class="card" v-if="messageError || messageOk">
-          <p class="error-text" v-if="messageError">{{ messageError }}</p>
-          <p class="success-text" v-if="messageOk">{{ messageOk }}</p>
-        </article>
+        <UiState v-if="messageError" tone="error" title="Операция не выполнена" :message="messageError" />
+        <UiState v-if="messageOk" tone="success" title="Готово" :message="messageOk" />
       </div>
     </div>
   </section>
@@ -136,7 +134,9 @@ import {
 import { useAdminTeams } from '../composables/useAdminTeams'
 import { useAdminTours } from '../composables/useAdminTours'
 import { useAdminTabs } from '../composables/useAdminTabs'
+import { useConfirmDialog } from '../composables/useConfirmDialog'
 import AdminTabNavigation from '../components/AdminTabNavigation.vue'
+import UiState from '../components/UiState.vue'
 import AdminBanPanel from '../components/admin/AdminBanPanel.vue'
 import AdminPlayersPanel from '../components/admin/AdminPlayersPanel.vue'
 import AdminRefereesPanel from '../components/admin/AdminRefereesPanel.vue'
@@ -151,6 +151,7 @@ const USERS_KEY = 'football_stats_admin_users_registry'
 
 const { authorizedApiRequest, authorizedApiRequestRaw, hasRole } = useAuth()
 const adminSeasonsApi = createAdminSeasonsApi(authorizedApiRequest, authorizedApiRequestRaw)
+const { confirmAction } = useConfirmDialog()
 const { loadSeasons } = useStore()
 const { activeTab, visibleTabGroups, selectAdminTab } = useAdminTabs({
   hasRole,
@@ -166,7 +167,7 @@ const messageOk = ref('')
 const {
   cancelEditPlayer,
   createPlayer,
-  deactivatePlayer,
+  deactivatePlayer: deactivatePlayerNow,
   editingPlayerId,
   loadPlayerRegistry,
   onPlayerPhotoSelected,
@@ -185,7 +186,7 @@ const {
 const {
   cancelEditReferee,
   createReferee,
-  deactivateReferee,
+  deactivateReferee: deactivateRefereeNow,
   editingRefereeId,
   loadRefereeRegistry,
   onRefereePhotoSelected,
@@ -205,7 +206,7 @@ const {
   absolutePasswordResetLink,
   assignRoleCode,
   assignRoleToFound,
-  confirmReplaceRole,
+  confirmReplaceRole: confirmReplaceRoleNow,
   copyPasswordResetLink,
   filteredRepresentativeUsersForSelect,
   filteredUsersForSelect,
@@ -214,7 +215,7 @@ const {
   loadRepresentativeUsers,
   loadRoleUsers,
   passwordResetResult,
-  removeRoleFromFound,
+  removeRoleFromFound: removeRoleFromFoundNow,
   repCurrentTeamScope,
   repFoundUser,
   repHasMultipleTeamScopes,
@@ -225,14 +226,14 @@ const {
   repUsersList,
   replaceRoleNewCode,
   replaceRoleTarget,
-  resetPasswordForFoundUser,
+  resetPasswordForFoundUser: resetPasswordForFoundUserNow,
   roleUsersList,
   rolesFoundUser,
   rolesSearch,
   rolesSelectedEmail,
   saveRepresentativeTeam,
   startReplaceRole,
-  unassignRepresentativeTeam,
+  unassignRepresentativeTeam: unassignRepresentativeTeamNow,
 } = useAdminAccess({
   activeTab,
   request: authorizedApiRequest,
@@ -278,7 +279,7 @@ const {
   addPlayersToSeason: addSelectedPlayersToSeason,
   cancelEdit: cancelEditTeam,
   create: createTeam,
-  deactivate: deactivateTeam,
+  deactivate: deactivateTeamNow,
   editingId: editingTeamId,
   editSelectId: teamEditSelectId,
   form: teamForm,
@@ -289,8 +290,8 @@ const {
   onSeasonChange: onAdminTeamSeasonChange,
   onSelectChange: onTeamSelectChange,
   refreshContext: refreshAdminTeamContext,
-  removePlayerFromRoster: removePlayerFromEditingTeam,
-  removePlayersFromSeason: removeSelectedPlayersFromSeason,
+  removePlayerFromRoster: removePlayerFromEditingTeamNow,
+  removePlayersFromSeason: removeSelectedPlayersFromSeasonNow,
   roster: teamRoster,
   rosterAddOptions: teamRosterAddOptions,
   rosterBusy: teamRosterBusy,
@@ -327,7 +328,7 @@ const {
   canDeleteTourMatch,
   canPublishSelectedTour,
   createMatch: createTourMatch,
-  deleteMatch: deleteTourMatch,
+  deleteMatch: deleteTourMatchNow,
   matchForm,
   matchLimitMessage: selectedTourMatchLimitMessage,
   matchProtocolStatusLabel,
@@ -335,7 +336,7 @@ const {
   onSeasonChange: onTourSeasonChange,
   onTourChange: onTourSelectChange,
   protocolStatusBadgeClass,
-  publish: publishSelectedTour,
+  publish: publishSelectedTourNow,
   refresh: refreshToursTabData,
   seasonId: tourSeasonId,
   selectedId: selectedTourId,
@@ -352,6 +353,116 @@ const {
   errorMessage: messageError,
   successMessage: messageOk,
 })
+
+async function deactivatePlayer(playerId) {
+  const player = playersList.value.find((item) => String(item.id) === String(playerId))
+  const accepted = await confirmAction({
+    title: 'Удалить игрока?',
+    message: `${player?.fullName || 'Игрок'} будет деактивирован и исчезнет из доступных составов.`,
+    confirmLabel: 'Удалить игрока',
+  })
+  if (accepted) await deactivatePlayerNow(playerId)
+}
+
+async function deactivateReferee(refereeId) {
+  const referee = refereesList.value.find((item) => String(item.id) === String(refereeId))
+  const accepted = await confirmAction({
+    title: 'Удалить судью?',
+    message: `${referee?.fullName || 'Судья'} будет деактивирован и станет недоступен для новых назначений.`,
+    confirmLabel: 'Удалить судью',
+  })
+  if (accepted) await deactivateRefereeNow(refereeId)
+}
+
+async function deactivateTeam(teamId) {
+  const team = teamsList.value.find((item) => String(item.id) === String(teamId))
+  const accepted = await confirmAction({
+    title: 'Удалить команду?',
+    message: `${team?.name || 'Команда'} будет деактивирована. Существующие данные матчей сохранятся.`,
+    confirmLabel: 'Удалить команду',
+  })
+  if (accepted) await deactivateTeamNow(teamId)
+}
+
+async function removePlayerFromEditingTeam(playerId) {
+  const player = teamRoster.value.find((item) => String(item.id) === String(playerId))
+  const accepted = await confirmAction({
+    title: 'Удалить игрока из команды?',
+    message: `${player?.fullName || 'Игрок'} потеряет привязку к текущей команде.`,
+    confirmLabel: 'Удалить из команды',
+  })
+  if (accepted) await removePlayerFromEditingTeamNow(playerId)
+}
+
+async function removeSelectedPlayersFromSeason() {
+  const count = teamSeasonToRemoveIds.value.length
+  const accepted = await confirmAction({
+    title: 'Убрать игроков из заявки?',
+    message: `Из заявки сезона будет удалено игроков: ${count}.`,
+    confirmLabel: 'Убрать из заявки',
+  })
+  if (accepted) await removeSelectedPlayersFromSeasonNow()
+}
+
+async function deleteTourMatch(matchId) {
+  const match = tourMatchesList.value.find((item) => String(item.id) === String(matchId))
+  const accepted = await confirmAction({
+    title: 'Удалить матч?',
+    message: match
+      ? `${match.homeTeamName || 'Хозяева'} — ${match.awayTeamName || 'Гости'}. Восстановить матч из интерфейса нельзя.`
+      : 'Восстановить матч из интерфейса нельзя.',
+    confirmLabel: 'Удалить матч',
+  })
+  if (accepted) await deleteTourMatchNow(matchId)
+}
+
+async function publishSelectedTour() {
+  const accepted = await confirmAction({
+    title: 'Опубликовать тур?',
+    message: 'Тур и его матчи станут видны участникам лиги.',
+    confirmLabel: 'Опубликовать',
+    tone: 'warning',
+  })
+  if (accepted) await publishSelectedTourNow()
+}
+
+async function removeRoleFromFound(role) {
+  const accepted = await confirmAction({
+    title: 'Снять роль?',
+    message: `${rolesFoundUser.value?.email || 'Пользователь'} потеряет права роли ${role}.`,
+    confirmLabel: 'Снять роль',
+  })
+  if (accepted) await removeRoleFromFoundNow(role)
+}
+
+async function confirmReplaceRole() {
+  const accepted = await confirmAction({
+    title: 'Заменить роль?',
+    message: `Роль ${replaceRoleTarget.value} будет снята, затем назначена ${replaceRoleNewCode.value}.`,
+    confirmLabel: 'Заменить роль',
+    tone: 'warning',
+  })
+  if (accepted) await confirmReplaceRoleNow()
+}
+
+async function resetPasswordForFoundUser() {
+  const accepted = await confirmAction({
+    title: 'Сбросить пароль?',
+    message: `${rolesFoundUser.value?.email || 'Пользователь'} потеряет доступ по текущему паролю.`,
+    confirmLabel: 'Сбросить пароль',
+  })
+  if (accepted) await resetPasswordForFoundUserNow()
+}
+
+async function unassignRepresentativeTeam() {
+  const accepted = await confirmAction({
+    title: 'Снять представителя с команды?',
+    message: `${repFoundUser.value?.email || 'Пользователь'} потеряет доступ к управлению командой.`,
+    confirmLabel: 'Снять назначение',
+  })
+  if (accepted) await unassignRepresentativeTeamNow()
+}
+
 const banForm = reactive({
   email: '',
   reason: '',
@@ -762,6 +873,16 @@ async function completeRegularSeason() {
     return
   }
 
+  const accepted = await confirmAction({
+    title: selectedSeasonEditItem.value?.playoffEnabled ? 'Завершить регулярный этап?' : 'Завершить сезон?',
+    message: selectedSeasonEditItem.value?.playoffEnabled
+      ? 'Таблица будет зафиксирована, после чего система сформирует сетку плей-офф.'
+      : 'Сезон будет переведен в завершенное состояние.',
+    confirmLabel: selectedSeasonEditItem.value?.playoffEnabled ? 'Сформировать плей-офф' : 'Завершить сезон',
+    tone: 'warning',
+  })
+  if (!accepted) return
+
   resetMessages()
   completingRegularSeason.value = true
 
@@ -799,6 +920,14 @@ async function onSeasonSelectChange() {
 }
 
 async function deactivateSeason(seasonId) {
+  const season = seasonsList.value.find((item) => String(item.id) === String(seasonId))
+  const accepted = await confirmAction({
+    title: 'Удалить сезон?',
+    message: `${season?.name || 'Сезон'} будет деактивирован и исчезнет из активного управления.`,
+    confirmLabel: 'Удалить сезон',
+  })
+  if (!accepted) return
+
   resetMessages()
 
   try {
@@ -939,7 +1068,7 @@ function downloadBlobFile(blob, fileName) {
   }
 }
 
-function banUser() {
+async function banUser() {
   resetMessages()
 
   const email = String(banForm.email || '').trim().toLowerCase()
@@ -949,6 +1078,13 @@ function banUser() {
     messageError.value = 'Укажите email и причину блокировки.'
     return
   }
+
+  const accepted = await confirmAction({
+    title: 'Заблокировать пользователя?',
+    message: `${email} будет заблокирован. Причина: ${reason}`,
+    confirmLabel: 'Заблокировать',
+  })
+  if (!accepted) return
 
   const user = ensureUser(email)
   if (!user) {

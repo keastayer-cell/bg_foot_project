@@ -183,12 +183,15 @@
         </form>
       </article>
     </div>
+
+    <ConfirmDialog />
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import { useAuth } from './store/auth'
 import bogorodskCoat from './assets/Screenshot at Apr 28 20-18-16.png'
 

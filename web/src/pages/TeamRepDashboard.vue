@@ -299,6 +299,7 @@
 <script setup>
 import SearchableSelect from '../components/SearchableSelect.vue'
 import { useTeamRepDashboard } from '../composables/useTeamRepDashboard.js'
+import { useConfirmDialog } from '../composables/useConfirmDialog'
 
 const {
   router,
@@ -339,7 +340,7 @@ const {
   openIncomingTransfersModal,
   closeIncomingTransfersModal,
   changeIncomingTransfersPage,
-  processIncomingTransfer,
+  processIncomingTransfer: processIncomingTransferNow,
   openAddPlayerModal,
   closeSeasonModals,
   toggleSelectedSeasonPlayersFilter,
@@ -347,8 +348,8 @@ const {
   addAvailablePlayersToSeason,
   submitSeasonApplication,
   playerHasSelectedSeason,
-  removeFromSelectedSeason,
-  removeFromTeam,
+  removeFromSelectedSeason: removeFromSelectedSeasonNow,
+  removeFromTeam: removeFromTeamNow,
   openCreatePlayerModal,
   openEditPlayerModal,
   closePlayerModal,
@@ -361,6 +362,42 @@ const {
   applicationStatusChipClass,
   applicationReviewNoteClass,
 } = useTeamRepDashboard()
+
+const { confirmAction } = useConfirmDialog()
+
+async function removeFromSelectedSeason(playerId) {
+  const player = displayedTeamPlayers.value.find((item) => String(item.id) === String(playerId))
+  const accepted = await confirmAction({
+    title: 'Убрать игрока из заявки?',
+    message: `${player?.fullName || 'Игрок'} будет исключен из заявки выбранного сезона, но останется в команде.`,
+    confirmLabel: 'Убрать из заявки',
+  })
+  if (accepted) await removeFromSelectedSeasonNow(playerId)
+}
+
+async function removeFromTeam(playerId) {
+  const player = displayedTeamPlayers.value.find((item) => String(item.id) === String(playerId))
+  const accepted = await confirmAction({
+    title: 'Удалить игрока из команды?',
+    message: `${player?.fullName || 'Игрок'} потеряет привязку к команде и будет убран из сезонных заявок.`,
+    confirmLabel: 'Удалить из команды',
+  })
+  if (accepted) await removeFromTeamNow(playerId)
+}
+
+async function processIncomingTransfer(requestId, action) {
+  const request = incomingTransfersSummary.value?.content?.find((item) => String(item.id) === String(requestId))
+    || incomingTransfersSummary.value?.requests?.find((item) => String(item.id) === String(requestId))
+  const accepted = await confirmAction({
+    title: action === 'approve' ? 'Подтвердить входящий трансфер?' : 'Отклонить входящий трансфер?',
+    message: action === 'approve'
+      ? `${request?.playerName || 'Игрок'} будет включен в вашу команду.`
+      : `Заявка на переход игрока ${request?.playerName || ''} будет закрыта.`,
+    confirmLabel: action === 'approve' ? 'Подтвердить трансфер' : 'Отклонить',
+    tone: action === 'approve' ? 'warning' : 'danger',
+  })
+  if (accepted) await processIncomingTransferNow(requestId, action)
+}
 </script>
 
 <style scoped src="../styles/pages/team-rep-dashboard.css"></style>

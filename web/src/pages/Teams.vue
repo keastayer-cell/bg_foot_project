@@ -6,12 +6,14 @@
       <p class="muted">Загружаем список команд...</p>
     </div>
 
-    <div class="card" v-else-if="errorText">
-      <p class="error-text">{{ errorText }}</p>
-      <div class="actions-row">
-        <button class="btn-primary" type="button" @click="loadTeams">Повторить</button>
-      </div>
-    </div>
+    <UiState
+      v-else-if="errorText"
+      tone="error"
+      title="Не удалось загрузить команды"
+      :message="errorText"
+      action-label="Повторить"
+      @action="loadTeams"
+    />
 
     <div class="card team-filters" v-else>
       <input
@@ -44,18 +46,25 @@
       </div>
     </div>
 
-    <p class="empty-text" v-if="!loading && !errorText && filteredTeams.length === 0 && search.trim()">
-      Ничего не найдено. Уточните название команды или нажмите «Сбросить поиск».
-    </p>
-    <p class="empty-text" v-else-if="!loading && !errorText && teams.length === 0">
-      Пока нет данных по командам.
-    </p>
+    <UiState
+      v-if="!loading && !errorText && filteredTeams.length === 0 && search.trim()"
+      title="Команды не найдены"
+      message="Уточните название или сбросьте поиск."
+      action-label="Сбросить поиск"
+      @action="resetSearch"
+    />
+    <UiState
+      v-else-if="!loading && !errorText && teams.length === 0"
+      title="Команд пока нет"
+      message="Активные команды появятся здесь после добавления администратором."
+    />
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import UiState from '../components/UiState.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 

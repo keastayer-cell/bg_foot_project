@@ -12,8 +12,8 @@
         </div>
       </div>
 
-      <p class="error-text" v-if="pageError">{{ pageError }}</p>
-      <p class="success-text" v-if="pageSuccess">{{ pageSuccess }}</p>
+      <UiState v-if="pageError" tone="error" title="Операция не выполнена" :message="pageError" />
+      <UiState v-if="pageSuccess" tone="success" title="Готово" :message="pageSuccess" />
 
       <div class="team-rep-form">
         <label>
@@ -49,8 +49,12 @@
         </div>
       </div>
 
-      <p v-if="overviewLoading" class="muted-text">Загрузка трансферов...</p>
-      <p v-else-if="!overview.requests.length" class="muted-text">По выбранному сезону пока нет трансферных заявок.</p>
+      <UiState v-if="overviewLoading" tone="loading" title="Загружаем трансферы" />
+      <UiState
+        v-else-if="!overview.requests.length"
+        title="Трансферных заявок пока нет"
+        message="Созданные заявки и история решений появятся в этом списке."
+      />
 
       <div v-else>
         <div class="transfer-list-head team-rep-transfer-list-head">
@@ -195,6 +199,8 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import SearchableSelect from '../components/SearchableSelect.vue'
+import UiState from '../components/UiState.vue'
+import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useAuth } from '../store/auth'
 import { createTeamRepTransfersApi } from '../api/teamRepTransfers'
 
@@ -206,6 +212,7 @@ defineProps({
 })
 
 const { isAuthenticated, hasRole, loadCurrentUser, authorizedApiRequest } = useAuth()
+const { confirmAction } = useConfirmDialog()
 const transfersApi = createTeamRepTransfersApi(authorizedApiRequest)
 const router = useRouter()
 const pageSize = 20
@@ -430,6 +437,28 @@ async function processTransferAction(requestId, action) {
   if (!selectedSeasonId.value || !requestId) {
     return
   }
+
+  const request = overview.value?.requests?.find((item) => String(item.id) === String(requestId))
+  const actionCopy = {
+    approve: {
+      title: 'Подтвердить трансфер?',
+      message: `${request?.playerName || 'Игрок'} перейдет из «${request?.fromTeamName || 'исходной команды'}» в «${request?.toTeamName || 'новую команду'}».`,
+      confirmLabel: 'Подтвердить трансфер',
+      tone: 'warning',
+    },
+    reject: {
+      title: 'Отклонить трансфер?',
+      message: `Заявка на переход игрока ${request?.playerName || ''} будет закрыта без изменения состава.`,
+      confirmLabel: 'Отклонить',
+    },
+    revoke: {
+      title: 'Отозвать трансфер?',
+      message: 'Если переход уже подтвержден, игрок будет возвращен в исходную команду.',
+      confirmLabel: 'Отозвать трансфер',
+    },
+  }[action]
+  const accepted = await confirmAction(actionCopy)
+  if (!accepted) return
 
   transferActionLoadingKey.value = `${action}:${requestId}`
   pageError.value = ''

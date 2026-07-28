@@ -17,7 +17,14 @@
       </nav>
     </article>
 
-    <p v-if="pageError" class="error-text">{{ pageError }}</p>
+    <UiState
+      v-if="pageError"
+      tone="error"
+      title="Не удалось загрузить данные лиги"
+      :message="pageError"
+      action-label="Повторить"
+      @action="loadLeagueData"
+    />
     <p v-else-if="loading" class="muted-text">Загрузка данных...</p>
 
     <article v-if="activeSection === 'leadership'" class="card league-section" id="leadership">
@@ -28,7 +35,7 @@
         </div>
       </div>
 
-      <p v-if="!officials.length" class="muted-text">Карточки руководства пока не опубликованы.</p>
+      <UiState v-if="!officials.length" title="Руководство пока не опубликовано" />
       <div v-else class="leadership-grid">
         <article v-for="person in officials" :key="person.id" class="leadership-card">
           <div class="leadership-avatar-wrap">
@@ -52,7 +59,7 @@
         </div>
       </div>
 
-      <p v-if="!venues.length" class="muted-text">Площадки пока не опубликованы.</p>
+      <UiState v-if="!venues.length" title="Площадки пока не опубликованы" />
       <div v-else class="venues-grid">
         <article v-for="venue in venues" :key="venue.id" class="venue-card">
           <div class="venue-visual-wrap">
@@ -79,7 +86,7 @@
         </div>
       </div>
 
-      <p v-if="!seasonDocuments.length" class="muted-text">Положения сезонов пока не опубликованы.</p>
+      <UiState v-if="!seasonDocuments.length" title="Документы пока не опубликованы" />
       <div v-else class="regulation-layout">
         <article v-if="currentSeasonDocument" class="regulation-file-card regulation-file-card-primary">
           <p class="regulation-file-label">Актуальный сезон</p>
@@ -111,6 +118,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import UiState from '../components/UiState.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 
@@ -134,7 +142,7 @@ const seasonDocuments = ref([])
 const currentSeasonDocument = computed(() => seasonDocuments.value[0] || null)
 const archivedSeasonDocuments = computed(() => seasonDocuments.value.slice(1))
 
-onMounted(async () => {
+async function loadLeagueData() {
   loading.value = true
   pageError.value = ''
   try {
@@ -147,7 +155,9 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadLeagueData)
 
 function initials(fullName) {
   return String(fullName || '')
