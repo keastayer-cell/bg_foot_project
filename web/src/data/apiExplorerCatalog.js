@@ -65,6 +65,24 @@ export const endpointGroups = [
           newPassword: 'new-strong-password-here',
         },
       },
+      {
+        key: 'auth-refresh',
+        title: 'Обновить сессию',
+        method: 'POST',
+        path: '/api/auth/refresh',
+        description: 'Обновляет access token по защищенной HttpOnly cookie и ротирует refresh token.',
+        access: 'Публичный endpoint, требуется refresh cookie',
+        auth: false,
+      },
+      {
+        key: 'auth-logout',
+        title: 'Завершить сессию',
+        method: 'POST',
+        path: '/api/auth/logout',
+        description: 'Отзывает текущий refresh token и очищает cookie сессии.',
+        access: 'Публичный endpoint, используется refresh cookie',
+        auth: false,
+      },
     ],
   },
   {
@@ -347,6 +365,18 @@ export const endpointGroups = [
           { name: 'seasonId', placeholder: 'например 1' },
         ],
       },
+      {
+        key: 'season-complete-regular',
+        title: 'Завершить регулярный этап',
+        method: 'POST',
+        path: '/api/seasons/{seasonId}/complete-regular-season',
+        description: 'Завершает регулярный этап сезона и формирует сетку плей-офф по актуальной таблице.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        pathParams: [
+          { name: 'seasonId', placeholder: 'например 1' },
+        ],
+      },
     ],
   },
   {
@@ -542,6 +572,19 @@ export const endpointGroups = [
         ],
       },
       {
+        key: 'tours-create',
+        title: 'Создать тур',
+        method: 'POST',
+        path: '/api/tours',
+        description: 'Создает тур в выбранном сезоне.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        bodyExample: {
+          seasonId: 1,
+          name: '1 тур',
+        },
+      },
+      {
         key: 'tour-publish',
         title: 'Опубликовать тур',
         method: 'PUT',
@@ -584,6 +627,20 @@ export const endpointGroups = [
           awayTeamId: 2,
           kickoffAt: '2026-05-10T15:00:00Z',
         },
+      },
+      {
+        key: 'tour-matches-delete',
+        title: 'Удалить матч из тура',
+        method: 'DELETE',
+        path: '/api/tours/{tourId}/matches/{matchId}',
+        description: 'Удаляет матч из выбранного тура.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        destructive: true,
+        pathParams: [
+          { name: 'tourId', placeholder: 'например 1' },
+          { name: 'matchId', placeholder: 'например 4' },
+        ],
       },
       {
         key: 'match-details',
@@ -751,6 +808,24 @@ export const endpointGroups = [
         },
       },
       {
+        key: 'team-rep-season-players-add-many',
+        title: 'Добавить игроков в заявку сезона',
+        method: 'POST',
+        path: '/api/team-rep/seasons/{seasonId}/players',
+        description: 'Добавляет перечисленных игроков в заявку, не заменяя уже выбранный состав.',
+        access: 'TEAM_REP / SUPER_ADMIN',
+        auth: true,
+        pathParams: [
+          { name: 'seasonId', placeholder: 'например 7' },
+        ],
+        queryParams: [
+          { name: 'teamId', placeholder: 'для SUPER_ADMIN, например 4' },
+        ],
+        bodyExample: {
+          playerIds: [31, 32],
+        },
+      },
+      {
         key: 'team-rep-season-player-add',
         title: 'Добавить игрока в команду и заявку сезона',
         method: 'POST',
@@ -774,6 +849,21 @@ export const endpointGroups = [
         pathParams: [
           { name: 'seasonId', placeholder: 'например 7' },
           { name: 'playerId', placeholder: 'например 31' },
+        ],
+      },
+      {
+        key: 'team-rep-season-submit',
+        title: 'Отправить заявку сезона на проверку',
+        method: 'POST',
+        path: '/api/team-rep/seasons/{seasonId}/submit',
+        description: 'Переводит заявку команды в статус проверки администратором или судьей.',
+        access: 'TEAM_REP / SUPER_ADMIN',
+        auth: true,
+        pathParams: [
+          { name: 'seasonId', placeholder: 'например 7' },
+        ],
+        queryParams: [
+          { name: 'teamId', placeholder: 'для SUPER_ADMIN, например 4' },
         ],
       },
       {
@@ -1025,6 +1115,145 @@ export const endpointGroups = [
         pathParams: [
           { name: 'teamId', placeholder: 'например 7' },
           { name: 'playerId', placeholder: 'например 1' },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'season-applications',
+    title: 'Заявки на сезон',
+    endpoints: [
+      {
+        key: 'season-applications-list',
+        title: 'Очередь заявок на проверку',
+        method: 'GET',
+        path: '/api/season-applications',
+        description: 'Возвращает очередь командных заявок на сезон, доступных для проверки.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        queryParams: [
+          { name: 'seasonId', placeholder: 'необязательно, например 7' },
+        ],
+      },
+      {
+        key: 'season-applications-details',
+        title: 'Детали заявки',
+        method: 'GET',
+        path: '/api/season-applications/{applicationId}',
+        description: 'Возвращает заявку, состав команды и историю решений по ней.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        pathParams: [
+          { name: 'applicationId', placeholder: 'например 12' },
+        ],
+      },
+      {
+        key: 'season-applications-approve',
+        title: 'Одобрить заявку',
+        method: 'POST',
+        path: '/api/season-applications/{applicationId}/approve',
+        description: 'Одобряет заявку команды на участие в сезоне.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        pathParams: [
+          { name: 'applicationId', placeholder: 'например 12' },
+        ],
+        bodyExample: {
+          decisionComment: 'Заявка проверена',
+        },
+      },
+      {
+        key: 'season-applications-return',
+        title: 'Вернуть заявку команде',
+        method: 'POST',
+        path: '/api/season-applications/{applicationId}/return',
+        description: 'Возвращает заявку представителю команды для исправления.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        pathParams: [
+          { name: 'applicationId', placeholder: 'например 12' },
+        ],
+        bodyExample: {
+          decisionComment: 'Уточните данные игроков',
+        },
+      },
+      {
+        key: 'season-applications-reject',
+        title: 'Отклонить заявку',
+        method: 'POST',
+        path: '/api/season-applications/{applicationId}/reject',
+        description: 'Отклоняет заявку команды на сезон с комментарием решения.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        pathParams: [
+          { name: 'applicationId', placeholder: 'например 12' },
+        ],
+        bodyExample: {
+          decisionComment: 'Заявка не соответствует требованиям',
+        },
+      },
+    ],
+  },
+  {
+    key: 'referees',
+    title: 'Судьи',
+    endpoints: [
+      {
+        key: 'referees-list',
+        title: 'Список судей',
+        method: 'GET',
+        path: '/api/referees',
+        description: 'Возвращает активных судей или полный список для администрирования.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        queryParams: [
+          { name: 'active_flag', placeholder: '1 или 0' },
+        ],
+      },
+      {
+        key: 'referees-create',
+        title: 'Создать судью',
+        method: 'POST',
+        path: '/api/referees',
+        description: 'Создает карточку судьи.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        bodyExample: {
+          fullName: 'Иван Иванов',
+          city: 'Богородск',
+          birthDate: '1990-05-20',
+          photoDataUrl: 'data:image/png;base64,...',
+        },
+      },
+      {
+        key: 'referees-update',
+        title: 'Обновить судью',
+        method: 'PUT',
+        path: '/api/referees/{refereeId}',
+        description: 'Обновляет данные выбранного судьи.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        pathParams: [
+          { name: 'refereeId', placeholder: 'например 3' },
+        ],
+        bodyExample: {
+          fullName: 'Иван Иванов',
+          city: 'Богородск',
+          birthDate: '1990-05-20',
+          photoDataUrl: 'data:image/png;base64,...',
+        },
+      },
+      {
+        key: 'referees-deactivate',
+        title: 'Деактивировать судью',
+        method: 'DELETE',
+        path: '/api/referees/{refereeId}',
+        description: 'Мягко деактивирует карточку судьи.',
+        access: 'SUPER_ADMIN / REFEREE',
+        auth: true,
+        destructive: true,
+        pathParams: [
+          { name: 'refereeId', placeholder: 'например 3' },
         ],
       },
     ],
