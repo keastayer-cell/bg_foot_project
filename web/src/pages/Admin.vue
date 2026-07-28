@@ -5,122 +5,123 @@
       <p class="muted-text">Управление турниром, участниками и правами доступа из одного экрана.</p>
     </article>
 
-    <AdminTabNavigation
-      :groups="visibleTabGroups"
-      :active-tab="activeTab"
-      @select="selectAdminTab"
-    />
+    <div class="admin-workspace">
+      <AdminTabNavigation
+        :groups="visibleTabGroups"
+        :active-tab="activeTab"
+        @select="selectAdminTab"
+      />
 
-    <AdminSeasonsPanel
-      v-if="activeTab === 'seasons'"
-      :panel="seasonPanel"
-    />
-
-
-    <AdminTeamsPanel
-      v-if="activeTab === 'teams'"
-      :panel="teamPanel"
-    />
+      <div class="admin-workspace-content">
+        <AdminSeasonsPanel
+          v-if="activeTab === 'seasons'"
+          :panel="seasonPanel"
+        />
 
 
-    <AdminToursPanel
-      v-if="activeTab === 'tours'"
-      :panel="tourPanel"
-    />
+        <AdminTeamsPanel
+          v-if="activeTab === 'teams'"
+          :panel="teamPanel"
+        />
 
+        <AdminToursPanel
+          v-if="activeTab === 'tours'"
+          :panel="tourPanel"
+        />
 
-    <AdminPlayersPanel
-      v-if="activeTab === 'players'"
-      v-model:sub-mode="playerSubMode"
-      v-model:edit-select-id="playerEditSelectId"
-      :form="playerForm"
-      :edit-options="playerEditOptions"
-      :editing-id="editingPlayerId"
-      @cancel="cancelEditPlayer"
-      @create="createPlayer"
-      @deactivate="deactivatePlayer"
-      @photo-selected="onPlayerPhotoSelected"
-      @save="saveEditPlayer"
-    />
+        <AdminPlayersPanel
+          v-if="activeTab === 'players'"
+          v-model:sub-mode="playerSubMode"
+          v-model:edit-select-id="playerEditSelectId"
+          :form="playerForm"
+          :edit-options="playerEditOptions"
+          :editing-id="editingPlayerId"
+          @cancel="cancelEditPlayer"
+          @create="createPlayer"
+          @deactivate="deactivatePlayer"
+          @photo-selected="onPlayerPhotoSelected"
+          @save="saveEditPlayer"
+        />
 
-    <AdminRefereesPanel
-      v-if="activeTab === 'referees'"
-      v-model:sub-mode="refereeSubMode"
-      v-model:edit-select-id="refereeEditSelectId"
-      :form="refereeForm"
-      :referees="refereesList"
-      :editing-id="editingRefereeId"
-      @cancel="cancelEditReferee"
-      @create="createReferee"
-      @deactivate="deactivateReferee"
-      @photo-selected="onRefereePhotoSelected"
-      @save="saveEditReferee"
-      @selection-change="onRefereeSelectChange"
-    />
+        <AdminRefereesPanel
+          v-if="activeTab === 'referees'"
+          v-model:sub-mode="refereeSubMode"
+          v-model:edit-select-id="refereeEditSelectId"
+          :form="refereeForm"
+          :referees="refereesList"
+          :editing-id="editingRefereeId"
+          @cancel="cancelEditReferee"
+          @create="createReferee"
+          @deactivate="deactivateReferee"
+          @photo-selected="onRefereePhotoSelected"
+          @save="saveEditReferee"
+          @selection-change="onRefereeSelectChange"
+        />
 
-    <AdminLeagueContent
-      v-if="activeTab === 'league'"
-      :seasons-list="seasonsList"
-      @refresh-seasons="handleLeagueSeasonRefresh"
-    />
+        <AdminLeagueContent
+          v-if="activeTab === 'league'"
+          :seasons-list="seasonsList"
+          @refresh-seasons="handleLeagueSeasonRefresh"
+        />
 
-    <AdminRolesPanel
-      v-if="activeTab === 'roles'"
-      v-model:search="rolesSearch"
-      v-model:selected-email="rolesSelectedEmail"
-      v-model:replace-target="replaceRoleTarget"
-      v-model:replace-code="replaceRoleNewCode"
-      v-model:assign-code="assignRoleCode"
-      :users="filteredUsersForSelect"
-      :has-users="Boolean(roleUsersList.length)"
-      :found-user="rolesFoundUser"
-      :password-reset-result="passwordResetResult"
-      :password-reset-link="absolutePasswordResetLink"
-      :format-date-time="formatDateTime"
-      @assign-role="assignRoleToFound"
-      @confirm-replace="confirmReplaceRole"
-      @copy-reset-link="copyPasswordResetLink"
-      @find="findUserForRoles"
-      @remove-role="removeRoleFromFound"
-      @reset-password="resetPasswordForFoundUser"
-      @start-replace="startReplaceRole"
-    />
+        <AdminRolesPanel
+          v-if="activeTab === 'roles'"
+          v-model:search="rolesSearch"
+          v-model:selected-email="rolesSelectedEmail"
+          v-model:replace-target="replaceRoleTarget"
+          v-model:replace-code="replaceRoleNewCode"
+          v-model:assign-code="assignRoleCode"
+          :users="filteredUsersForSelect"
+          :has-users="Boolean(roleUsersList.length)"
+          :found-user="rolesFoundUser"
+          :password-reset-result="passwordResetResult"
+          :password-reset-link="absolutePasswordResetLink"
+          :format-date-time="formatDateTime"
+          @assign-role="assignRoleToFound"
+          @confirm-replace="confirmReplaceRole"
+          @copy-reset-link="copyPasswordResetLink"
+          @find="findUserForRoles"
+          @remove-role="removeRoleFromFound"
+          @reset-password="resetPasswordForFoundUser"
+          @start-replace="startReplaceRole"
+        />
 
-    <AdminRepresentativesPanel
-      v-if="activeTab === 'representatives'"
-      v-model:search="repSearch"
-      v-model:selected-email="repSelectedEmail"
-      v-model:selected-team-id="repSelectedTeamId"
-      :users="filteredRepresentativeUsersForSelect"
-      :has-users="Boolean(repUsersList.length)"
-      :found-user="repFoundUser"
-      :current-team-scope="repCurrentTeamScope"
-      :has-multiple-team-scopes="repHasMultipleTeamScopes"
-      :teams="teamsList"
-      :primary-action-label="repPrimaryActionLabel"
-      @find="findRepresentative"
-      @save-team="saveRepresentativeTeam"
-      @unassign-team="unassignRepresentativeTeam"
-    />
+        <AdminRepresentativesPanel
+          v-if="activeTab === 'representatives'"
+          v-model:search="repSearch"
+          v-model:selected-email="repSelectedEmail"
+          v-model:selected-team-id="repSelectedTeamId"
+          :users="filteredRepresentativeUsersForSelect"
+          :has-users="Boolean(repUsersList.length)"
+          :found-user="repFoundUser"
+          :current-team-scope="repCurrentTeamScope"
+          :has-multiple-team-scopes="repHasMultipleTeamScopes"
+          :teams="teamsList"
+          :primary-action-label="repPrimaryActionLabel"
+          @find="findRepresentative"
+          @save-team="saveRepresentativeTeam"
+          @unassign-team="unassignRepresentativeTeam"
+        />
 
-    <AdminBanPanel
-      v-if="activeTab === 'ban'"
-      :form="banForm"
-      :users="usersRegistry"
-      @ban="banUser"
-      @unban="unbanUser"
-    />
+        <AdminBanPanel
+          v-if="activeTab === 'ban'"
+          :form="banForm"
+          :users="usersRegistry"
+          @ban="banUser"
+          @unban="unbanUser"
+        />
 
-    <article class="card" v-if="messageError || messageOk">
-      <p class="error-text" v-if="messageError">{{ messageError }}</p>
-      <p class="success-text" v-if="messageOk">{{ messageOk }}</p>
-    </article>
+        <article class="card" v-if="messageError || messageOk">
+          <p class="error-text" v-if="messageError">{{ messageError }}</p>
+          <p class="success-text" v-if="messageOk">{{ messageOk }}</p>
+        </article>
+      </div>
+    </div>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
 import { createAdminSeasonsApi } from '../api/adminSeasons'
 import { useStore } from '../store/store'
@@ -147,14 +148,13 @@ import AdminToursPanel from '../components/admin/AdminToursPanel.vue'
 import AdminLeagueContent from '../components/AdminLeagueContent.vue'
 
 const USERS_KEY = 'football_stats_admin_users_registry'
-const router = useRouter()
 
 const { authorizedApiRequest, authorizedApiRequestRaw, hasRole } = useAuth()
 const adminSeasonsApi = createAdminSeasonsApi(authorizedApiRequest, authorizedApiRequestRaw)
 const { loadSeasons } = useStore()
 const { activeTab, visibleTabGroups, selectAdminTab } = useAdminTabs({
   hasRole,
-  navigate: (path) => router.push(path),
+  openExternal: (path) => window.open(path, '_blank', 'noopener,noreferrer'),
 })
 
 const seasonsList = ref([])
@@ -1748,8 +1748,6 @@ onMounted(async () => {
 }
 
 @media (max-width: 640px) {
-  .admin-tab-groups,
-  .admin-tabs-grid,
   .admin-grid {
     grid-template-columns: 1fr;
   }

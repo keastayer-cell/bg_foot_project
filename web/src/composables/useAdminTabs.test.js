@@ -5,7 +5,7 @@ import { useAdminTabs } from './useAdminTabs'
 function createTabs(roles = []) {
   return useAdminTabs({
     hasRole: (role) => roles.includes(role),
-    navigate: vi.fn(),
+    openExternal: vi.fn(),
   })
 }
 
@@ -13,13 +13,31 @@ describe('useAdminTabs', () => {
   it('shows all groups to a super admin', () => {
     const { visibleTabGroups } = createTabs(['SUPER_ADMIN'])
 
-    expect(visibleTabGroups.value.map((group) => group.id)).toEqual(['competition', 'access'])
+    expect(visibleTabGroups.value.map((group) => group.id)).toEqual([
+      'competition',
+      'participants',
+      'access',
+    ])
   })
 
-  it('shows only competition tools to a referee', () => {
+  it('shows competition and participant tools to a referee', () => {
     const { visibleTabGroups } = createTabs(['REFEREE'])
 
-    expect(visibleTabGroups.value.map((group) => group.id)).toEqual(['competition'])
+    expect(visibleTabGroups.value.map((group) => group.id)).toEqual([
+      'competition',
+      'participants',
+    ])
+    expect(visibleTabGroups.value.flatMap((group) => group.items).map((item) => item.id))
+      .toContain('league')
+  })
+
+  it('keeps access management exclusive to a super admin', () => {
+    const { visibleTabGroups } = createTabs(['REFEREE'])
+    const tabIds = visibleTabGroups.value.flatMap((group) => group.items).map((item) => item.id)
+
+    expect(tabIds).not.toContain('roles')
+    expect(tabIds).not.toContain('representatives')
+    expect(tabIds).not.toContain('ban')
   })
 
   it('does not expose admin groups without an accepted role', () => {
@@ -31,17 +49,27 @@ describe('useAdminTabs', () => {
   it.each([
     ['season-applications', '/season-applications-review'],
     ['transfers', '/team-rep-transfers'],
-  ])('navigates the %s tab to its dedicated page', (tabId, path) => {
-    const navigate = vi.fn()
+  ])('opens the %s workflow externally', (tabId, path) => {
+    const openExternal = vi.fn()
     const { activeTab, selectAdminTab } = useAdminTabs({
       hasRole: () => true,
-      navigate,
+      openExternal,
     })
 
     selectAdminTab(tabId)
 
-    expect(navigate).toHaveBeenCalledWith(path)
+    expect(openExternal).toHaveBeenCalledWith(path)
     expect(activeTab.value).toBe('seasons')
+  })
+
+  it('marks dedicated workflows as external navigation items', () => {
+    const { visibleTabGroups } = createTabs(['SUPER_ADMIN'])
+    const externalIds = visibleTabGroups.value
+      .flatMap((group) => group.items)
+      .filter((item) => item.external)
+      .map((item) => item.id)
+
+    expect(externalIds).toEqual(['season-applications', 'transfers'])
   })
 
   it('changes the active inline tab', () => {

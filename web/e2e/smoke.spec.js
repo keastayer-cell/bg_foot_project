@@ -15,6 +15,13 @@ const users = {
     roles: ['SUPER_ADMIN'],
     mustChangePassword: false,
   },
+  REFEREE: {
+    userId: 3,
+    email: 'referee@example.com',
+    name: 'Referee',
+    roles: ['REFEREE'],
+    mustChangePassword: false,
+  },
   TEAM_REP: {
     userId: 2,
     email: 'rep@example.com',
@@ -119,6 +126,54 @@ test('opens the admin page for SUPER_ADMIN', async ({ page }) => {
 
   await expect(page).toHaveURL(/\/admin$/)
   await expect(page.getByRole('heading', { name: 'Админ-панель' })).toBeVisible()
+
+  if ((page.viewportSize()?.width || 0) <= 860) {
+    const sectionMenu = page.getByRole('combobox', { name: 'Раздел' })
+    await expect(sectionMenu).toBeVisible()
+    await expect(page.locator('.admin-navigation-desktop')).toBeHidden()
+
+    const layout = await page.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    }))
+    expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth)
+
+    await sectionMenu.selectOption('teams')
+    await expect(sectionMenu).toHaveValue('teams')
+    await expect(page.getByRole('heading', { name: 'Команды и составы' })).toBeVisible()
+
+    const applicationsPagePromise = page.waitForEvent('popup')
+    await sectionMenu.selectOption('season-applications')
+    const applicationsPage = await applicationsPagePromise
+    await expect(applicationsPage).toHaveURL(/\/season-applications-review$/)
+    await applicationsPage.close()
+    await expect(sectionMenu).toHaveValue('teams')
+  } else {
+    await expect(page.getByRole('complementary', { name: 'Разделы админ-панели' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Роли и доступ' })).toBeVisible()
+    await page.getByRole('button', { name: 'Команды' }).click()
+    await expect(page.getByRole('heading', { name: 'Команды и составы' })).toBeVisible()
+
+    const applicationsPagePromise = page.waitForEvent('popup')
+    await page.getByRole('button', { name: 'Заявки на сезон' }).click()
+    const applicationsPage = await applicationsPagePromise
+    await expect(applicationsPage).toHaveURL(/\/season-applications-review$/)
+    await applicationsPage.close()
+    await expect(page.getByRole('button', { name: 'Команды', exact: true }))
+      .toHaveAttribute('aria-current', 'page')
+  }
+})
+
+test('shows referee tools without access management', async ({ page }) => {
+  await restoreSession(page, 'REFEREE')
+  await page.goto('/admin')
+
+  await expect(page).toHaveURL(/\/admin$/)
+  const navigation = page.getByRole('complementary', { name: 'Разделы админ-панели' })
+  await expect(navigation).toContainText('Лига')
+  await expect(navigation).not.toContainText('Роли и доступ')
+  await expect(navigation).not.toContainText('Представители')
+  await expect(navigation).not.toContainText('Блокировки')
 })
 
 test('opens the team representative dashboard', async ({ page }) => {
