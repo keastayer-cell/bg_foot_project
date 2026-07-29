@@ -23,12 +23,10 @@
           <div class="team-cell" :class="{ 'team-cell-mobile': variant === 'mobile' }">
             <RouterLink
               class="team-link"
-              :to="{
-                path: `/teams/${row.teamId}`,
-                query: { seasonId: String(seasonId) },
-              }"
-              target="_blank"
-              rel="noopener noreferrer"
+              :to="teamProfileLocation(
+                { id: row.teamId, name: row.teamName },
+                { seasonId },
+              )"
             >
               {{ row.teamName }}
             </RouterLink>
@@ -46,6 +44,7 @@
 
 <script setup>
 import { RouterLink } from 'vue-router'
+import { teamProfileLocation } from '../../utils/publicUrls'
 
 defineProps({
   standings: {

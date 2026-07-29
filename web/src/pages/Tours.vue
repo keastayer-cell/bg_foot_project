@@ -93,6 +93,7 @@
           :left-columns="playoffLeftColumns"
           :right-columns="playoffRightColumns"
           :center-cards="playoffCenterCards"
+          :season-id="selectedSeasonId"
         />
 
         <SeasonStandingsTables
@@ -105,6 +106,7 @@
           v-else-if="seasonViewMode === 'matrix' && matrixTeams.length"
           :teams="matrixTeams"
           :rows="matrixRows"
+          :season-id="selectedSeasonId"
         />
 
         <p class="empty-text" v-else-if="selectedSeason && !loadingSeasonData && seasonViewMode === 'playoff' && !selectedSeason?.playoffEnabled">Для этого сезона плей-офф выключен.</p>
@@ -118,6 +120,7 @@
         :tours="formattedTours"
         :selected-season="selectedSeason"
         :loading="loadingSeasonData"
+        :initial-tour-id="requestedTourId"
       />
 
       <SeasonPlayerStatsCard
@@ -135,6 +138,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import SeasonMatrix from '../components/tours/SeasonMatrix.vue'
 import SeasonPlayerStatsCard from '../components/tours/SeasonPlayerStatsCard.vue'
 import SeasonPlayoffBracket from '../components/tours/SeasonPlayoffBracket.vue'
@@ -148,6 +152,14 @@ import { createCatalogApi } from '../api/catalog'
 
 const { optionalAuthApiRequest } = useAuth()
 const catalogApi = createCatalogApi(optionalAuthApiRequest)
+const route = useRoute()
+const navigationState = window.history.state || {}
+const requestedViewValue = String(navigationState.view || route.query.view || '')
+const requestedView = ['table', 'matrix', 'playoff'].includes(requestedViewValue)
+  ? requestedViewValue
+  : 'table'
+const requestedSeasonId = String(navigationState.seasonId || route.query.season || '')
+const requestedTourId = String(navigationState.tourId || route.query.tour || '')
 
 const seasons = ref([])
 const selectedSeasonId = ref('')
@@ -157,7 +169,7 @@ const seasonStandings = ref([])
 const seasonPlayerStats = ref([])
 const playoffBracket = ref(null)
 const standingsConfig = ref(null)
-const seasonViewMode = ref('table')
+const seasonViewMode = ref(requestedView)
 const sidePanelMode = ref('tours')
 const statsMode = ref('scorers')
 const loadingSeasons = ref(false)
@@ -266,8 +278,11 @@ async function loadSeasons() {
     seasons.value = Array.isArray(payload)
       ? payload.filter((item) => String(item?.status || '') === 'ACTIVE')
       : []
-    if (!selectedSeasonId.value && seasons.value.length) {
-      selectedSeasonId.value = String(seasons.value[0].id)
+    if (seasons.value.length) {
+      const requestedSeason = seasons.value.find(
+        (season) => String(season.id) === requestedSeasonId,
+      )
+      selectedSeasonId.value = String(requestedSeason?.id || seasons.value[0].id)
     }
   } catch (error) {
     seasons.value = []
@@ -662,6 +677,143 @@ onMounted(async () => {
   font-weight: 700;
 }
 
+.tours-card-head {
+  margin-bottom: 0;
+}
+
+.tours-card-subtitle {
+  margin: 6px 0 0;
+}
+
+.tour-navigator {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.tour-select-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tour-select-field > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.tour-select-field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.tour-stepper {
+  display: grid;
+  grid-template-columns: 38px minmax(64px, auto) 38px;
+  align-items: center;
+  gap: 6px;
+}
+
+.tour-stepper strong {
+  text-align: center;
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.tour-step-button {
+  min-width: 38px;
+  padding: 8px;
+}
+
+.tour-step-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.selected-tour-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid rgba(126, 191, 255, 0.18);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(66, 94, 157, 0.13), rgba(255, 255, 255, 0.025));
+}
+
+.selected-tour-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.selected-tour-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.selected-tour-head h3 {
+  margin: 10px 0 5px;
+  font-size: 1.15rem;
+}
+
+.selected-tour-head p {
+  margin: 0;
+}
+
+.selected-tour-progress {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  min-width: max-content;
+}
+
+.selected-tour-progress strong {
+  font-size: 1.12rem;
+}
+
+.selected-tour-progress span {
+  font-size: 0.72rem;
+}
+
+.tour-state-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.tour-state-badge.is-complete {
+  color: #c8d1e8;
+  border-color: rgba(200, 209, 232, 0.16);
+  background: rgba(200, 209, 232, 0.08);
+}
+
+.tour-state-badge.is-upcoming {
+  color: #8ee8ba;
+  border-color: rgba(97, 232, 162, 0.22);
+  background: rgba(97, 232, 162, 0.1);
+}
+
+.tour-state-badge.is-live {
+  color: #ffcf74;
+  border-color: rgba(255, 184, 76, 0.25);
+  background: rgba(255, 184, 76, 0.1);
+}
+
+.selected-tour-match-list {
+  max-height: 430px;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
 .tour-match-list {
   display: grid;
   gap: 8px;
@@ -873,134 +1025,132 @@ onMounted(async () => {
   position: relative;
   width: 100%;
   overflow-x: auto;
-  padding: 10px 0 14px;
+  padding: 16px 8px 22px;
 }
 
 .playoff-stage-shell {
+  position: relative;
   display: grid;
-  grid-template-columns: max-content max-content max-content;
+  grid-template-columns: max-content 210px max-content;
   justify-content: center;
-  gap: 44px;
-  align-items: center;
-  min-width: 0;
+  gap: 56px;
+  align-items: start;
+  min-width: max-content;
+}
+
+.playoff-connectors {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.playoff-connectors path {
+  fill: none;
+  stroke: rgba(145, 191, 235, 0.52);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 5px rgba(72, 137, 206, 0.18));
 }
 
 .playoff-stage-side {
   display: grid;
-  gap: 12px;
-  align-content: center;
-  justify-content: center;
-}
-
-.playoff-stage-side-left,
-.playoff-stage-side-right {
-  grid-template-columns: repeat(auto-fit, minmax(168px, max-content));
+  grid-auto-flow: column;
+  grid-auto-columns: 190px;
+  gap: 56px;
+  align-items: start;
 }
 
 .playoff-side-column {
   display: grid;
-  gap: 8px;
-  justify-items: center;
-  align-content: start;
-  padding-top: var(--playoff-side-padding-top, 0);
-}
-
-.playoff-side-column-right {
-  justify-items: center;
+  grid-template-rows: 40px var(--playoff-stage-height);
+  gap: 14px;
+  width: 190px;
 }
 
 .playoff-side-cards {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: var(--playoff-side-gap, 12px);
+  justify-content: space-around;
+  align-items: stretch;
+  height: var(--playoff-stage-height);
   position: relative;
 }
 
-.playoff-side-column-left .playoff-side-cards::after,
-.playoff-side-column-right .playoff-side-cards::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  width: 16px;
-  height: calc(100% - 36px);
-  border-top: 1px solid rgba(178, 224, 255, 0.24);
-  border-bottom: 1px solid rgba(178, 224, 255, 0.24);
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-.playoff-side-column-left .playoff-side-cards::after {
-  right: -8px;
-  border-right: 1px solid rgba(178, 224, 255, 0.24);
-}
-
-.playoff-side-column-right .playoff-side-cards::after {
-  left: -8px;
-  border-left: 1px solid rgba(178, 224, 255, 0.24);
+.playoff-card-anchor {
+  position: relative;
+  z-index: 1;
+  width: 100%;
 }
 
 .playoff-round-head {
-  padding: 6px 10px;
-  width: min(100%, 168px);
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(126, 191, 255, 0.16);
-  background: linear-gradient(180deg, rgba(72, 107, 191, 0.34), rgba(25, 34, 74, 0.72));
+  border: 1px solid rgba(126, 191, 255, 0.25);
+  background: linear-gradient(180deg, rgba(72, 107, 191, 0.42), rgba(25, 34, 74, 0.82));
   backdrop-filter: blur(10px);
   text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .playoff-round-head h3 {
   margin: 0;
-  font-size: 0.86rem;
+  font-size: 0.9rem;
 }
 
 .playoff-match-card {
   position: relative;
   display: grid;
-  gap: 6px;
-  padding: 8px 10px;
-  min-height: 78px;
-  width: min(100%, 168px);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  gap: 8px;
+  width: 100%;
+  min-height: 106px;
+  padding: 10px 11px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(192, 216, 255, 0.2);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06)),
-    linear-gradient(135deg, rgba(84, 136, 214, 0.24), rgba(16, 24, 56, 0.88));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045)),
+    linear-gradient(135deg, rgba(75, 113, 184, 0.28), rgba(12, 19, 46, 0.94));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 18px 42px rgba(3, 8, 24, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 16px 34px rgba(3, 8, 24, 0.24);
   text-decoration: none;
   color: inherit;
-  justify-self: center;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
 }
 
-.playoff-match-card::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  width: 16px;
-  height: 2px;
-  background: linear-gradient(90deg, rgba(178, 224, 255, 0.46), rgba(178, 224, 255, 0.12));
+.playoff-match-card.is-clickable {
+  cursor: pointer;
+  padding-bottom: 22px;
 }
 
-.playoff-side-column-left .playoff-match-card::after {
-  right: -16px;
-}
-
-.playoff-side-column-right .playoff-match-card::after {
-  left: -16px;
-  background: linear-gradient(90deg, rgba(178, 224, 255, 0.12), rgba(178, 224, 255, 0.46));
-}
-
-.playoff-match-card-center::after,
-.playoff-stage-center .playoff-match-card::after {
-  display: none;
-}
-
-.playoff-match-card:hover {
-  border-color: rgba(123, 214, 177, 0.34);
-  transform: translateY(-1px);
+.playoff-match-card.is-clickable:hover,
+.playoff-match-card.is-clickable:focus-visible {
+  z-index: 2;
+  outline: none;
+  border-color: rgba(97, 232, 162, 0.7);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.06)),
+    linear-gradient(135deg, rgba(65, 151, 145, 0.35), rgba(12, 24, 48, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 18px 44px rgba(3, 8, 24, 0.34),
+    0 0 0 3px rgba(97, 232, 162, 0.08);
+  transform: translateY(-3px);
 }
 
 .playoff-match-card.is-placeholder {
@@ -1017,52 +1167,47 @@ onMounted(async () => {
 }
 
 .playoff-stage-center {
-  display: grid;
-  align-items: center;
   position: relative;
-}
-
-.playoff-stage-center::before,
-.playoff-stage-center::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  width: 36px;
-  height: 2px;
-  background: linear-gradient(90deg, rgba(178, 224, 255, 0.2), rgba(178, 224, 255, 0.48));
-  transform: translateY(18px);
-  pointer-events: none;
-}
-
-.playoff-stage-center::before {
-  left: -36px;
-}
-
-.playoff-stage-center::after {
-  right: -36px;
-  background: linear-gradient(90deg, rgba(178, 224, 255, 0.48), rgba(178, 224, 255, 0.2));
+  z-index: 1;
+  width: 210px;
 }
 
 .playoff-center-stack {
-  display: grid;
-  gap: 14px;
-  align-content: center;
+  position: relative;
+  width: 100%;
+  height: calc(var(--playoff-stage-height) + 54px);
 }
 
 .playoff-center-card-wrap {
+  position: absolute;
+  left: 0;
+  width: 100%;
   display: grid;
-  gap: 8px;
-  justify-items: center;
+  gap: 12px;
+  justify-items: stretch;
+}
+
+.playoff-center-card-wrap.is-final {
+  top: 0;
+  height: 100%;
+  grid-template-rows: 40px 1fr;
+}
+
+.playoff-center-card-wrap.is-final .playoff-card-anchor {
+  align-self: center;
+  transform: translateY(-20px);
+}
+
+.playoff-center-card-wrap.is-third-place {
+  bottom: 0;
 }
 
 .playoff-round-head-center {
-  justify-self: center;
-  min-width: min(100%, 180px);
+  width: 100%;
 }
 
 .playoff-match-card-center {
-  min-height: 92px;
-  width: min(100%, 184px);
+  min-height: 112px;
 }
 
 .playoff-match-card-head,
@@ -1109,7 +1254,7 @@ onMounted(async () => {
 
 .playoff-team-slot strong {
   min-width: 0;
-  max-width: 112px;
+  max-width: 132px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1128,8 +1273,25 @@ onMounted(async () => {
   font-size: 0.62rem;
 }
 
-.playoff-stage-center .playoff-match-card {
-  min-height: 92px;
+.playoff-match-card-open {
+  position: absolute;
+  right: 11px;
+  bottom: 6px;
+  color: rgba(181, 255, 218, 0.82);
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.015em;
+  opacity: 0;
+  transform: translateX(-5px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.playoff-match-card.is-clickable:hover .playoff-match-card-open,
+.playoff-match-card.is-clickable:focus-visible .playoff-match-card-open {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .playoff-stage-center .playoff-team-slot {
@@ -1175,57 +1337,67 @@ onMounted(async () => {
   }
 
   .playoff-stage-shell {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
-    grid-template-columns: 1fr;
-    justify-content: stretch;
-    gap: 14px;
+    gap: 18px;
+  }
+
+  .playoff-connectors {
+    display: none;
   }
 
   .playoff-stage-side,
   .playoff-stage-center,
-  .playoff-center-stack,
-  .playoff-center-card-wrap,
-  .playoff-side-cards {
-    width: 100%;
-  }
-
-  .playoff-stage-side-left,
-  .playoff-stage-side-right {
-    grid-template-columns: 1fr;
-    justify-content: stretch;
-  }
-
-  .playoff-stage-center {
-    order: 1;
-  }
-
-  .playoff-stage-side-left {
-    order: 2;
-  }
-
-  .playoff-stage-side-right {
-    order: 3;
-  }
-
-  .playoff-stage-center::before,
-  .playoff-stage-center::after {
-    display: none;
+  .playoff-center-stack {
+    display: contents;
   }
 
   .playoff-side-column {
-    justify-items: stretch;
+    width: 100%;
+    grid-template-rows: auto auto;
     gap: 10px;
-    padding-top: 0;
+  }
+
+  .playoff-side-column.is-round-of-16 {
+    order: 1;
+  }
+
+  .playoff-side-column.is-quarterfinal {
+    order: 2;
+  }
+
+  .playoff-side-column.is-semifinal {
+    order: 3;
+  }
+
+  .playoff-center-card-wrap.is-final {
+    order: 4;
+  }
+
+  .playoff-center-card-wrap.is-third-place {
+    order: 5;
+  }
+
+  .playoff-center-card-wrap,
+  .playoff-center-card-wrap.is-final,
+  .playoff-center-card-wrap.is-third-place {
+    position: static;
+    display: grid;
+    grid-template-rows: auto auto;
+    width: 100%;
+    height: auto;
+    gap: 10px;
+  }
+
+  .playoff-center-card-wrap.is-final .playoff-card-anchor {
+    transform: none;
   }
 
   .playoff-side-cards {
+    height: auto;
+    justify-content: flex-start;
     gap: 10px;
-  }
-
-  .playoff-side-column-left .playoff-side-cards::after,
-  .playoff-side-column-right .playoff-side-cards::after,
-  .playoff-match-card::after {
-    display: none;
   }
 
   .playoff-round-head,
@@ -1243,9 +1415,12 @@ onMounted(async () => {
 
   .playoff-match-card,
   .playoff-match-card-center {
-    justify-self: stretch;
     min-height: 0;
     padding: 10px 12px;
+  }
+
+  .playoff-match-card.is-clickable {
+    padding-bottom: 24px;
   }
 
   .playoff-match-card-head,
@@ -1358,6 +1533,23 @@ onMounted(async () => {
     display: grid;
   }
 
+  .tour-navigator {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .tour-stepper {
+    justify-content: space-between;
+  }
+
+  .selected-tour-head {
+    flex-direction: column;
+  }
+
+  .selected-tour-progress {
+    justify-items: start;
+  }
+
   .tour-card,
   .home-hero-head,
   .section-head {
@@ -1441,6 +1633,10 @@ onMounted(async () => {
   .playoff-match-card-center {
     padding: 8px 10px;
     border-radius: 10px;
+  }
+
+  .playoff-match-card.is-clickable {
+    padding-bottom: 22px;
   }
 
   .playoff-match-card-head {

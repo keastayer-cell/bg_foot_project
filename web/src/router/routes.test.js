@@ -17,12 +17,33 @@ describe('route definitions smoke test', () => {
       '/league',
       '/players',
       '/teams',
-      '/match/:id',
+      '/teams/:slug',
+      '/matches/:id',
     ]))
   })
 
   it('does not expose the removed client-only match editor', () => {
     expect(routes.map((route) => route.path)).not.toContain('/create')
+  })
+
+  it('redirects legacy singular match URLs to the canonical route', () => {
+    const legacyRoute = routes.find((route) => route.path === '/match/:id')
+    const target = legacyRoute.redirect({
+      params: { id: '92' },
+      query: {
+        from: 'team-profile',
+        team: 'meteor-novinki',
+      },
+    })
+
+    expect(target).toEqual({
+      name: 'match',
+      params: { id: '92' },
+      state: {
+        returnContext: 'team-profile',
+        teamSlug: 'meteor-novinki',
+      },
+    })
   })
 
   it.each([

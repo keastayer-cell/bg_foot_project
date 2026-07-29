@@ -1,32 +1,76 @@
 <template>
   <article class="card tours-card">
-    <div class="section-head">
-      <h2 class="section-title">Туры сезона</h2>
+    <div class="section-head tours-card-head">
+      <div>
+        <h2 class="section-title">Туры сезона</h2>
+        <p v-if="tours.length" class="muted-text tours-card-subtitle">
+          Быстрый переход между этапами сезона · всего {{ tours.length }}
+        </p>
+      </div>
       <span v-if="loading" class="muted-text">Загрузка...</span>
     </div>
 
-    <div v-if="tours.length" class="tour-list">
-      <article v-for="tour in tours" :key="tour.id" class="tour-block">
-        <button class="tour-card tour-card-button" type="button" @click="toggleTour(tour.id)">
-          <div class="tour-main">
-            <h3>{{ tour.name }}</h3>
-            <p class="muted-text">{{ stageLabel(tour) }}</p>
-            <p class="tour-date">{{ tourDateLabel(tour) }}</p>
+    <template v-if="tours.length && selectedTour">
+      <div class="tour-navigator">
+        <label class="tour-select-field">
+          <span>Выбрать тур</span>
+          <select v-model="selectedTourId">
+            <option v-for="tour in tours" :key="tour.id" :value="String(tour.id)">
+              {{ tourOptionLabel(tour) }}
+            </option>
+          </select>
+        </label>
+
+        <div class="tour-stepper" aria-label="Переключение туров">
+          <button
+            class="btn-ghost tour-step-button"
+            type="button"
+            :disabled="!hasPreviousTour"
+            aria-label="Предыдущий тур"
+            @click="selectRelativeTour(-1)"
+          >
+            ←
+          </button>
+          <strong>{{ selectedTourPosition }}</strong>
+          <button
+            class="btn-ghost tour-step-button"
+            type="button"
+            :disabled="!hasNextTour"
+            aria-label="Следующий тур"
+            @click="selectRelativeTour(1)"
+          >
+            →
+          </button>
+        </div>
+      </div>
+
+      <section class="selected-tour-card">
+        <div class="selected-tour-head">
+          <div>
+            <div class="selected-tour-title-row">
+              <span class="tour-badge">{{ tourBadge(selectedTour) }}</span>
+              <span :class="['tour-state-badge', tourStateClass(selectedTour)]">
+                {{ tourStateLabel(selectedTour) }}
+              </span>
+            </div>
+            <h3>{{ selectedTour.name }}</h3>
+            <p class="muted-text">{{ stageLabel(selectedTour) }} · {{ tourDateLabel(selectedTour) }}</p>
           </div>
-          <div class="tour-side">
-            <span class="tour-match-count">{{ tour.matchesCount }} матч{{ matchesWord(tour.matchesCount) }}</span>
-            <span class="tour-badge">{{ tourBadge(tour) }}</span>
+          <div class="selected-tour-progress">
+            <strong>{{ completedMatchesCount(selectedTour) }}/{{ selectedTour.matchesCount }}</strong>
+            <span class="muted-text">матчей завершено</span>
           </div>
-        </button>
-        <div v-if="String(expandedTourId) === String(tour.id)" class="tour-match-list">
+        </div>
+
+        <div v-if="selectedTour.matches.length" class="tour-match-list selected-tour-match-list">
           <router-link
-            v-for="match in tour.matches"
+            v-for="match in selectedTour.matches"
             :key="match.id"
-            :to="`/match/${match.id}`"
+            :to="matchTarget(match)"
             class="tour-match-link"
           >
             <div class="tour-match-copy">
-              <strong>{{ match.homeTeamName }} - {{ match.awayTeamName }}</strong>
+              <strong>{{ match.homeTeamName }} — {{ match.awayTeamName }}</strong>
               <span class="muted-text">{{ matchStatusLabel(match.status) }}</span>
             </div>
             <div class="tour-match-meta">
@@ -35,8 +79,10 @@
             </div>
           </router-link>
         </div>
-      </article>
-    </div>
+        <p v-else class="empty-text">В этом туре пока нет назначенных матчей.</p>
+      </section>
+    </template>
+
     <p v-else-if="selectedSeason && !loading" class="empty-text">
       Для выбранного сезона пока нет туров с назначенными матчами.
     </p>
@@ -44,9 +90,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { matchPageLocation } from '../../utils/publicUrls'
 
-defineProps({
+const props = defineProps({
   tours: {
     type: Array,
     required: true,
@@ -59,12 +106,74 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  initialTourId: {
+    type: [String, Number],
+    default: '',
+  },
 })
 
-const expandedTourId = ref('')
+const selectedTourId = ref('')
 
-function toggleTour(tourId) {
-  expandedTourId.value = String(expandedTourId.value) === String(tourId) ? '' : String(tourId)
+const selectedTourIndex = computed(() => {
+  return props.tours.findIndex((tour) => String(tour.id) === String(selectedTourId.value))
+})
+
+const selectedTour = computed(() => {
+  return selectedTourIndex.value >= 0 ? props.tours[selectedTourIndex.value] : null
+})
+
+const selectedTourPosition = computed(() => {
+  if (selectedTourIndex.value < 0) return '—'
+  return `${selectedTourIndex.value + 1} из ${props.tours.length}`
+})
+
+const hasPreviousTour = computed(() => selectedTourIndex.value > 0)
+const hasNextTour = computed(() => {
+  return selectedTourIndex.value >= 0 && selectedTourIndex.value < props.tours.length - 1
+})
+
+watch(
+  () => [props.tours, props.initialTourId],
+  () => {
+    if (!props.tours.length) {
+      selectedTourId.value = ''
+      return
+    }
+
+    const currentExists = props.tours.some(
+      (tour) => String(tour.id) === String(selectedTourId.value),
+    )
+    if (currentExists) return
+
+    const requestedTour = props.tours.find(
+      (tour) => String(tour.id) === String(props.initialTourId),
+    )
+    selectedTourId.value = String(requestedTour?.id || relevantTour(props.tours).id)
+  },
+  { immediate: true, deep: true },
+)
+
+function relevantTour(tours) {
+  const now = Date.now()
+  const upcoming = tours
+    .filter((tour) => !isTourComplete(tour))
+    .map((tour) => ({ tour, timestamp: tourTimestamp(tour) }))
+    .sort((left, right) => {
+      const leftDistance = left.timestamp >= now ? left.timestamp - now : Number.MAX_SAFE_INTEGER
+      const rightDistance = right.timestamp >= now ? right.timestamp - now : Number.MAX_SAFE_INTEGER
+      return leftDistance - rightDistance
+    })
+
+  return upcoming[0]?.tour || tours[tours.length - 1]
+}
+
+function selectRelativeTour(direction) {
+  const nextTour = props.tours[selectedTourIndex.value + direction]
+  if (nextTour) selectedTourId.value = String(nextTour.id)
+}
+
+function tourOptionLabel(tour) {
+  return `${tour.name} · ${tourDateShortLabel(tour)}`
 }
 
 function stageLabel(tour) {
@@ -79,10 +188,54 @@ function tourBadge(tour) {
     : tour.roundNumber ? `Тур ${tour.roundNumber}` : 'Регулярка'
 }
 
+function tourStateLabel(tour) {
+  if (isTourComplete(tour)) return 'Завершён'
+  if (tour.matches?.some((match) => match.status === 'LIVE')) return 'Идёт сейчас'
+  return 'Предстоящий'
+}
+
+function tourStateClass(tour) {
+  if (isTourComplete(tour)) return 'is-complete'
+  if (tour.matches?.some((match) => match.status === 'LIVE')) return 'is-live'
+  return 'is-upcoming'
+}
+
 function tourDateLabel(tour) {
   const firstMatch = Array.isArray(tour.matches) && tour.matches.length ? tour.matches[0] : null
-  if (!firstMatch?.kickoffAt) return 'Дата тура будет назначена позже'
-  return `Дата тура: ${formatDateOnly(firstMatch.kickoffAt)}`
+  if (!firstMatch?.kickoffAt) return 'дата будет назначена позже'
+  return `дата ${formatDateOnly(firstMatch.kickoffAt)}`
+}
+
+function tourDateShortLabel(tour) {
+  const firstMatch = Array.isArray(tour.matches) && tour.matches.length ? tour.matches[0] : null
+  return firstMatch?.kickoffAt ? formatDateOnly(firstMatch.kickoffAt) : 'без даты'
+}
+
+function tourTimestamp(tour) {
+  const timestamps = (tour.matches || [])
+    .map((match) => new Date(match.kickoffAt || 0).getTime())
+    .filter((value) => Number.isFinite(value) && value > 0)
+  return timestamps.length ? Math.min(...timestamps) : Number.MAX_SAFE_INTEGER
+}
+
+function isMatchComplete(match) {
+  return ['VERIFIED', 'FINISHED'].includes(String(match?.status || '').toUpperCase())
+}
+
+function completedMatchesCount(tour) {
+  return (tour.matches || []).filter(isMatchComplete).length
+}
+
+function isTourComplete(tour) {
+  return Boolean(tour.matches?.length) && completedMatchesCount(tour) === tour.matches.length
+}
+
+function matchTarget(match) {
+  return matchPageLocation(match.id, {
+    returnContext: 'tours',
+    ...(props.selectedSeason?.id ? { seasonId: String(props.selectedSeason.id) } : {}),
+    tourId: String(selectedTour.value?.id || ''),
+  })
 }
 
 function formatDateOnly(value) {
@@ -121,16 +274,5 @@ function matchStatusLabel(status) {
   if (status === 'VERIFIED') return 'Протокол подтвержден'
   if (status === 'LINEUPS_SUBMITTED') return 'Заявки поданы'
   return 'Матч запланирован'
-}
-
-function matchesWord(count) {
-  const normalized = Math.abs(Number(count || 0))
-  const lastTwo = normalized % 100
-  const last = normalized % 10
-
-  if (lastTwo >= 11 && lastTwo <= 14) return 'ей'
-  if (last === 1) return ''
-  if (last >= 2 && last <= 4) return 'а'
-  return 'ей'
 }
 </script>

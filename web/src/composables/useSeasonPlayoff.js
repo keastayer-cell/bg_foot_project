@@ -222,7 +222,12 @@ export function useSeasonPlayoff({ bracket, season, tours, teamPositionMap }) {
     if (Array.isArray(round?.ties) && round.ties.length) {
       return round.ties.map((tie, index) => ({
         key: `${round.key}-tie-${tie.id || index + 1}`,
-        matchId: null,
+        tieId: tie.id || null,
+        matchId: Array.isArray(tie.matchIds) ? (tie.matchIds[0] || null) : null,
+        matchIds: Array.isArray(tie.matchIds) ? tie.matchIds : [],
+        roundKey: round.key,
+        homeSourceTieId: tie.homeSourceTieId || null,
+        awaySourceTieId: tie.awaySourceTieId || null,
         badge: round.ties.length > 1 ? `Пара ${tie.slotOrder || index + 1}` : (tie.title || round.label),
         dateLabel: Number.isInteger(tie.aggregateHomeScore) && Number.isInteger(tie.aggregateAwayScore)
           ? 'Сыграно'

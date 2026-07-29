@@ -87,6 +87,10 @@ public class SeasonStandingsService {
         List<MatchResult> matchResults = new ArrayList<>();
         List<TourMatch> matches = tourMatchRepository.findAllActiveDetailedByPublishedSeasonId(seasonId);
         for (TourMatch match : matches) {
+            if (match.getTour() != null
+                && !SeasonStructureService.REGULAR_STAGE.equalsIgnoreCase(match.getTour().getStageType())) {
+                continue;
+            }
             MatchProtocol protocol = match.getProtocol();
             if (protocol == null || protocol.getStatus() != MatchProtocolStatus.VERIFIED) {
                 continue;

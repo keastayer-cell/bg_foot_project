@@ -34,7 +34,12 @@
 
     <div class="card" v-if="!loading && !errorText && filteredTeams.length">
       <div class="teams-list">
-        <RouterLink class="teams-row" v-for="team in filteredTeams" :key="team.id" :to="`/teams/${team.id}`">
+        <RouterLink
+          v-for="team in filteredTeams"
+          :key="team.id"
+          class="teams-row"
+          :to="teamProfileLocation(team)"
+        >
           <div class="teams-row-main">
             <div class="teams-logo-shell" :class="{ 'is-empty': !team.logoDataUrl }">
               <img v-if="team.logoDataUrl" :src="team.logoDataUrl" :alt="`Эмблема ${team.name}`" class="teams-logo" />
@@ -67,6 +72,7 @@ import { RouterLink } from 'vue-router'
 import UiState from '../components/UiState.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
+import { teamProfileLocation } from '../utils/publicUrls'
 
 const { optionalAuthApiRequest } = useAuth()
 const catalogApi = createCatalogApi(optionalAuthApiRequest)

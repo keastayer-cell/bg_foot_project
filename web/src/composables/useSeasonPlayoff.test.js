@@ -35,6 +35,7 @@ describe('useSeasonPlayoff', () => {
           awayTeamName: 'Бета',
           aggregateHomeScore: 3,
           aggregateAwayScore: 2,
+          matchIds: [77],
         }],
       },
     })
@@ -45,6 +46,7 @@ describe('useSeasonPlayoff', () => {
       homeScoreLabel: '3',
       awayScoreLabel: '2',
       dateLabel: 'Сыграно',
+      matchId: 77,
     }))
   })
 

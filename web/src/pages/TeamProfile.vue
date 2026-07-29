@@ -89,13 +89,7 @@
           <RouterLink
             v-for="match in paginatedMatches"
             :key="match.matchId"
-            :to="{
-              path: `/match/${match.matchId}`,
-              query: {
-                from: 'team-profile',
-                teamId: String(teamProfile.id),
-              },
-            }"
+            :to="matchLocation(match)"
             class="team-profile-history-row"
           >
             <span class="team-profile-history-meta">
@@ -189,6 +183,7 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
+import { matchPageLocation, publicSlug } from '../utils/publicUrls'
 
 const PAGE_SIZE = 5
 
@@ -207,6 +202,7 @@ const seasonRosterError = ref('')
 const seasonRoster = ref([])
 const seasonRosterStatus = ref('WAITING_FILL')
 const seasonRepresentativeName = ref('')
+const activeTeamId = ref(null)
 
 const selectedSeason = computed(() => {
   if (selectedSeasonKey.value === 'all') return null
@@ -241,22 +237,18 @@ const paginatedMatches = computed(() => {
 })
 
 async function loadTeamProfile() {
-  const teamId = Number(route.params.id)
-  if (!Number.isFinite(teamId) || teamId <= 0) {
-    errorText.value = 'Некорректный идентификатор команды.'
-    teamProfile.value = null
-    return
-  }
-
   loading.value = true
   errorText.value = ''
+  activeTeamId.value = null
   selectedSeasonKey.value = 'all'
   currentPage.value = 1
   resetSeasonRoster()
 
   try {
+    const teamId = await resolveTeamId()
+    activeTeamId.value = teamId
     teamProfile.value = await catalogApi.getTeam(teamId)
-    applySeasonSelectionFromRoute()
+    applySeasonSelectionFromNavigation()
   } catch (error) {
     errorText.value = error.message || 'Не удалось загрузить профиль команды.'
     teamProfile.value = null
@@ -265,8 +257,36 @@ async function loadTeamProfile() {
   }
 }
 
-function applySeasonSelectionFromRoute() {
-  const requestedSeasonId = String(route.query.seasonId || '').trim()
+async function resolveTeamId() {
+  const routeValue = String(route.params.slug || '').trim()
+  const legacyTeamId = Number(routeValue)
+  if (Number.isFinite(legacyTeamId) && legacyTeamId > 0) {
+    return legacyTeamId
+  }
+
+  const navigationTeamId = Number(window.history.state?.teamId)
+  const navigationTeamSlug = String(window.history.state?.teamSlug || '')
+  if (
+    navigationTeamSlug === routeValue
+    && Number.isFinite(navigationTeamId)
+    && navigationTeamId > 0
+  ) {
+    return navigationTeamId
+  }
+
+  const payload = await catalogApi.getActiveTeams()
+  const teams = Array.isArray(payload) ? payload : []
+  const matchingTeam = teams.find((team) => publicSlug(team?.name) === routeValue)
+  if (!matchingTeam?.id) {
+    throw new Error('Команда по указанному адресу не найдена.')
+  }
+  return Number(matchingTeam.id)
+}
+
+function applySeasonSelectionFromNavigation() {
+  const requestedSeasonId = String(
+    window.history.state?.seasonId || route.query.seasonId || '',
+  ).trim()
   if (!requestedSeasonId) {
     selectedSeasonKey.value = 'all'
     return
@@ -276,6 +296,16 @@ function applySeasonSelectionFromRoute() {
     (season) => String(season.id) === requestedSeasonId
   )
   selectedSeasonKey.value = hasRequestedSeason ? requestedSeasonId : 'all'
+}
+
+function matchLocation(match) {
+  const teamSlug = String(route.params.slug)
+  return matchPageLocation(match.matchId, {
+    returnContext: 'team-profile',
+    teamSlug,
+    teamId: activeTeamId.value,
+    ...(selectedSeasonKey.value !== 'all' ? { seasonId: selectedSeasonKey.value } : {}),
+  })
 }
 
 async function loadSeasonRoster() {
@@ -291,7 +321,7 @@ async function loadSeasonRoster() {
   seasonRepresentativeName.value = ''
 
   try {
-    const payload = await catalogApi.getTeamSeasonRoster(route.params.id, selectedSeason.value.id)
+    const payload = await catalogApi.getTeamSeasonRoster(activeTeamId.value, selectedSeason.value.id)
     seasonRoster.value = Array.isArray(payload?.players) ? payload.players : []
     seasonRosterStatus.value = payload?.status || 'WAITING_FILL'
     seasonRepresentativeName.value = String(payload?.representativeName || '').trim()
@@ -364,9 +394,9 @@ function resultShortLabel(result) {
   return 'Н'
 }
 
-watch(() => route.params.id, loadTeamProfile, { immediate: true })
+watch(() => route.params.slug, loadTeamProfile, { immediate: true })
 watch(() => route.query.seasonId, () => {
-  applySeasonSelectionFromRoute()
+  applySeasonSelectionFromNavigation()
 })
 watch(selectedSeasonKey, async () => {
   await loadSeasonRoster()

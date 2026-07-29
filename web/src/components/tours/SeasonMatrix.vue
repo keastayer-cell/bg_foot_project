@@ -37,7 +37,7 @@
                 v-for="result in cell.results"
                 :key="result.key"
                 :is="result.matchId ? 'router-link' : 'span'"
-                :to="result.matchId ? `/match/${result.matchId}` : undefined"
+                :to="result.matchId ? matchLocation(result.matchId) : undefined"
                 class="matrix-score-pill"
                 :class="{
                   'matrix-score-link': Boolean(result.matchId),
@@ -90,7 +90,7 @@
               v-for="result in cell.results"
               :key="result.key"
               :is="result.matchId ? 'router-link' : 'span'"
-              :to="result.matchId ? `/match/${result.matchId}` : undefined"
+              :to="result.matchId ? matchLocation(result.matchId) : undefined"
               class="matrix-mobile-result-pill"
               :class="{
                 'matrix-score-link': Boolean(result.matchId),
@@ -107,7 +107,9 @@
 </template>
 
 <script setup>
-defineProps({
+import { matchPageLocation } from '../../utils/publicUrls'
+
+const props = defineProps({
   teams: {
     type: Array,
     required: true,
@@ -116,5 +118,16 @@ defineProps({
     type: Array,
     required: true,
   },
+  seasonId: {
+    type: [String, Number],
+    default: '',
+  },
 })
+
+function matchLocation(matchId) {
+  return matchPageLocation(matchId, {
+    returnContext: 'matrix',
+    ...(props.seasonId ? { seasonId: String(props.seasonId) } : {}),
+  })
+}
 </script>

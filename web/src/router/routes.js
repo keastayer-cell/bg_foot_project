@@ -4,7 +4,7 @@ export const routes = [
   { path: '/transfers', name: 'transfers', component: () => import('../pages/Transfers.vue') },
   { path: '/players', name: 'players', component: () => import('../pages/Players.vue') },
   { path: '/teams', name: 'teams', component: () => import('../pages/Teams.vue') },
-  { path: '/teams/:id', name: 'team-profile', component: () => import('../pages/TeamProfile.vue') },
+  { path: '/teams/:slug', name: 'team-profile', component: () => import('../pages/TeamProfile.vue') },
   {
     path: '/admin',
     name: 'admin',
@@ -42,5 +42,19 @@ export const routes = [
     component: () => import('../pages/ApiExplorerTest.vue'),
     meta: { requiresAuth: true, requiresSuperAdmin: true },
   },
-  { path: '/match/:id', name: 'match', component: () => import('../pages/Match.vue') },
+  { path: '/matches/:id', name: 'match', component: () => import('../pages/Match.vue') },
+  {
+    path: '/match/:id',
+    redirect: (to) => ({
+      name: 'match',
+      params: { id: to.params.id },
+      state: {
+        ...(to.query.from ? { returnContext: String(to.query.from) } : {}),
+        ...(to.query.season ? { seasonId: String(to.query.season) } : {}),
+        ...(to.query.tour ? { tourId: String(to.query.tour) } : {}),
+        ...(to.query.team ? { teamSlug: String(to.query.team) } : {}),
+        ...(to.query.teamId ? { teamId: String(to.query.teamId) } : {}),
+      },
+    }),
+  },
 ]

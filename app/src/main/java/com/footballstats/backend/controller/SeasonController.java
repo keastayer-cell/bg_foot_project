@@ -24,6 +24,7 @@ import com.footballstats.backend.service.SeasonService;
 import com.footballstats.backend.service.SeasonStandingsService;
 import com.footballstats.backend.service.StandingsRankingRules;
 import com.footballstats.backend.service.TourService;
+import com.footballstats.backend.repository.SeasonPlayoffTieMatchRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.domain.Page;
@@ -45,6 +46,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 public class SeasonController {
@@ -60,6 +63,7 @@ public class SeasonController {
     private final SeasonQueryService seasonQueryService;
     private final MediaAssetService mediaAssetService;
     private final ObjectMapper objectMapper;
+    private final SeasonPlayoffTieMatchRepository playoffTieMatchRepository;
 
     public SeasonController(
         SeasonService seasonService,
@@ -72,7 +76,8 @@ public class SeasonController {
         SeasonProtocolArchiveService seasonProtocolArchiveService,
         SeasonQueryService seasonQueryService,
         MediaAssetService mediaAssetService,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        SeasonPlayoffTieMatchRepository playoffTieMatchRepository
     ) {
         this.seasonService = seasonService;
         this.tourService = tourService;
@@ -85,6 +90,7 @@ public class SeasonController {
         this.seasonQueryService = seasonQueryService;
         this.mediaAssetService = mediaAssetService;
         this.objectMapper = objectMapper;
+        this.playoffTieMatchRepository = playoffTieMatchRepository;
     }
 
     @GetMapping("/api/seasons")
@@ -179,7 +185,7 @@ public class SeasonController {
             toResponse(overview.season()),
             overview.teams().stream().map(this::toTeamResponse).toList(),
             tours,
-            toPlayoffBracketResponse(seasonPlayoffService.getSeasonPlayoffBracket(seasonId)),
+            toPlayoffBracketResponse(seasonId, seasonPlayoffService.getSeasonPlayoffBracket(seasonId)),
             toStandingsConfigResponse(standings.config()),
             standings.rows().stream().map(this::toStandingsRowResponse).toList(),
             seasonQueryService.listTransfers(seasonId).stream()
@@ -360,7 +366,15 @@ public class SeasonController {
         );
     }
 
-    private PlayoffBracketResponse toPlayoffBracketResponse(SeasonPlayoffService.SeasonPlayoffBracketData data) {
+    private PlayoffBracketResponse toPlayoffBracketResponse(
+        Long seasonId,
+        SeasonPlayoffService.SeasonPlayoffBracketData data
+    ) {
+        Map<Long, List<Long>> matchIdsByTieId = playoffTieMatchRepository.findAllDetailedBySeasonId(seasonId).stream()
+            .collect(Collectors.groupingBy(
+                tieMatch -> tieMatch.getTie().getId(),
+                Collectors.mapping(tieMatch -> tieMatch.getMatch().getId(), Collectors.toList())
+            ));
         return new PlayoffBracketResponse(
             data.config().enabled(),
             data.config().teamCount(),
@@ -391,7 +405,8 @@ public class SeasonController {
                     tie.getAwaySourceResult(),
                     tie.getAggregateHomeScore(),
                     tie.getAggregateAwayScore(),
-                    tie.getStatus()
+                    tie.getStatus(),
+                    matchIdsByTieId.getOrDefault(tie.getId(), List.of())
                 ))
                 .toList()
         );
@@ -552,7 +567,8 @@ public class SeasonController {
         String awaySourceResult,
         Integer aggregateHomeScore,
         Integer aggregateAwayScore,
-        String status
+        String status,
+        List<Long> matchIds
     ) {}
 
     public record SeasonTransferResponse(

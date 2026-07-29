@@ -6,6 +6,7 @@ import { useMatchLineups } from './useMatchLineups'
 
 export function useMatchPage() {
   const route = useRoute()
+  const navigationState = window.history.state || {}
   const { optionalAuthApiRequest, optionalAuthApiRequestRaw, authorizedApiRequest, user, hasRole } = useAuth()
   const matchesApi = createMatchesApi({
     optionalRequest: optionalAuthApiRequest,
@@ -56,22 +57,89 @@ export function useMatchPage() {
     },
   })
 
+  const returnContext = computed(() => {
+    return String(navigationState.returnContext || route.query.from || '')
+  })
+
   const backLinkTarget = computed(() => {
-    if (route.query.from === 'team-profile' && route.query.teamId) {
-      return `/teams/${encodeURIComponent(String(route.query.teamId))}`
+    if (returnContext.value === 'playoff') {
+      return {
+        name: 'tours',
+        state: {
+          ...(navigationState.seasonId || route.query.season
+            ? { seasonId: String(navigationState.seasonId || route.query.season) }
+            : {}),
+          view: 'playoff',
+        },
+      }
+    }
+    if (returnContext.value === 'tours') {
+      return {
+        name: 'tours',
+        state: {
+          ...(navigationState.seasonId || route.query.season
+            ? { seasonId: String(navigationState.seasonId || route.query.season) }
+            : {}),
+          ...(navigationState.tourId || route.query.tour
+            ? { tourId: String(navigationState.tourId || route.query.tour) }
+            : {}),
+          view: 'table',
+        },
+      }
+    }
+    if (returnContext.value === 'matrix') {
+      return {
+        name: 'tours',
+        state: {
+          ...(navigationState.seasonId
+            ? { seasonId: String(navigationState.seasonId) }
+            : {}),
+          view: 'matrix',
+        },
+      }
+    }
+    const teamRouteValue = navigationState.teamSlug || route.query.team || route.query.teamId
+    if (returnContext.value === 'team-profile' && teamRouteValue) {
+      return {
+        name: 'team-profile',
+        params: { slug: String(teamRouteValue) },
+        state: {
+          ...(navigationState.teamId ? { teamId: navigationState.teamId } : {}),
+          teamSlug: String(teamRouteValue),
+          ...(navigationState.seasonId ? { seasonId: String(navigationState.seasonId) } : {}),
+        },
+      }
     }
     return '/'
   })
 
   const backLinkLabel = computed(() => {
-    if (route.query.from === 'team-profile' && route.query.teamId) {
+    if (returnContext.value === 'playoff') {
+      return 'Вернуться в сетку плей-офф'
+    }
+    if (returnContext.value === 'tours') {
+      return 'Вернуться к выбранному туру'
+    }
+    if (returnContext.value === 'matrix') {
+      return 'Вернуться в шахматку'
+    }
+    if (returnContext.value === 'team-profile') {
       return 'Вернуться в профиль команды'
     }
     return 'Вернуться на главную'
   })
 
   const backLinkArrowLabel = computed(() => {
-    if (route.query.from === 'team-profile' && route.query.teamId) {
+    if (returnContext.value === 'playoff') {
+      return '← В сетку плей-офф'
+    }
+    if (returnContext.value === 'tours') {
+      return '← К выбранному туру'
+    }
+    if (returnContext.value === 'matrix') {
+      return '← В шахматку'
+    }
+    if (returnContext.value === 'team-profile') {
       return '← В профиль команды'
     }
     return '← На главную'
