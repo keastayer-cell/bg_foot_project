@@ -134,7 +134,7 @@ const sectionLinks = [
 
 const loading = ref(false)
 const pageError = ref('')
-const activeSection = ref(null)
+const activeSection = ref('leadership')
 const officials = ref([])
 const venues = ref([])
 const seasonDocuments = ref([])

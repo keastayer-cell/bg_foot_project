@@ -326,6 +326,12 @@ onMounted(async () => {
 </script>
 
 <style>
+.home-page {
+  width: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
+}
+
 .home-hero {
   display: grid;
   gap: 18px;
@@ -552,7 +558,7 @@ onMounted(async () => {
 
 .home-main-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
   align-items: start;
   gap: 24px;
 }

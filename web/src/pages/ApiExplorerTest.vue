@@ -1,8 +1,13 @@
 <template>
   <section class="section-wrap api-test-page">
     <article v-if="endpoint" class="api-test-shell">
+      <nav class="api-test-breadcrumb" aria-label="Навигация API Explorer">
+        <router-link to="/api-explorer">API Explorer</router-link>
+        <span aria-hidden="true">/</span>
+        <span>{{ endpoint.title }}</span>
+      </nav>
+
       <header class="api-test-head">
-        <router-link class="btn-ghost api-back-link" to="/api-explorer">К списку API</router-link>
         <div class="api-test-title-block">
           <div class="api-test-route">
             <span class="api-method-chip" :data-method="endpoint.method">{{ endpoint.method }}</span>
@@ -18,66 +23,85 @@
       </header>
 
       <div class="api-request-layout">
-        <div class="api-request-form">
-          <section v-if="endpoint.pathParams?.length" class="api-form-section">
-            <h3>Параметры пути</h3>
-            <div class="api-params-grid">
-              <label v-for="param in endpoint.pathParams" :key="param.name">
-                <span>{{ param.name }}</span>
-                <input
-                  v-model.trim="pathParams[param.name]"
-                  :placeholder="param.placeholder || ''"
-                />
-              </label>
+        <section class="api-request-builder">
+          <div class="api-panel-heading">
+            <div>
+              <span class="api-panel-kicker">Конструктор запроса</span>
+              <h3>Параметры</h3>
             </div>
-          </section>
+            <span class="api-parameter-count">{{ requestInputLabel }}</span>
+          </div>
 
-          <section v-if="endpoint.queryParams?.length" class="api-form-section">
-            <h3>Query-параметры</h3>
-            <div class="api-params-grid">
-              <label v-for="param in endpoint.queryParams" :key="param.name">
-                <span>{{ param.name }}</span>
-                <input
-                  v-model.trim="queryParams[param.name]"
-                  :placeholder="param.placeholder || ''"
-                />
-              </label>
+          <div class="api-request-form">
+            <section v-if="endpoint.pathParams?.length" class="api-form-section">
+              <h3>Параметры пути</h3>
+              <div class="api-params-grid">
+                <label v-for="param in endpoint.pathParams" :key="param.name">
+                  <span>{{ param.name }}</span>
+                  <input
+                    v-model.trim="pathParams[param.name]"
+                    :placeholder="param.placeholder || ''"
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section v-if="endpoint.queryParams?.length" class="api-form-section">
+              <h3>Query-параметры</h3>
+              <div class="api-params-grid">
+                <label v-for="param in endpoint.queryParams" :key="param.name">
+                  <span>{{ param.name }}</span>
+                  <input
+                    v-model.trim="queryParams[param.name]"
+                    :placeholder="param.placeholder || ''"
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section v-if="endpoint.bodyExample !== undefined" class="api-form-section">
+              <div class="api-body-head">
+                <h3>Тело запроса</h3>
+                <button class="btn-ghost" type="button" @click="resetBody">Сбросить JSON</button>
+              </div>
+              <textarea
+                v-model="requestBodyText"
+                class="textarea api-body-textarea"
+                spellcheck="false"
+                aria-label="Тело запроса в формате JSON"
+              />
+            </section>
+
+            <div v-if="!hasRequestInputs" class="api-no-params">
+              <strong>Параметры не требуются</strong>
+              <span>Endpoint готов к отправке без дополнительных данных.</span>
             </div>
-          </section>
 
-          <section v-if="endpoint.bodyExample !== undefined" class="api-form-section">
-            <div class="api-body-head">
-              <h3>Тело запроса</h3>
-              <button class="btn-ghost" type="button" @click="resetBody">Сбросить JSON</button>
+            <label v-if="isWriteRequest" class="api-write-confirmation">
+              <input v-model="writeConfirmed" type="checkbox" />
+              <span>Подтверждаю выполнение запроса, изменяющего данные</span>
+            </label>
+
+            <div class="api-request-actions">
+              <p v-if="requestError" class="error-text api-request-error">{{ requestError }}</p>
+              <button
+                class="btn-primary api-run-button"
+                type="button"
+                :disabled="isRunning || (isWriteRequest && !writeConfirmed)"
+                @click="runTest"
+              >
+                {{ isRunning ? 'Отправка...' : 'Отправить запрос' }}
+              </button>
             </div>
-            <textarea
-              v-model="requestBodyText"
-              class="textarea api-body-textarea"
-              spellcheck="false"
-              aria-label="Тело запроса в формате JSON"
-            />
-          </section>
-
-          <label v-if="isWriteRequest" class="api-write-confirmation">
-            <input v-model="writeConfirmed" type="checkbox" />
-            <span>Подтверждаю выполнение запроса, изменяющего данные</span>
-          </label>
-
-          <p v-if="requestError" class="error-text api-request-error">{{ requestError }}</p>
-
-          <button
-            class="btn-primary api-run-button"
-            type="button"
-            :disabled="isRunning || (isWriteRequest && !writeConfirmed)"
-            @click="runTest"
-          >
-            {{ isRunning ? 'Отправка...' : 'Отправить запрос' }}
-          </button>
-        </div>
+          </div>
+        </section>
 
         <aside class="api-request-preview">
           <div class="api-preview-head">
-            <h3>Запрос</h3>
+            <div>
+              <span class="api-panel-kicker">Предпросмотр</span>
+              <h3>Сформированный запрос</h3>
+            </div>
             <button class="btn-ghost api-copy-button" type="button" @click="copyRequestUrl">
               {{ copyLabel }}
             </button>
@@ -138,6 +162,21 @@ const { token } = useAuth()
 
 const endpoint = computed(() => findEndpointByKey(String(route.params.endpointKey || '')))
 const isWriteRequest = computed(() => endpoint.value?.method !== 'GET')
+const requestInputCount = computed(() => (
+  (endpoint.value?.pathParams?.length || 0)
+  + (endpoint.value?.queryParams?.length || 0)
+  + (endpoint.value?.bodyExample !== undefined ? 1 : 0)
+))
+const hasRequestInputs = computed(() => requestInputCount.value > 0)
+const requestInputLabel = computed(() => {
+  const count = requestInputCount.value
+  if (!count) return 'Без параметров'
+  if (count % 10 === 1 && count % 100 !== 11) return `${count} поле`
+  if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) {
+    return `${count} поля`
+  }
+  return `${count} полей`
+})
 
 const pathParams = reactive({})
 const queryParams = reactive({})
@@ -346,24 +385,48 @@ async function runTest() {
 <style scoped>
 .api-test-page {
   display: grid;
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
 }
 
 .api-test-shell {
   display: grid;
-  gap: 22px;
+  gap: 18px;
+}
+
+.api-test-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.api-test-breadcrumb a {
+  color: #aebcf0;
+}
+
+.api-test-breadcrumb span:last-child {
+  overflow: hidden;
+  color: rgba(238, 241, 255, 0.78);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .api-test-head {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(180px, 260px);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 24px;
   align-items: start;
-  padding-bottom: 18px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--line);
-}
-
-.api-back-link {
-  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(124, 163, 255, 0.07), transparent 44%),
+    rgba(255, 255, 255, 0.022);
 }
 
 .api-test-title-block {
@@ -375,6 +438,15 @@ async function runTest() {
 .api-test-title-block h2,
 .api-test-title-block p {
   margin: 0;
+}
+
+.api-test-title-block h2 {
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+}
+
+.api-test-title-block p {
+  max-width: 820px;
+  line-height: 1.5;
 }
 
 .api-test-route {
@@ -421,7 +493,7 @@ async function runTest() {
 .api-test-access {
   display: grid;
   gap: 5px;
-  padding-left: 14px;
+  padding: 3px 0 3px 16px;
   border-left: 2px solid var(--line);
 }
 
@@ -437,9 +509,56 @@ async function runTest() {
 
 .api-request-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
-  gap: 22px;
+  grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
+  gap: 18px;
   align-items: start;
+}
+
+.api-request-builder,
+.api-request-preview {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.api-request-builder {
+  display: grid;
+  gap: 18px;
+}
+
+.api-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.api-panel-heading h3,
+.api-preview-head h3 {
+  margin: 3px 0 0;
+  font-size: 1rem;
+}
+
+.api-panel-kicker {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.api-parameter-count {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid rgba(124, 163, 255, 0.18);
+  border-radius: 6px;
+  color: #c8d0ee;
+  background: rgba(124, 163, 255, 0.07);
+  font-size: 0.76rem;
 }
 
 .api-request-form,
@@ -454,10 +573,32 @@ async function runTest() {
 }
 
 .api-form-section h3,
-.api-preview-head h3,
 .api-response-head h3 {
   margin: 0;
   font-size: 1rem;
+}
+
+.api-no-params {
+  display: grid;
+  gap: 5px;
+  min-height: 110px;
+  place-content: center;
+  justify-items: center;
+  padding: 22px;
+  border: 1px dashed rgba(124, 163, 255, 0.22);
+  border-radius: 8px;
+  color: var(--muted);
+  text-align: center;
+  background: rgba(124, 163, 255, 0.025);
+}
+
+.api-no-params strong {
+  color: var(--text);
+  font-size: 0.94rem;
+}
+
+.api-no-params span {
+  font-size: 0.84rem;
 }
 
 .api-params-grid {
@@ -512,7 +653,6 @@ async function runTest() {
 }
 
 .api-run-button {
-  justify-self: start;
   min-width: 170px;
 }
 
@@ -520,15 +660,23 @@ async function runTest() {
   margin: 0;
 }
 
+.api-request-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 2px;
+}
+
+.api-request-actions .api-run-button {
+  margin-left: auto;
+}
+
 .api-request-preview {
   display: grid;
   gap: 14px;
   position: sticky;
   top: 16px;
-  padding: 15px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.025);
 }
 
 .api-copy-button {
@@ -537,11 +685,12 @@ async function runTest() {
 
 .api-resolved-url {
   display: block;
-  padding: 11px;
+  min-height: 72px;
+  padding: 12px;
   overflow-wrap: anywhere;
   border: 1px solid var(--line);
-  border-radius: 5px;
-  background: rgba(0, 0, 0, 0.18);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.22);
   font-size: 0.82rem;
   line-height: 1.5;
 }
@@ -556,6 +705,8 @@ async function runTest() {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .api-request-preview dt {
@@ -570,8 +721,10 @@ async function runTest() {
 .api-response-panel {
   display: grid;
   gap: 12px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .api-response-badges {
@@ -607,11 +760,11 @@ async function runTest() {
 
 @media (max-width: 900px) {
   .api-test-head {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .api-test-access {
-    grid-column: 2;
+    grid-column: 1;
   }
 
   .api-request-layout {
@@ -625,18 +778,6 @@ async function runTest() {
 }
 
 @media (max-width: 640px) {
-  .api-test-head {
-    grid-template-columns: 1fr;
-  }
-
-  .api-back-link {
-    justify-self: start;
-  }
-
-  .api-test-access {
-    grid-column: 1;
-  }
-
   .api-test-route {
     align-items: flex-start;
   }
@@ -646,6 +787,9 @@ async function runTest() {
   }
 
   .api-body-head,
+  .api-panel-heading,
+  .api-preview-head,
+  .api-request-actions,
   .api-response-head {
     align-items: stretch;
     flex-direction: column;
@@ -654,6 +798,10 @@ async function runTest() {
   .api-run-button,
   .api-download-link {
     width: 100%;
+  }
+
+  .api-request-actions .api-run-button {
+    margin-left: 0;
   }
 }
 </style>

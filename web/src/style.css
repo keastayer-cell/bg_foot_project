@@ -63,12 +63,13 @@ a {
 
 .app-shell {
 	min-height: 100vh;
+	width: 100%;
+	max-width: 1840px;
+	margin: 0 auto;
 	display: grid;
 	grid-template-rows: auto minmax(0, 1fr) auto;
 	gap: 8px;
-	max-width: 1080px;
-	margin: 0 auto;
-	padding: 14px 18px 16px;
+	padding: 14px clamp(18px, 2vw, 36px) 16px;
 }
 
 .topbar {
@@ -88,7 +89,7 @@ a {
 }
 
 .brand {
-	font-size: 1.9rem;
+	font-size: 1.65rem;
 	font-weight: 700;
 	letter-spacing: 0.2px;
 }
@@ -115,8 +116,8 @@ a {
 }
 
 .brand-emblem {
-	width: 88px;
-	height: 88px;
+	width: 76px;
+	height: 76px;
 	position: relative;
 	display: grid;
 	place-items: center;
@@ -171,14 +172,32 @@ a {
 
 .topnav {
 	display: flex;
-	gap: 14px;
+	align-items: center;
+	gap: 8px;
+	padding: 5px;
+	border: 1px solid rgba(255, 255, 255, 0.09);
+	border-radius: 14px;
+	background: rgba(255, 255, 255, 0.025);
+}
+
+.topnav-primary,
+.topnav-tools {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.topnav-tools {
+	padding-left: 8px;
+	border-left: 1px solid var(--line);
 }
 
 .topnav a {
 	opacity: 0.86;
-	padding: 8px 12px;
+	padding: 8px clamp(8px, 0.65vw, 12px);
 	border-radius: 10px;
 	transition: background 0.15s ease, opacity 0.15s ease;
+	white-space: nowrap;
 }
 
 .topnav a.router-link-active {
@@ -191,7 +210,9 @@ a {
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	flex-wrap: wrap;
+	flex: 1 1 auto;
+	min-width: 0;
+	flex-wrap: nowrap;
 	justify-content: flex-end;
 }
 
@@ -373,6 +394,30 @@ a {
 	min-height: 0;
 }
 
+@media (max-width: 1180px) {
+	.topbar {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.topbar-right {
+		width: 100%;
+		align-items: stretch;
+		flex-wrap: wrap;
+	}
+
+	.topnav {
+		flex: 1 1 auto;
+		width: 100%;
+		overflow-x: auto;
+	}
+
+	.auth-strip,
+	.topbar-right > .btn-ghost {
+		margin-left: auto;
+	}
+}
+
 .global-footer-contact {
 	display: grid;
 	gap: 8px;
@@ -502,9 +547,23 @@ a {
 
 	.topnav {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-columns: minmax(0, 1fr);
 		gap: 8px;
 		overflow: visible;
+	}
+
+	.topnav-primary,
+	.topnav-tools {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 8px;
+	}
+
+	.topnav-tools {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		padding: 8px 0 0;
+		border-top: 1px solid var(--line);
+		border-left: 0;
 	}
 
 	.topnav a {
@@ -601,7 +660,7 @@ a {
 	}
 
 	.topnav {
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-columns: minmax(0, 1fr);
 	}
 
 	.topnav a,

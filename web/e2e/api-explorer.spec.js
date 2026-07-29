@@ -102,19 +102,23 @@ test('keeps the endpoint test screen layout intact', async ({ page }, testInfo) 
   expect(layout.requestDisplay).toBe('grid')
   expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth)
 
-  const backLink = await page.locator('.api-back-link').boundingBox()
+  const breadcrumb = await page.locator('.api-test-breadcrumb').boundingBox()
   const title = await page.locator('.api-test-title-block').boundingBox()
   const access = await page.locator('.api-test-access').boundingBox()
+  const builder = await page.locator('.api-request-builder').boundingBox()
+  const preview = await page.locator('.api-request-preview').boundingBox()
 
-  expect(backLink).not.toBeNull()
+  expect(breadcrumb).not.toBeNull()
   expect(title).not.toBeNull()
   expect(access).not.toBeNull()
+  expect(builder).not.toBeNull()
+  expect(preview).not.toBeNull()
 
   if (testInfo.project.metadata.mobile) {
-    expect(title.y).toBeGreaterThanOrEqual(backLink.y + backLink.height)
     expect(access.y).toBeGreaterThanOrEqual(title.y + title.height)
+    expect(builder.y).toBeGreaterThanOrEqual(preview.y + preview.height)
   } else {
-    expect(title.x).toBeGreaterThanOrEqual(backLink.x + backLink.width)
     expect(access.x).toBeGreaterThanOrEqual(title.x + title.width)
+    expect(preview.x).toBeGreaterThanOrEqual(builder.x + builder.width)
   }
 })

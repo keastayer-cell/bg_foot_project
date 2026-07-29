@@ -122,7 +122,6 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useAuth } from '../store/auth'
 import { createAdminSeasonsApi } from '../api/adminSeasons'
-import { useStore } from '../store/store'
 import { useAdminAccess } from '../composables/useAdminAccess'
 import { useAdminPlayers } from '../composables/useAdminPlayers'
 import { useAdminReferees } from '../composables/useAdminReferees'
@@ -152,7 +151,6 @@ const USERS_KEY = 'football_stats_admin_users_registry'
 const { authorizedApiRequest, authorizedApiRequestRaw, hasRole } = useAuth()
 const adminSeasonsApi = createAdminSeasonsApi(authorizedApiRequest, authorizedApiRequestRaw)
 const { confirmAction } = useConfirmDialog()
-const { loadSeasons } = useStore()
 const { activeTab, visibleTabGroups, selectAdminTab } = useAdminTabs({
   hasRole,
   openExternal: (path) => window.open(path, '_blank', 'noopener,noreferrer'),
@@ -739,7 +737,6 @@ async function createSeason() {
   try {
     const createdSeason = await adminSeasonsApi.create(buildSeasonPayload(), seasonTeamIds.value)
     await loadSeasonRegistry()
-    await loadSeasons()
     if (String(tourSeasonId.value || '') === String(createdSeason.id)) {
       await onTourSeasonChange()
     }
@@ -857,7 +854,6 @@ async function saveEditSeason() {
     }
 
     await loadSeasonRegistry()
-    await loadSeasons()
     if (String(tourSeasonId.value || '') === String(editingSeasonId.value)) {
       await onTourSeasonChange()
     }
@@ -889,7 +885,6 @@ async function completeRegularSeason() {
   try {
     const updatedSeason = await adminSeasonsApi.completeRegularSeason(editingSeasonId.value)
     await loadSeasonRegistry()
-    await loadSeasons()
     const actualSeason = seasonsList.value.find((item) => String(item.id) === String(updatedSeason?.id || editingSeasonId.value))
     if (actualSeason) {
       await startEditSeason(actualSeason)
@@ -937,7 +932,6 @@ async function deactivateSeason(seasonId) {
       seasonEditSelectId.value = ''
     }
     await loadSeasonRegistry()
-    await loadSeasons()
     messageOk.value = 'Сезон деактивирован.'
   } catch (error) {
     messageError.value = error.message || 'Не удалось удалить сезон.'
@@ -956,7 +950,6 @@ async function loadSeasonRegistry() {
 
 async function handleLeagueSeasonRefresh() {
   await loadSeasonRegistry()
-  await loadSeasons()
 }
 
 function toggleSeasonProtocolMenu() {
@@ -1150,7 +1143,6 @@ onMounted(async () => {
   await loadRefereeRegistry()
   await loadRoleUsers({ pagenum: 0, pagesize: 20 })
   await loadRepresentativeUsers({ pagenum: 0, pagesize: 20 })
-  await loadSeasons()
   if (seasonsList.value.length) {
     tourSeasonId.value = String(seasonsList.value[0].id)
     await onTourSeasonChange()

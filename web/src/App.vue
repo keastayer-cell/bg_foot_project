@@ -18,13 +18,17 @@
       </router-link>
       <div class="topbar-right">
         <nav class="topnav">
-          <router-link to="/league">О лиге</router-link>
-          <router-link to="/">Туры</router-link>
-          <router-link to="/transfers">Трансферы</router-link>
-          <router-link to="/players">Игроки</router-link>
-          <router-link to="/teams">Команды</router-link>
-          <router-link v-if="canSeeAdmin()" to="/admin">Админ-панель</router-link>
-          <router-link v-if="canSeeApiExplorer()" to="/api-explorer">API Explorer</router-link>
+          <div class="topnav-primary">
+            <router-link to="/league">О лиге</router-link>
+            <router-link to="/">Туры</router-link>
+            <router-link to="/transfers">Трансферы</router-link>
+            <router-link to="/players">Игроки</router-link>
+            <router-link to="/teams">Команды</router-link>
+          </div>
+          <div v-if="canSeeAdmin() || canSeeApiExplorer()" class="topnav-tools">
+            <router-link v-if="canSeeAdmin()" to="/admin">Админ-панель</router-link>
+            <router-link v-if="canSeeApiExplorer()" to="/api-explorer">API Explorer</router-link>
+          </div>
         </nav>
 
         <div class="auth-strip" v-if="isAuthenticated && user">

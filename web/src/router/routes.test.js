@@ -21,6 +21,10 @@ describe('route definitions smoke test', () => {
     ]))
   })
 
+  it('does not expose the removed client-only match editor', () => {
+    expect(routes.map((route) => route.path)).not.toContain('/create')
+  })
+
   it.each([
     ['/admin', 'requiresAdminPanel'],
     ['/team-rep-dashboard', 'requiresTeamRep'],

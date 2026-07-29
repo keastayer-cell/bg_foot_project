@@ -6,12 +6,6 @@ export const routes = [
   { path: '/teams', name: 'teams', component: () => import('../pages/Teams.vue') },
   { path: '/teams/:id', name: 'team-profile', component: () => import('../pages/TeamProfile.vue') },
   {
-    path: '/create',
-    name: 'create-match',
-    component: () => import('../pages/CreateMatch.vue'),
-    meta: { requiresAuth: true },
-  },
-  {
     path: '/admin',
     name: 'admin',
     component: () => import('../pages/Admin.vue'),

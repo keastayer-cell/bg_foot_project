@@ -193,6 +193,9 @@ function scrollToGroup(groupKey) {
 .api-index-page {
   display: grid;
   gap: 18px;
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
 }
 
 .api-index-head {
