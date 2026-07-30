@@ -307,9 +307,9 @@ test('болельщик: сезон → тур → матч → информа�
   await expect(page.getByRole('combobox', { name: 'Сезон' })).toHaveValue('1')
   await expect(page.locator('.standings-table-desktop')).toContainText('Альфа')
 
-  await page.getByRole('button', { name: /Тур 1/ }).click()
-  await page.getByRole('link', { name: /Альфа - Бета/ }).click()
-  await expect(page).toHaveURL(/\/match\/101$/)
+  await expect(page.getByLabel('Выбрать тур')).toHaveValue('11')
+  await page.getByRole('link', { name: /Альфа.*Бета/ }).click()
+  await expect(page).toHaveURL(/\/matches\/101$/)
   await expect(page.getByRole('heading', { name: 'Альфа', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Бета', exact: true })).toBeVisible()
 
@@ -344,8 +344,9 @@ test('рефери: матч из тура → заполнение и сохр�
 
   await expect(page.getByRole('link', { name: 'Админ-панель' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'API Explorer' })).toHaveCount(0)
-  await page.getByRole('button', { name: /Тур 1/ }).click()
-  await page.getByRole('link', { name: /Альфа - Бета/ }).click()
+  await expect(page.getByLabel('Выбрать тур')).toHaveValue('11')
+  await page.getByRole('link', { name: /Альфа.*Бета/ }).click()
+  await expect(page).toHaveURL(/\/matches\/101$/)
 
   await expect(page.getByRole('heading', { name: 'Протокол матча' })).toBeVisible()
   await expect(page.getByText('REFEREE', { exact: true })).toBeVisible()
