@@ -111,6 +111,16 @@
           @unban="unbanUser"
         />
 
+        <AdminDemoLeaguePanel
+          v-if="activeTab === 'demo-league'"
+          :status="demoLeagueStatus"
+          :loading="demoLeagueLoading"
+          :error="demoLeagueError"
+          @action="runDemoLeagueAction"
+          @refresh="loadDemoLeagueStatus"
+          @reset="resetDemoLeague"
+        />
+
         <UiState v-if="messageError" tone="error" title="Операция не выполнена" :message="messageError" />
         <UiState v-if="messageOk" tone="success" title="Готово" :message="messageOk" />
       </div>
@@ -122,6 +132,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useAuth } from '../store/auth'
 import { createAdminSeasonsApi } from '../api/adminSeasons'
+import { createDemoLeagueApi } from '../api/demoLeague'
 import { useAdminAccess } from '../composables/useAdminAccess'
 import { useAdminPlayers } from '../composables/useAdminPlayers'
 import { useAdminReferees } from '../composables/useAdminReferees'
@@ -137,6 +148,7 @@ import { useConfirmDialog } from '../composables/useConfirmDialog'
 import AdminTabNavigation from '../components/AdminTabNavigation.vue'
 import UiState from '../components/UiState.vue'
 import AdminBanPanel from '../components/admin/AdminBanPanel.vue'
+import AdminDemoLeaguePanel from '../components/admin/AdminDemoLeaguePanel.vue'
 import AdminPlayersPanel from '../components/admin/AdminPlayersPanel.vue'
 import AdminRefereesPanel from '../components/admin/AdminRefereesPanel.vue'
 import AdminRepresentativesPanel from '../components/admin/AdminRepresentativesPanel.vue'
@@ -150,6 +162,7 @@ const USERS_KEY = 'football_stats_admin_users_registry'
 
 const { authorizedApiRequest, authorizedApiRequestRaw, hasRole } = useAuth()
 const adminSeasonsApi = createAdminSeasonsApi(authorizedApiRequest, authorizedApiRequestRaw)
+const demoLeagueApi = createDemoLeagueApi(authorizedApiRequest)
 const { confirmAction } = useConfirmDialog()
 const { activeTab, visibleTabGroups, selectAdminTab } = useAdminTabs({
   hasRole,
@@ -162,6 +175,9 @@ const usersRegistry = ref(loadFromStorage(USERS_KEY))
 
 const messageError = ref('')
 const messageOk = ref('')
+const demoLeagueStatus = ref(null)
+const demoLeagueLoading = ref(false)
+const demoLeagueError = ref('')
 const {
   cancelEditPlayer,
   createPlayer,
@@ -650,6 +666,9 @@ const tourPanel = reactive({
 
 
 watch(activeTab, (tabId) => {
+  if (tabId === 'demo-league') {
+    void loadDemoLeagueStatus()
+  }
   if (tabId === 'representatives') {
     const emailFilter = String(repSearch.value || '').trim()
     void loadRepresentativeUsers({
@@ -679,6 +698,62 @@ function resetMessages() {
   messageError.value = ''
   messageOk.value = ''
   passwordResetResult.value = null
+}
+
+async function loadDemoLeagueStatus() {
+  demoLeagueError.value = ''
+  demoLeagueLoading.value = true
+  try {
+    demoLeagueStatus.value = await demoLeagueApi.status()
+  } catch (error) {
+    demoLeagueStatus.value = null
+    demoLeagueError.value = error.message || 'Не удалось загрузить состояние тестовой лиги.'
+  } finally {
+    demoLeagueLoading.value = false
+  }
+}
+
+async function runDemoLeagueAction(action) {
+  const operations = {
+    BASE: demoLeagueApi.createBase,
+    SCHEDULE: demoLeagueApi.createSchedule,
+    RESULTS: demoLeagueApi.addResults,
+    TRANSFERS: demoLeagueApi.prepareTransfers,
+    PLAYOFF: demoLeagueApi.preparePlayoffs,
+  }
+  const operation = operations[action]
+  if (!operation || demoLeagueLoading.value) return
+
+  demoLeagueError.value = ''
+  demoLeagueLoading.value = true
+  try {
+    demoLeagueStatus.value = await operation()
+    await Promise.all([loadSeasonRegistry(), loadTeamRegistry(), loadPlayerRegistry(), loadRefereeRegistry()])
+  } catch (error) {
+    demoLeagueError.value = error.message || 'Не удалось выполнить этап подготовки данных.'
+  } finally {
+    demoLeagueLoading.value = false
+  }
+}
+
+async function resetDemoLeague() {
+  const accepted = await confirmAction({
+    title: 'Удалить тестовую лигу?',
+    message: 'Будут удалены только объекты, зарегистрированные генератором: сезон, команды, игроки, судьи и тестовые пользователи.',
+    confirmLabel: 'Удалить набор',
+  })
+  if (!accepted || demoLeagueLoading.value) return
+
+  demoLeagueError.value = ''
+  demoLeagueLoading.value = true
+  try {
+    demoLeagueStatus.value = await demoLeagueApi.reset()
+    await Promise.all([loadSeasonRegistry(), loadTeamRegistry(), loadPlayerRegistry(), loadRefereeRegistry()])
+  } catch (error) {
+    demoLeagueError.value = error.message || 'Не удалось удалить тестовую лигу.'
+  } finally {
+    demoLeagueLoading.value = false
+  }
 }
 
 function loadFromStorage(key) {

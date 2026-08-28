@@ -6,6 +6,7 @@ function createTabs(roles = []) {
   return useAdminTabs({
     hasRole: (role) => roles.includes(role),
     openExternal: vi.fn(),
+    demoToolsEnabled: true,
   })
 }
 
@@ -17,7 +18,10 @@ describe('useAdminTabs', () => {
       'competition',
       'participants',
       'access',
+      'local-tools',
     ])
+    expect(visibleTabGroups.value.flatMap((group) => group.items).map((item) => item.id))
+      .toContain('demo-league')
   })
 
   it('shows competition and participant tools to a referee', () => {

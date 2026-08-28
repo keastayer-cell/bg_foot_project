@@ -11,3 +11,7 @@ spring:
     properties:
       hibernate:
         default_schema: ${DB_SCHEMA:work}
+
+demo:
+  tools:
+    enabled: ${DEMO_TOOLS_ENABLED:false}

@@ -31,6 +31,15 @@ export const ADMIN_TAB_GROUPS = [
       { id: 'ban', label: 'Блокировки' },
     ],
   },
+  {
+    id: 'local-tools',
+    title: 'Локальная проверка',
+    roles: ['SUPER_ADMIN'],
+    localOnly: true,
+    items: [
+      { id: 'demo-league', label: 'Тестовая лига' },
+    ],
+  },
 ]
 
 const EXTERNAL_TABS = {
@@ -38,13 +47,18 @@ const EXTERNAL_TABS = {
   transfers: '/team-rep-transfers',
 }
 
-export function useAdminTabs({ hasRole, openExternal }) {
+export function useAdminTabs({
+  hasRole,
+  openExternal,
+  demoToolsEnabled = import.meta.env.VITE_DEMO_TOOLS_ENABLED === 'true',
+}) {
   const activeTab = ref('seasons')
 
   const visibleTabGroups = computed(() => {
     if (!hasRole('SUPER_ADMIN') && !hasRole('REFEREE')) return []
 
     return ADMIN_TAB_GROUPS
+      .filter((group) => !group.localOnly || demoToolsEnabled)
       .filter((group) => !group.roles || group.roles.some((role) => hasRole(role)))
       .map((group) => ({
         ...group,
