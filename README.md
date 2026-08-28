@@ -12,10 +12,9 @@ Source of truth: репозиторий `keastayer-cell/bg_foot_project`, раб
 
 ## Требования
 
-- Java 21;
-- Maven 3.9+;
-- Node.js 20+ и npm;
-- PostgreSQL 15+.
+- рекомендуемый Docker-запуск: Docker 24+, Compose plugin 2.20+ и GNU Make;
+- запуск сервисов на хосте: Java 21, Maven 3.9+, Node.js 20+ и npm;
+- запуск без контейнерной БД: PostgreSQL 15+.
 
 Проверить окружение:
 
@@ -25,11 +24,15 @@ mvn -version
 node --version
 npm --version
 psql --version
+docker compose version
+make --version
 ```
 
 ## Локальная база
 
-Создайте пользователя и БД с правами на схемы `public`, `work` и `mailer`:
+При Docker-запуске пользователь и база создаются автоматически. Для PostgreSQL,
+запущенного на хосте, создайте пользователя и БД с правами на схемы `public`,
+`work` и `mailer`:
 
 ```sql
 CREATE ROLE football_app LOGIN PASSWORD 'local-password';
@@ -40,14 +43,17 @@ Flyway создаёт и обновляет структуру при запус
 
 ## Настройка
 
-Создайте единый локальный env-файл в корне репозитория и отдельный публичный Vite-файл:
+Создайте единый локальный env-файл в корне репозитория. Для запуска frontend на
+хосте также создайте отдельный публичный Vite-файл:
 
 ```bash
 cp .env.example .env
 cp web/.env.example web/.env.local
 ```
 
-Корневой `.env` читают backend и mailer при запуске из корня проекта. Обязательно замените `DB_PASSWORD` и `JWT_SECRET`. Секрет JWT должен содержать не менее 32 байт. Для безопасного локального запуска mailer используйте:
+Корневой `.env` читают Compose, backend и mailer. Обязательно замените
+`DB_PASSWORD` и `JWT_SECRET`. Секрет JWT должен содержать не менее 32 байт. Для
+безопасного локального запуска mailer используйте:
 
 ```dotenv
 MAILER_TRANSPORT_TYPE=log
@@ -61,7 +67,48 @@ MAILER_TRANSPORT_TYPE=log
 откроет интерфейс на `5173`, но страницы с данными и авторизация без backend на
 `8080` работать не будут.
 
+Для наполнения текущей локальной базы реалистичными данными и проверки всех ролей
+используйте раздел «Админ-панель → Тестовая лига». Подробное описание:
+[docs/Тестовая-лига.md](docs/Тестовая-лига.md).
+
 Все команды ниже выполняются из корня репозитория.
+
+### Запуск через Docker
+
+Это рекомендуемый способ: PostgreSQL 16, backend, mailer и frontend запускаются
+одной командой в воспроизводимом окружении.
+
+```bash
+make up
+make smoke
+```
+
+После успешной проверки откройте `http://127.0.0.1:5173`. Состояние и логи:
+
+```bash
+make ps
+make logs
+make logs s=backend
+```
+
+PostgreSQL опубликован на хосте через порт `5433`, чтобы не конфликтовать с
+локальным PostgreSQL на `5432`. Обычная остановка сохраняет данные:
+
+```bash
+make down
+```
+
+Все команды и их краткое описание показывает `make help`. Полный сброс удаляет
+данные лиги и сохранённые frontend-зависимости, поэтому требует подтверждения:
+
+```bash
+make reset-db CONFIRM=yes
+```
+
+Mailer в стандартной локальной конфигурации использует транспорт `log` и не
+отправляет реальные письма.
+
+### Запуск без Docker
 
 1. Убедитесь, что PostgreSQL запущен:
 
@@ -80,11 +127,9 @@ brew services start postgresql@17
 2. Запустите backend в первом терминале:
 
 ```bash
-BG_FOOT_ENV_FILE="$PWD/.env" mvn -f app/pom.xml spring-boot:run
+mvn -f app/pom.xml spring-boot:run
 ```
 
-Явный `BG_FOOT_ENV_FILE` необходим, потому что Maven запускает Spring Boot с
-рабочей директорией `app`, а локальный env-файл хранится в корне репозитория.
 Дождитесь сообщения `Tomcat started on port 8080`, затем проверьте:
 
 ```bash
@@ -111,7 +156,7 @@ npm --prefix web run dev -- --host 127.0.0.1
 запустите его в третьем терминале:
 
 ```bash
-BG_FOOT_ENV_FILE="$PWD/.env" mvn -f mailer/pom.xml spring-boot:run
+mvn -f mailer/pom.xml spring-boot:run
 ```
 
 Не запускайте mailer с `MAILER_TRANSPORT_TYPE=smtp`, если не планируете реальную
@@ -124,6 +169,13 @@ BG_FOOT_ENV_FILE="$PWD/.env" mvn -f mailer/pom.xml spring-boot:run
 - backend health: `http://127.0.0.1:8080/api/health`;
 - mailer health: `http://127.0.0.1:8090/actuator/health`;
 - mailer readiness: `http://127.0.0.1:8090/actuator/health/readiness`.
+
+Чтобы запустить backend на хосте против PostgreSQL из Compose:
+
+```bash
+make db
+make run-backend
+```
 
 ### Если PostgreSQL не запускается
 
