@@ -380,6 +380,28 @@ a {
 	line-height: 1.45;
 }
 
+.auth-forgot-link {
+	justify-self: start;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: rgba(151, 176, 255, 0.96);
+	font: inherit;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.auth-forgot-link:hover {
+	color: var(--text);
+	text-decoration: underline;
+}
+
+.auth-forgot-description {
+	margin: 0;
+	color: rgba(182, 189, 216, 0.9);
+	line-height: 1.55;
+}
+
 .auth-submit-btn {
 	min-width: 164px;
 	min-height: 56px;

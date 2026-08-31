@@ -4,6 +4,7 @@ import com.footballstats.backend.dto.auth.AuthResponse;
 import com.footballstats.backend.dto.auth.ChangePasswordRequest;
 import com.footballstats.backend.dto.auth.GuestLoginRequest;
 import com.footballstats.backend.dto.auth.LoginRequest;
+import com.footballstats.backend.dto.auth.PasswordResetRequest;
 import com.footballstats.backend.dto.auth.RegisterRequest;
 import com.footballstats.backend.dto.auth.UserResponse;
 import com.footballstats.backend.security.AppUserPrincipal;
@@ -112,6 +113,12 @@ public class AuthController {
     public ResponseEntity<Void> completePasswordReset(@Valid @RequestBody CompletePasswordResetRequest request) {
         authService.completePasswordReset(request.token(), request.newPassword());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/password-reset/request")
+    public ResponseEntity<Void> requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        authService.requestPasswordReset(request.email());
+        return ResponseEntity.accepted().build();
     }
 
     @GetMapping("/me")

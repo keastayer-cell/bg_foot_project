@@ -70,6 +70,9 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         if ("/api/auth/password-reset/complete".equals(path)) {
             return new RateLimitRule("auth-reset-complete", 10, Duration.ofMinutes(10));
         }
+        if ("/api/auth/password-reset/request".equals(path)) {
+            return new RateLimitRule("auth-reset-request", 5, Duration.ofMinutes(10));
+        }
         if ("/api/auth/guest".equals(path)) {
             return new RateLimitRule("auth-guest", 20, Duration.ofMinutes(5));
         }

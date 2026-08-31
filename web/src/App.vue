@@ -71,12 +71,12 @@
         <div class="toolbar auth-modal-head">
           <div class="auth-modal-title-block">
             <span class="auth-modal-kicker">Личный кабинет</span>
-            <h3 class="section-title">Авторизация</h3>
+            <h3 class="section-title">{{ authMode === 'forgot' ? 'Восстановление доступа' : 'Авторизация' }}</h3>
           </div>
           <button class="btn-ghost auth-modal-close" type="button" @click="closeAuthModal">Закрыть</button>
         </div>
 
-        <div class="auth-tabs-shell">
+        <div v-if="authMode !== 'forgot'" class="auth-tabs-shell">
           <div class="auth-tabs" role="tablist" aria-label="Режим авторизации">
             <button
               class="btn-ghost auth-tab-btn"
@@ -101,7 +101,7 @@
           </div>
         </div>
 
-        <form class="auth-form" @submit.prevent="submitAuth">
+        <form v-if="authMode !== 'forgot'" class="auth-form" @submit.prevent="submitAuth">
           <label class="auth-field">
             <span class="auth-field-label">Email</span>
             <input v-model.trim="authForm.email" type="email" autocomplete="email" required />
@@ -134,6 +134,15 @@
             </div>
           </label>
 
+          <button
+            v-if="authMode === 'login'"
+            class="auth-forgot-link"
+            type="button"
+            @click="openForgotPassword"
+          >
+            Забыли пароль?
+          </button>
+
           <p class="error-text" v-if="authError">{{ authError }}</p>
           <p class="success-text" v-if="authOk">{{ authOk }}</p>
 
@@ -143,6 +152,29 @@
             </p>
             <button class="btn-primary auth-submit-btn" type="submit" :disabled="authSubmitting">
               {{ authSubmitting ? 'Подождите...' : authMode === 'register' ? 'Зарегистрироваться' : 'Войти' }}
+            </button>
+          </div>
+        </form>
+
+        <form v-else class="auth-form" @submit.prevent="submitForgotPassword">
+          <p class="auth-forgot-description">
+            Укажите email аккаунта. Если он зарегистрирован, мы отправим ссылку для создания нового пароля.
+          </p>
+
+          <label class="auth-field">
+            <span class="auth-field-label">Email</span>
+            <input v-model.trim="forgotPasswordEmail" type="email" autocomplete="email" required />
+          </label>
+
+          <p class="error-text" v-if="authError">{{ authError }}</p>
+          <p class="success-text" v-if="authOk">{{ authOk }}</p>
+
+          <div class="actions-row auth-actions-row">
+            <button class="btn-ghost" type="button" :disabled="authSubmitting" @click="returnToLogin">
+              Вернуться ко входу
+            </button>
+            <button class="btn-primary auth-submit-btn" type="submit" :disabled="authSubmitting || Boolean(authOk)">
+              {{ authSubmitting ? 'Подождите...' : 'Сбросить пароль' }}
             </button>
           </div>
         </form>
@@ -197,10 +229,12 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import { useAuth } from './store/auth'
+import { requestPasswordReset } from './api/auth'
 import bogorodskCoat from './assets/Screenshot at Apr 28 20-18-16.png'
 
 const { user, isAuthenticated, register, login, logout, changePassword, ensureSession, hasRole } = useAuth()
 const router = useRouter()
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 
 const authModalOpen = ref(false)
 const authMode = ref('login')
@@ -208,6 +242,7 @@ const authSubmitting = ref(false)
 const authError = ref('')
 const authOk = ref('')
 const showPassword = ref(false)
+const forgotPasswordEmail = ref('')
 const passwordChangeModalOpen = ref(false)
 const passwordChangeSubmitting = ref(false)
 const passwordChangeError = ref('')
@@ -247,6 +282,31 @@ function closeAuthModal() {
   authSubmitting.value = false
   showPassword.value = false
   resetMessages()
+}
+
+function openForgotPassword() {
+  forgotPasswordEmail.value = authForm.email
+  authMode.value = 'forgot'
+  resetMessages()
+}
+
+function returnToLogin() {
+  authMode.value = 'login'
+  resetMessages()
+}
+
+async function submitForgotPassword() {
+  authSubmitting.value = true
+  resetMessages()
+
+  try {
+    await requestPasswordReset(apiBaseUrl, forgotPasswordEmail.value)
+    authOk.value = 'Если аккаунт с такой почтой существует, ссылка для сброса пароля отправлена.'
+  } catch (error) {
+    authError.value = error.message || 'Не удалось запросить сброс пароля.'
+  } finally {
+    authSubmitting.value = false
+  }
 }
 
 function resetPasswordChangeMessages() {

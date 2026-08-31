@@ -34,6 +34,17 @@ class AuthRateLimitFilterTest {
         assertThat(response.getStatus()).isEqualTo(200);
     }
 
+    @Test
+    void limitsPublicPasswordResetRequests() throws Exception {
+        AuthRateLimitFilter filter = new AuthRateLimitFilter(new ObjectMapper());
+
+        for (int index = 0; index < 5; index += 1) {
+            assertThat(execute(filter, "/api/auth/password-reset/request").getStatus()).isEqualTo(200);
+        }
+
+        assertThat(execute(filter, "/api/auth/password-reset/request").getStatus()).isEqualTo(429);
+    }
+
     private MockHttpServletResponse execute(AuthRateLimitFilter filter, String path) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
         request.setRemoteAddr("203.0.113.10");

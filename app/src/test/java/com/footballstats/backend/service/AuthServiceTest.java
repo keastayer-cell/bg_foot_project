@@ -21,6 +21,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -90,6 +91,38 @@ class AuthServiceTest {
             org.mockito.ArgumentMatchers.startsWith("https://football.example/reset-password?token="),
             any(OffsetDateTime.class)
         );
+    }
+
+    @Test
+    void publicResetRequestCreatesLinkWithoutInvalidatingPasswordOrSessions() {
+        AppUser user = user(12L, 4);
+        String currentPasswordHash = passwordEncoder.encode("current-secret");
+        user.setPasswordHash(currentPasswordHash);
+        when(appUserRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(user));
+        when(appUserRepository.save(any(AppUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        authService.requestPasswordReset(" User@Example.com ");
+
+        assertThat(user.getPasswordHash()).isEqualTo(currentPasswordHash);
+        assertThat(user.getTokenVersion()).isEqualTo(4);
+        assertThat(user.isMustChangePassword()).isFalse();
+        assertThat(user.getPasswordResetTokenHash()).hasSize(64);
+        assertThat(user.getPasswordResetExpiresAt()).isAfter(OffsetDateTime.now());
+        verify(notificationEventService).enqueuePasswordResetRequested(
+            any(AppUser.class),
+            org.mockito.ArgumentMatchers.startsWith("https://football.example/reset-password?token="),
+            any(OffsetDateTime.class)
+        );
+    }
+
+    @Test
+    void publicResetRequestDoesNotRevealUnknownEmailThroughAnError() {
+        when(appUserRepository.findByEmailIgnoreCase("unknown@example.com")).thenReturn(Optional.empty());
+
+        authService.requestPasswordReset("unknown@example.com");
+
+        verify(appUserRepository, never()).save(any(AppUser.class));
+        verify(notificationEventService, never()).enqueuePasswordResetRequested(any(), any(), any());
     }
 
     @Test

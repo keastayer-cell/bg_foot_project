@@ -148,6 +148,21 @@ public class AuthService {
         return new PasswordResetResponse(saved.getId(), saved.getEmail(), resetPath, expiresAt);
     }
 
+    @Transactional
+    public void requestPasswordReset(String email) {
+        appUserRepository.findByEmailIgnoreCase(normalizeEmail(email)).ifPresent(user -> {
+            String resetToken = generateOpaqueToken();
+            OffsetDateTime expiresAt = OffsetDateTime.now().plusMinutes(PASSWORD_RESET_TTL_MINUTES);
+
+            user.setPasswordResetTokenHash(hashOpaqueToken(resetToken));
+            user.setPasswordResetExpiresAt(expiresAt);
+            AppUser saved = appUserRepository.save(user);
+
+            String resetPath = "/reset-password?token=" + resetToken;
+            notificationEventService.enqueuePasswordResetRequested(saved, buildPublicResetLink(resetPath), expiresAt);
+        });
+    }
+
     public void completePasswordReset(String rawToken, String newPassword) {
         if (!StringUtils.hasText(rawToken)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Токен сброса пароля отсутствует.");
@@ -163,7 +178,7 @@ public class AuthService {
         if (user.getPasswordResetExpiresAt() == null || OffsetDateTime.now().isAfter(user.getPasswordResetExpiresAt())) {
             clearPasswordResetState(user);
             appUserRepository.save(user);
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ссылка сброса пароля истекла. Запросите новую ссылку у администратора.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ссылка сброса пароля истекла. Запросите новую ссылку.");
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
