@@ -10,6 +10,8 @@
 
 Source of truth: репозиторий `keastayer-cell/bg_foot_project`, рабочая ветка `dev`. Актуальные runtime migrations находятся только в `app/src/main/resources/db/migration`.
 
+История крупных изменений и текущая сборка ведутся в [RELEASE.md](RELEASE.md).
+
 ## Требования
 
 - рекомендуемый Docker-запуск: Docker 24+, Compose plugin 2.20+ и GNU Make;
