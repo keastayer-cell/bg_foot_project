@@ -6,6 +6,7 @@ export const ADMIN_TAB_GROUPS = [
     title: 'Турнир',
     items: [
       { id: 'seasons', label: 'Сезоны' },
+      { id: 'competitions', label: 'Соревнования' },
       { id: 'tours', label: 'Туры и матчи' },
       { id: 'season-applications', label: 'Заявки на сезон', external: true },
       { id: 'transfers', label: 'Трансферы', external: true },

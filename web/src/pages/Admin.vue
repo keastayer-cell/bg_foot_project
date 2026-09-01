@@ -18,6 +18,12 @@
           :panel="seasonPanel"
         />
 
+        <AdminCompetitionsPanel
+          v-if="activeTab === 'competitions'"
+          :request="authorizedApiRequest"
+          :seasons="seasonsList"
+        />
+
 
         <AdminTeamsPanel
           v-if="activeTab === 'teams'"
@@ -154,6 +160,7 @@ import AdminRefereesPanel from '../components/admin/AdminRefereesPanel.vue'
 import AdminRepresentativesPanel from '../components/admin/AdminRepresentativesPanel.vue'
 import AdminRolesPanel from '../components/admin/AdminRolesPanel.vue'
 import AdminSeasonsPanel from '../components/admin/AdminSeasonsPanel.vue'
+import AdminCompetitionsPanel from '../components/admin/AdminCompetitionsPanel.vue'
 import AdminTeamsPanel from '../components/admin/AdminTeamsPanel.vue'
 import AdminToursPanel from '../components/admin/AdminToursPanel.vue'
 import AdminLeagueContent from '../components/AdminLeagueContent.vue'
@@ -267,12 +274,14 @@ const seasonForm = reactive({
   thirdPlaceEnabled: false,
   status: 'DRAFT',
   maxRosterSize: '',
+  playersOnField: '11',
   applicationDeadline: '',
   transferWindowStartDate: '',
   transferWindowEndDate: '',
   rankingRules: ['GOAL_DIFFERENCE', 'GOALS_FOR'],
   yellowCardsForSuspension: '0',
-  redCardsForSuspension: '0',
+  yellowSuspensionMatches: '1',
+  redCardsForSuspension: '1',
 })
 
 const editingSeasonId = ref(null)
@@ -339,21 +348,43 @@ const {
 })
 const {
   availableAwayTeams,
+  canCreateCupMatches,
+  canSaveCupTieWinner,
   canDeleteTourMatch,
   canPublishSelectedTour,
+  competitionId: tourCompetitionId,
+  competitions: tourCompetitions,
+  confirmCupDraw,
+  createCupMatches,
   createMatch: createTourMatch,
+  cupKickoffDates,
+  cupDrawBusy,
+  cupDrawOrder,
+  cupPenaltyForm,
+  cupRounds,
   deleteMatch: deleteTourMatchNow,
+  drawCupManual,
+  drawCupRandom,
   matchForm,
   matchLimitMessage: selectedTourMatchLimitMessage,
   matchProtocolStatusLabel,
   matches: tourMatchesList,
+  moveCupDrawTeam,
+  needsCupTieWinner,
+  onCompetitionChange: onTourCompetitionChange,
+  onCupTieChange,
   onSeasonChange: onTourSeasonChange,
   onTourChange: onTourSelectChange,
   protocolStatusBadgeClass,
   publish: publishSelectedTourNow,
   refresh: refreshToursTabData,
+  saveCupTieWinner,
   seasonId: tourSeasonId,
   selectedId: selectedTourId,
+  selectedCompetition: selectedTourCompetition,
+  selectedCup: selectedTourCup,
+  selectedCupTie,
+  selectedCupTieId,
   selectedSeason: selectedTourSeason,
   selectedTour,
   teams: tourTeamsList,
@@ -640,22 +671,44 @@ const teamPanel = reactive({
 
 const tourPanel = reactive({
   availableAwayTeams,
+  canCreateCupMatches,
+  canSaveCupTieWinner,
   canDeleteTourMatch,
   canPublishSelectedTour,
+  competitionId: tourCompetitionId,
+  competitions: tourCompetitions,
+  confirmCupDraw,
+  createCupMatches,
   createMatch: createTourMatch,
+  cupKickoffDates,
+  cupDrawBusy,
+  cupDrawOrder,
+  cupPenaltyForm,
+  cupRounds,
   deleteMatch: deleteTourMatch,
+  drawCupManual,
+  drawCupRandom,
   formatDateTime,
   matchForm,
   matchLimitMessage: selectedTourMatchLimitMessage,
   matchProtocolStatusLabel,
   matches: tourMatchesList,
+  moveCupDrawTeam,
+  needsCupTieWinner,
+  onCompetitionChange: onTourCompetitionChange,
+  onCupTieChange,
   onSeasonChange: onTourSeasonChange,
   onTourChange: onTourSelectChange,
   protocolStatusBadgeClass,
   publish: publishSelectedTour,
+  saveCupTieWinner,
   seasonId: tourSeasonId,
   seasonsList,
   selectedId: selectedTourId,
+  selectedCompetition: selectedTourCompetition,
+  selectedCup: selectedTourCup,
+  selectedCupTie,
+  selectedCupTieId,
   selectedSeason: selectedTourSeason,
   selectedTour,
   teams: tourTeamsList,
@@ -831,12 +884,14 @@ async function startEditSeason(item) {
   seasonForm.thirdPlaceEnabled = Boolean(item.thirdPlaceEnabled)
   seasonForm.status = item.status || 'ACTIVE'
   seasonForm.maxRosterSize = item.maxRosterSize ? String(item.maxRosterSize) : ''
+  seasonForm.playersOnField = String(item.playersOnField || 11)
   seasonForm.applicationDeadline = item.applicationDeadline || ''
   seasonForm.transferWindowStartDate = item.transferWindowStartDate || ''
   seasonForm.transferWindowEndDate = item.transferWindowEndDate || ''
   seasonForm.rankingRules = normalizeSeasonRankingRulesForForm(item.rankingRules)
   seasonForm.yellowCardsForSuspension = String(item.yellowCardsForSuspension || 0)
-  seasonForm.redCardsForSuspension = String(item.redCardsForSuspension || 0)
+  seasonForm.yellowSuspensionMatches = String(item.yellowSuspensionMatches || 1)
+  seasonForm.redCardsForSuspension = String(item.redCardsForSuspension || 1)
   seasonRefereeIds.value = Array.isArray(item.referees) ? item.referees.map((referee) => Number(referee.id)).filter(Boolean) : []
   originalSeasonRefereeIds.value = [...seasonRefereeIds.value]
   seasonTeamIds.value = await loadSeasonTeams(item.id)
@@ -1077,12 +1132,14 @@ function resetSeasonForm() {
   seasonForm.thirdPlaceEnabled = false
   seasonForm.status = 'DRAFT'
   seasonForm.maxRosterSize = ''
+  seasonForm.playersOnField = '11'
   seasonForm.applicationDeadline = ''
   seasonForm.transferWindowStartDate = ''
   seasonForm.transferWindowEndDate = ''
   seasonForm.rankingRules = ['GOAL_DIFFERENCE', 'GOALS_FOR']
   seasonForm.yellowCardsForSuspension = '0'
-  seasonForm.redCardsForSuspension = '0'
+  seasonForm.yellowSuspensionMatches = '1'
+  seasonForm.redCardsForSuspension = '1'
   seasonTeamIds.value = []
   originalSeasonTeamIds.value = []
   seasonTeamToAddId.value = ''

@@ -59,6 +59,10 @@ public class SeasonPlayerStatsService {
                 if (!teamName.isEmpty()) {
                     stats.teamNames.add(teamName);
                 }
+                String teamShortName = String.valueOf(event.getTeam().getShortName() == null ? "" : event.getTeam().getShortName()).trim();
+                if (!teamShortName.isEmpty()) {
+                    stats.teamShortNames.add(teamShortName);
+                }
             }
 
             switch (event.getEventType()) {
@@ -98,6 +102,7 @@ public class SeasonPlayerStatsService {
         Long playerId,
         String fullName,
         String teamName,
+        String teamShortName,
         int goals,
         int yellowCards,
         int redCards
@@ -107,6 +112,7 @@ public class SeasonPlayerStatsService {
         private final Long playerId;
         private final String fullName;
         private final Set<String> teamNames = new LinkedHashSet<>();
+        private final Set<String> teamShortNames = new LinkedHashSet<>();
         private int goals;
         private int yellowCards;
         private int redCards;
@@ -118,7 +124,8 @@ public class SeasonPlayerStatsService {
 
         private PlayerSeasonStatsRow toRow() {
             String teamName = teamNames.isEmpty() ? null : String.join(", ", teamNames);
-            return new PlayerSeasonStatsRow(playerId, fullName, teamName, goals, yellowCards, redCards);
+            String teamShortName = teamShortNames.isEmpty() ? null : String.join(", ", teamShortNames);
+            return new PlayerSeasonStatsRow(playerId, fullName, teamName, teamShortName, goals, yellowCards, redCards);
         }
     }
 }

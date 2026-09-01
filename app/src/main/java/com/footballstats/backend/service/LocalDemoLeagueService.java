@@ -127,6 +127,7 @@ public class LocalDemoLeagueService {
     private final UserRoleRepository userRoleRepository;
     private final UserTeamScopeRepository userTeamScopeRepository;
     private final SeasonService seasonService;
+    private final CompetitionService competitionService;
     private final TourService tourService;
     private final SeasonStandingsService standingsService;
     private final SeasonPlayoffService playoffService;
@@ -155,6 +156,7 @@ public class LocalDemoLeagueService {
         UserRoleRepository userRoleRepository,
         UserTeamScopeRepository userTeamScopeRepository,
         SeasonService seasonService,
+        CompetitionService competitionService,
         TourService tourService,
         SeasonStandingsService standingsService,
         SeasonPlayoffService playoffService,
@@ -182,6 +184,7 @@ public class LocalDemoLeagueService {
         this.userRoleRepository = userRoleRepository;
         this.userTeamScopeRepository = userTeamScopeRepository;
         this.seasonService = seasonService;
+        this.competitionService = competitionService;
         this.tourService = tourService;
         this.standingsService = standingsService;
         this.playoffService = playoffService;
@@ -222,6 +225,7 @@ public class LocalDemoLeagueService {
             LocalDate.now().plusDays(21),
             SeasonStatus.ACTIVE,
             22,
+            11,
             LocalDate.now().minusDays(3),
             LocalDate.now().plusDays(30),
             false,
@@ -229,10 +233,13 @@ public class LocalDemoLeagueService {
             referees.stream().map(Referee::getId).toList(),
             4,
             1,
+            1,
             actorUserId
         );
         track(dataset.getId(), "SEASON", season.getId());
         seasonService.replaceSeasonTeams(season.getId(), teams.stream().map(Team::getId).toList(), actorUserId);
+        competitionService.createChampionship(season.getId(), "Чемпионат", actorUserId);
+        seasonService.initializeChampionship(season.getId(), actorUserId);
 
         for (Team team : teams) {
             for (Player player : playersByTeam.get(team.getId())) {
@@ -508,11 +515,17 @@ public class LocalDemoLeagueService {
             jdbcTemplate.update("DELETE FROM work.w_match_lineup_player WHERE lineup_id IN (SELECT ml.id FROM work.w_match_lineup ml JOIN work.w_tour_match tm ON tm.id = ml.match_id JOIN work.w_tour t ON t.id = tm.tour_id WHERE t.season_id = ?)", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_match_lineup WHERE match_id IN (SELECT tm.id FROM work.w_tour_match tm JOIN work.w_tour t ON t.id = tm.tour_id WHERE t.season_id = ?)", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_season_playoff_tie_match WHERE match_id IN (SELECT tm.id FROM work.w_tour_match tm JOIN work.w_tour t ON t.id = tm.tour_id WHERE t.season_id = ?)", seasonId);
+            jdbcTemplate.update("DELETE FROM work.w_cup_tie_match WHERE match_id IN (SELECT tm.id FROM work.w_tour_match tm JOIN work.w_tour t ON t.id = tm.tour_id WHERE t.season_id = ?)", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_match_protocol WHERE match_id IN (SELECT tm.id FROM work.w_tour_match tm JOIN work.w_tour t ON t.id = tm.tour_id WHERE t.season_id = ?)", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_season_player WHERE season_id = ?", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_season_team WHERE season_id = ?", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_tour_match WHERE tour_id IN (SELECT id FROM work.w_tour WHERE season_id = ?)", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_tour WHERE season_id = ?", seasonId);
+            jdbcTemplate.update("UPDATE work.w_cup_tie SET home_source_tie_id = NULL, away_source_tie_id = NULL WHERE competition_id IN (SELECT id FROM work.w_competition WHERE season_id = ?)", seasonId);
+            jdbcTemplate.update("DELETE FROM work.w_cup_tie WHERE competition_id IN (SELECT id FROM work.w_competition WHERE season_id = ?)", seasonId);
+            jdbcTemplate.update("DELETE FROM work.w_competition_roster_player WHERE competition_id IN (SELECT id FROM work.w_competition WHERE season_id = ?)", seasonId);
+            jdbcTemplate.update("DELETE FROM work.w_competition_team WHERE competition_id IN (SELECT id FROM work.w_competition WHERE season_id = ?)", seasonId);
+            jdbcTemplate.update("DELETE FROM work.w_competition WHERE season_id = ?", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_season_referee WHERE season_id = ?", seasonId);
             jdbcTemplate.update(
                 """
@@ -775,6 +788,7 @@ public class LocalDemoLeagueService {
             item.setLineup(lineup);
             item.setPlayer(players.get(index));
             item.setSortOrder(index + 1);
+            item.setStarter(index < match.getTour().getSeason().getPlayersOnField());
             item.setCreatedByUserId(actorUserId);
             item.setUpdatedByUserId(actorUserId);
             matchLineupPlayerRepository.save(item);

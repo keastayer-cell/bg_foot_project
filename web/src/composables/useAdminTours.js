@@ -1,4 +1,5 @@
 import { computed, reactive, ref, watch } from 'vue'
+import { createCompetitionsApi } from '../api/competitions'
 
 export function countHeadToHeadMeetings(matches, firstTeamId, secondTeamId) {
   const firstId = Number(firstTeamId || 0)
@@ -64,12 +65,20 @@ export function useAdminTours({
   successMessage,
   confirmAction = (message) => window.confirm(message),
 }) {
+  const competitionsApi = createCompetitionsApi(request)
   const seasonId = ref('')
+  const competitionId = ref('')
   const selectedId = ref('')
   const teams = ref([])
   const tours = ref([])
   const matches = ref([])
   const seasonMatches = ref([])
+  const competitions = ref([])
+  const cupDrawBusy = ref(false)
+  const cupDrawOrder = ref([])
+  const selectedCupTieId = ref('')
+  const cupKickoffDates = ref([])
+  const cupPenaltyForm = reactive({ home: null, away: null })
   const matchForm = reactive({
     homeTeamId: '',
     awayTeamId: '',
@@ -81,6 +90,64 @@ export function useAdminTours({
   })
   const selectedTour = computed(() => {
     return tours.value.find((tour) => String(tour.id) === String(selectedId.value)) || null
+  })
+  const selectedCompetition = computed(() => {
+    return competitions.value.find((competition) => String(competition.id) === String(competitionId.value)) || null
+  })
+  const selectedCup = computed(() => selectedCompetition.value?.type === 'CUP' ? selectedCompetition.value : null)
+  const selectedCupTie = computed(() => {
+    return selectedCup.value?.ties?.find((tie) => String(tie.id) === String(selectedCupTieId.value)) || null
+  })
+  const cupRounds = computed(() => {
+    const groups = new Map()
+    for (const tie of selectedCup.value?.ties || []) {
+      if (!groups.has(tie.roundCode)) {
+        groups.set(tie.roundCode, {
+          code: tie.roundCode,
+          label: String(tie.title || '').split(' · ')[0] || tie.roundCode,
+          order: Number(tie.roundOrder || 0),
+          ties: [],
+        })
+      }
+      groups.get(tie.roundCode).ties.push(tie)
+    }
+    return [...groups.values()]
+      .map((round) => ({ ...round, ties: [...round.ties].sort((a, b) => Number(a.slotOrder) - Number(b.slotOrder)) }))
+      .sort((a, b) => a.order - b.order)
+  })
+  const canCreateCupMatches = computed(() => {
+    const tie = selectedCupTie.value
+    return Boolean(
+      tie
+      && selectedCup.value?.drawStatus === 'CONFIRMED'
+      && tie.homeTeam
+      && tie.awayTeam
+      && !tie.matches?.length
+      && cupKickoffDates.value.length === Number(tie.legCount || 0)
+      && cupKickoffDates.value.every(Boolean)
+    )
+  })
+  const needsCupTieWinner = computed(() => {
+    const tie = selectedCupTie.value
+    return Boolean(
+      selectedCup.value?.penaltiesEnabled
+      && tie
+      && tie.matches?.length === tie.legCount
+      && tie.matches.every((match) => match.protocolStatus === 'VERIFIED')
+      && tie.aggregateHomeScore != null
+      && tie.aggregateHomeScore === tie.aggregateAwayScore
+      && !tie.winnerTeam
+    )
+  })
+  const canSaveCupTieWinner = computed(() => {
+    const home = Number(cupPenaltyForm.home)
+    const away = Number(cupPenaltyForm.away)
+    return needsCupTieWinner.value
+      && Number.isInteger(home)
+      && Number.isInteger(away)
+      && home >= 0
+      && away >= 0
+      && home !== away
   })
   const canPublishSelectedTour = computed(() => {
     return Boolean(selectedTour.value) && !selectedTour.value.published && matches.value.length > 0
@@ -133,17 +200,158 @@ export function useAdminTours({
 
   async function onSeasonChange() {
     clearMessages()
+    competitionId.value = ''
     selectedId.value = ''
     matches.value = []
+    selectedCupTieId.value = ''
+    cupKickoffDates.value = []
+    cupPenaltyForm.home = null
+    cupPenaltyForm.away = null
     resetMatchForm()
 
     if (!seasonId.value) {
       tours.value = []
       teams.value = []
       seasonMatches.value = []
+      competitions.value = []
+      cupDrawOrder.value = []
       return
     }
-    await Promise.all([loadTours(), loadTeams()])
+    await Promise.all([loadTours(), loadTeams(), loadCompetitions()])
+  }
+
+  async function loadCompetitions() {
+    if (!seasonId.value) {
+      competitions.value = []
+      competitionId.value = ''
+      cupDrawOrder.value = []
+      return
+    }
+
+    try {
+      const payload = await competitionsApi.list(seasonId.value)
+      competitions.value = Array.isArray(payload) ? payload : []
+      const currentExists = competitions.value.some(
+        (competition) => String(competition.id) === String(competitionId.value)
+      )
+      if (!currentExists) {
+        const preferred = competitions.value.find((competition) => competition.type === 'CHAMPIONSHIP')
+          || competitions.value[0]
+        competitionId.value = preferred ? String(preferred.id) : ''
+      }
+      syncCupDrawOrder()
+    } catch (error) {
+      competitions.value = []
+      competitionId.value = ''
+      errorMessage.value = error.message || 'Не удалось загрузить соревнования сезона.'
+    }
+  }
+
+  function onCompetitionChange() {
+    clearMessages()
+    selectedId.value = ''
+    matches.value = []
+    selectedCupTieId.value = ''
+    cupKickoffDates.value = []
+    syncCupDrawOrder()
+    cupPenaltyForm.home = null
+    cupPenaltyForm.away = null
+    resetMatchForm()
+  }
+
+  function onCupTieChange() {
+    clearMessages()
+    const legCount = Number(selectedCupTie.value?.legCount || 0)
+    cupKickoffDates.value = Array.from({ length: legCount }, () => '')
+    cupPenaltyForm.home = selectedCupTie.value?.homePenaltyScore ?? null
+    cupPenaltyForm.away = selectedCupTie.value?.awayPenaltyScore ?? null
+  }
+
+  function syncCupDrawOrder(cup = selectedCup.value) {
+    if (!cup) {
+      cupDrawOrder.value = []
+      return
+    }
+
+    const ties = [...(cup.ties || [])]
+    const firstRoundOrder = ties.length
+      ? Math.min(...ties.map((tie) => Number(tie.roundOrder || 0)))
+      : null
+    const drawnIds = firstRoundOrder == null
+      ? []
+      : ties
+          .filter((tie) => Number(tie.roundOrder || 0) === firstRoundOrder)
+          .sort((left, right) => Number(left.slotOrder || 0) - Number(right.slotOrder || 0))
+          .flatMap((tie) => [tie.homeTeam?.id, tie.awayTeam?.id])
+          .filter(Boolean)
+    const participantIds = [...(cup.teams || [])]
+      .sort((left, right) => Number(left.seedNumber || 0) - Number(right.seedNumber || 0))
+      .map((team) => team.id)
+    cupDrawOrder.value = new Set(drawnIds).size === participantIds.length
+      ? drawnIds
+      : participantIds
+  }
+
+  function replaceCompetition(saved) {
+    competitions.value = competitions.value.map((competition) => (
+      String(competition.id) === String(saved.id) ? saved : competition
+    ))
+  }
+
+  function moveCupDrawTeam(index, delta) {
+    const nextIndex = index + delta
+    if (nextIndex < 0 || nextIndex >= cupDrawOrder.value.length) return
+    const next = [...cupDrawOrder.value]
+    const currentTeam = next[index]
+    next[index] = next[nextIndex]
+    next[nextIndex] = currentTeam
+    cupDrawOrder.value = next
+  }
+
+  async function performCupDraw(orderedTeamIds) {
+    clearMessages()
+    if (!selectedCup.value) return
+    cupDrawBusy.value = true
+    try {
+      const saved = await competitionsApi.draw(
+        seasonId.value,
+        selectedCup.value.id,
+        orderedTeamIds
+      )
+      replaceCompetition(saved)
+      syncCupDrawOrder(saved)
+      selectedCupTieId.value = ''
+      successMessage.value = 'Черновик кубковой сетки сформирован.'
+    } catch (error) {
+      errorMessage.value = error.message || 'Не удалось провести жеребьёвку.'
+    } finally {
+      cupDrawBusy.value = false
+    }
+  }
+
+  async function drawCupRandom() {
+    await performCupDraw([])
+  }
+
+  async function drawCupManual() {
+    await performCupDraw(cupDrawOrder.value.map(Number))
+  }
+
+  async function confirmCupDraw() {
+    clearMessages()
+    if (!selectedCup.value) return
+    cupDrawBusy.value = true
+    try {
+      const saved = await competitionsApi.confirmDraw(seasonId.value, selectedCup.value.id)
+      replaceCompetition(saved)
+      syncCupDrawOrder(saved)
+      selectedCupTieId.value = ''
+      successMessage.value = 'Кубковая сетка утверждена. Теперь можно назначать матчи пар.'
+    } catch (error) {
+      errorMessage.value = error.message || 'Не удалось утвердить кубковую сетку.'
+    } finally {
+      cupDrawBusy.value = false
+    }
   }
 
   async function loadTours() {
@@ -168,17 +376,22 @@ export function useAdminTours({
   }
 
   async function loadSeasonMatches() {
-    if (!tours.value.length) {
+    if (!seasonId.value || !tours.value.length) {
       seasonMatches.value = []
       return
     }
 
-    const payloads = await Promise.all(
-      tours.value.map((tour) => request(`/api/tours/${tour.id}/matches?active_flag=1`, {
-        method: 'GET',
-      }))
+    const payload = await request(
+      `/api/tours/matches?season_id=${encodeURIComponent(seasonId.value)}&active_flag=1`,
+      { method: 'GET' }
     )
-    seasonMatches.value = payloads.flatMap((payload) => Array.isArray(payload) ? payload : [])
+    const regularTourIds = new Set(
+      tours.value
+        .filter((tour) => String(tour.stageType || '').toUpperCase() === 'REGULAR')
+        .map((tour) => String(tour.id))
+    )
+    seasonMatches.value = (Array.isArray(payload) ? payload : [])
+      .filter((match) => regularTourIds.has(String(match.tourId)))
   }
 
   async function loadTeams() {
@@ -220,8 +433,57 @@ export function useAdminTours({
 
   async function refresh() {
     if (!seasonId.value) return
-    await Promise.all([loadTours(), loadTeams()])
+    await Promise.all([loadTours(), loadTeams(), loadCompetitions()])
     if (selectedId.value) await onTourChange()
+  }
+
+  async function createCupMatches() {
+    clearMessages()
+    if (!selectedCup.value || !selectedCupTie.value) {
+      errorMessage.value = 'Выберите кубковую пару.'
+      return
+    }
+    if (!canCreateCupMatches.value) {
+      errorMessage.value = 'Укажите дату и время каждого матча пары.'
+      return
+    }
+
+    try {
+      const saved = await competitionsApi.scheduleTie(
+        seasonId.value,
+        selectedCup.value.id,
+        selectedCupTie.value.id,
+        cupKickoffDates.value.map((value) => new Date(value).toISOString())
+      )
+      replaceCompetition(saved)
+      cupKickoffDates.value = []
+      await loadTours()
+      successMessage.value = 'Матчи кубковой пары созданы.'
+    } catch (error) {
+      errorMessage.value = error.message || 'Не удалось создать матчи кубковой пары.'
+    }
+  }
+
+  async function saveCupTieWinner() {
+    clearMessages()
+    if (!selectedCup.value || !selectedCupTie.value || !canSaveCupTieWinner.value) {
+      errorMessage.value = 'Укажите разный итог серии пенальти для обеих команд.'
+      return
+    }
+
+    try {
+      const saved = await competitionsApi.chooseTieWinner(
+        seasonId.value,
+        selectedCup.value.id,
+        selectedCupTie.value.id,
+        Number(cupPenaltyForm.home),
+        Number(cupPenaltyForm.away)
+      )
+      replaceCompetition(saved)
+      successMessage.value = 'Результат серии пенальти сохранён.'
+    } catch (error) {
+      errorMessage.value = error.message || 'Не удалось сохранить результат серии пенальти.'
+    }
   }
 
   async function publish() {
@@ -305,7 +567,6 @@ export function useAdminTours({
 
     try {
       await request(`/api/tours/${selectedId.value}/matches/${matchId}`, { method: 'DELETE' })
-      await loadSeasonMatches()
       await Promise.all([loadTours(), onTourChange()])
       successMessage.value = 'Матч удален из тура.'
     } catch (error) {
@@ -315,22 +576,44 @@ export function useAdminTours({
 
   return {
     availableAwayTeams,
+    canCreateCupMatches,
+    canSaveCupTieWinner,
     canDeleteTourMatch,
     canPublishSelectedTour,
+    competitionId,
+    competitions,
     createMatch,
+    createCupMatches,
+    confirmCupDraw,
+    cupDrawBusy,
+    cupDrawOrder,
+    cupKickoffDates,
+    cupPenaltyForm,
+    cupRounds,
     deleteMatch,
+    drawCupManual,
+    drawCupRandom,
     matchForm,
     matchLimitMessage,
     matchProtocolStatusLabel,
     matches,
+    moveCupDrawTeam,
+    needsCupTieWinner,
     onSeasonChange,
+    onCompetitionChange,
+    onCupTieChange,
     onTourChange,
     protocolStatusBadgeClass,
     publish,
     refresh,
+    saveCupTieWinner,
     seasonId,
     seasonMatches,
     selectedId,
+    selectedCompetition,
+    selectedCup,
+    selectedCupTie,
+    selectedCupTieId,
     selectedSeason,
     selectedTour,
     teams,

@@ -56,6 +56,15 @@ public class TourController {
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(tour));
     }
 
+    @GetMapping("/matches")
+    public ResponseEntity<List<TourMatchResponse>> listSeasonMatches(
+        @RequestParam(name = "season_id") Long seasonId,
+        @RequestParam(name = "active_flag", defaultValue = "1") Integer activeFlag
+    ) {
+        boolean includeInactive = Integer.valueOf(0).equals(activeFlag);
+        return ResponseEntity.ok(tourService.listSeasonMatches(seasonId, includeInactive).stream().map(this::toMatchResponse).toList());
+    }
+
     @GetMapping("/{tourId}/matches")
     public ResponseEntity<List<TourMatchResponse>> listMatches(
         @PathVariable Long tourId,

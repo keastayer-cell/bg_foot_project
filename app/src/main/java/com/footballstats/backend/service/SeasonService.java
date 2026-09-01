@@ -39,6 +39,7 @@ public class SeasonService {
     private final SeasonPlayoffService seasonPlayoffService;
     private final SeasonStandingsService seasonStandingsService;
     private final ObjectMapper objectMapper;
+    private final CompetitionService competitionService;
 
     public SeasonService(
         RefereeRepository refereeRepository,
@@ -51,7 +52,8 @@ public class SeasonService {
         SeasonPlayerService seasonPlayerService,
         SeasonPlayoffService seasonPlayoffService,
         SeasonStandingsService seasonStandingsService,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        CompetitionService competitionService
     ) {
         this.refereeRepository = refereeRepository;
         this.seasonRepository = seasonRepository;
@@ -64,6 +66,7 @@ public class SeasonService {
         this.seasonPlayoffService = seasonPlayoffService;
         this.seasonStandingsService = seasonStandingsService;
         this.objectMapper = objectMapper;
+        this.competitionService = competitionService;
     }
 
     @Transactional(readOnly = true)
@@ -85,12 +88,14 @@ public class SeasonService {
         LocalDate applicationDeadline,
         SeasonStatus status,
         Integer maxRosterSize,
+        Integer playersOnField,
         LocalDate transferWindowStartDate,
         LocalDate transferWindowEndDate,
         Boolean thirdPlaceEnabled,
         List<String> rankingRules,
         List<Long> refereeIds,
         Integer yellowCardsForSuspension,
+        Integer yellowSuspensionMatches,
         Integer redCardsForSuspension,
         Long actorUserId
     ) {
@@ -101,14 +106,14 @@ public class SeasonService {
         season.setName(normalizedName);
         applyFormat(season, roundsCount, playoffEnabled, playoffTeamCount, false);
         season.setApplicationDeadline(applicationDeadline);
-        applyRosterRules(season, status == null ? SeasonStatus.DRAFT : status, maxRosterSize, transferWindowStartDate, transferWindowEndDate);
+        applyRosterRules(season, status == null ? SeasonStatus.DRAFT : status, maxRosterSize, playersOnField, transferWindowStartDate, transferWindowEndDate);
         season.setCreatedByUserId(actorUserId);
         season.setUpdatedByUserId(actorUserId);
         season.setActive(true);
         season.setUpdatedAt(OffsetDateTime.now());
         Season savedSeason = seasonRepository.save(season);
         seasonStandingsService.initializeSeasonStandings(savedSeason.getId(), actorUserId);
-        updateStandingsConfig(savedSeason.getId(), rankingRules, yellowCardsForSuspension, redCardsForSuspension, actorUserId);
+        updateStandingsConfig(savedSeason.getId(), rankingRules, yellowCardsForSuspension, yellowSuspensionMatches, redCardsForSuspension, actorUserId);
         seasonPlayoffService.syncSeasonPlayoffConfig(savedSeason.getId(), savedSeason.isPlayoffEnabled(), savedSeason.getPlayoffTeamCount(), Boolean.TRUE.equals(thirdPlaceEnabled), actorUserId);
         replaceSeasonReferees(savedSeason, refereeIds, actorUserId);
         return savedSeason;
@@ -124,12 +129,14 @@ public class SeasonService {
         LocalDate applicationDeadline,
         SeasonStatus status,
         Integer maxRosterSize,
+        Integer playersOnField,
         LocalDate transferWindowStartDate,
         LocalDate transferWindowEndDate,
         Boolean thirdPlaceEnabled,
         List<String> rankingRules,
         List<Long> refereeIds,
         Integer yellowCardsForSuspension,
+        Integer yellowSuspensionMatches,
         Integer redCardsForSuspension,
         Long actorUserId
     ) {
@@ -149,14 +156,14 @@ public class SeasonService {
         season.setName(normalizedName);
         applyFormat(season, roundsCount, playoffEnabled, playoffTeamCount, true);
         season.setApplicationDeadline(applicationDeadline);
-        applyRosterRules(season, status == null ? season.getStatus() : status, maxRosterSize, transferWindowStartDate, transferWindowEndDate);
+        applyRosterRules(season, status == null ? season.getStatus() : status, maxRosterSize, playersOnField, transferWindowStartDate, transferWindowEndDate);
         season.setUpdatedByUserId(actorUserId);
         season.setUpdatedAt(OffsetDateTime.now());
         Season savedSeason = seasonRepository.save(season);
-        updateStandingsConfig(seasonId, rankingRules, yellowCardsForSuspension, redCardsForSuspension, actorUserId);
+        updateStandingsConfig(seasonId, rankingRules, yellowCardsForSuspension, yellowSuspensionMatches, redCardsForSuspension, actorUserId);
         seasonPlayoffService.syncSeasonPlayoffConfig(savedSeason.getId(), savedSeason.isPlayoffEnabled(), savedSeason.getPlayoffTeamCount(), Boolean.TRUE.equals(thirdPlaceEnabled), actorUserId);
         replaceSeasonReferees(savedSeason, refereeIds, actorUserId);
-        if (!hasRegularMatches) {
+        if (!hasRegularMatches && competitionService.hasChampionship(seasonId)) {
             seasonStructureService.syncRegularToursForSeason(savedSeason, actorUserId);
         }
         seasonStandingsService.recalculateSeasonStandings(seasonId, actorUserId);
@@ -234,7 +241,10 @@ public class SeasonService {
         season.setUpdatedByUserId(actorUserId);
         season.setUpdatedAt(OffsetDateTime.now());
         seasonRepository.save(season);
-        seasonStructureService.syncRegularToursForSeason(season, actorUserId);
+        if (competitionService.hasChampionship(seasonId)) {
+            competitionService.syncChampionshipTeams(seasonId, actorUserId);
+            seasonStructureService.syncRegularToursForSeason(season, actorUserId);
+        }
         seasonStandingsService.recalculateSeasonStandings(seasonId, actorUserId);
 
         return teams.stream().sorted((left, right) -> left.getName().compareToIgnoreCase(right.getName())).toList();
@@ -244,6 +254,13 @@ public class SeasonService {
     public int calculateRegularToursCount(Long seasonId) {
         Season season = getExistingSeason(seasonId);
         return seasonStructureService.calculateRegularToursCountForSeason(seasonId, season.getRoundsCount());
+    }
+
+    @Transactional
+    public void initializeChampionship(Long seasonId, Long actorUserId) {
+        Season season = getExistingSeason(seasonId);
+        seasonStructureService.syncRegularToursForSeason(season, actorUserId);
+        seasonStandingsService.recalculateSeasonStandings(seasonId, actorUserId);
     }
 
     @Transactional(readOnly = true)
@@ -293,6 +310,7 @@ public class SeasonService {
         Season season,
         SeasonStatus status,
         Integer maxRosterSize,
+        Integer playersOnField,
         LocalDate transferWindowStartDate,
         LocalDate transferWindowEndDate
     ) {
@@ -303,9 +321,17 @@ public class SeasonService {
         if (maxRosterSize != null && maxRosterSize < 1) {
             throw new IllegalArgumentException("Максимальный размер заявки должен быть не меньше 1.");
         }
+        int normalizedPlayersOnField = playersOnField == null ? 11 : playersOnField;
+        if (normalizedPlayersOnField < 1) {
+            throw new IllegalArgumentException("Количество игроков на поле должно быть не меньше 1.");
+        }
+        if (maxRosterSize != null && normalizedPlayersOnField > maxRosterSize) {
+            throw new IllegalArgumentException("Количество игроков на поле не может превышать лимит сезонной заявки.");
+        }
 
         season.setStatus(normalizedStatus);
         season.setMaxRosterSize(maxRosterSize);
+        season.setPlayersOnField(normalizedPlayersOnField);
         season.setTransferWindowStartDate(transferWindowStartDate);
         season.setTransferWindowEndDate(transferWindowEndDate);
     }
@@ -314,13 +340,15 @@ public class SeasonService {
         Long seasonId,
         List<String> rankingRules,
         Integer yellowCardsForSuspension,
+        Integer yellowSuspensionMatches,
         Integer redCardsForSuspension,
         Long actorUserId
     ) {
         SeasonStandingsConfig config = getStandingsConfig(seasonId);
         config.setRankingRulesJson(StandingsRankingRules.toJson(rankingRules, objectMapper));
         config.setYellowCardsForSuspension(normalizeSuspensionThreshold(yellowCardsForSuspension, "ЖК"));
-        config.setRedCardsForSuspension(normalizeSuspensionThreshold(redCardsForSuspension, "КК"));
+        config.setYellowSuspensionMatches(yellowSuspensionMatches == null ? 1 : Math.max(1, yellowSuspensionMatches));
+        config.setRedCardsForSuspension(redCardsForSuspension == null ? 1 : Math.max(1, redCardsForSuspension));
         config.setUpdatedByUserId(actorUserId);
         config.setUpdatedAt(OffsetDateTime.now());
         seasonStandingsConfigRepository.save(config);

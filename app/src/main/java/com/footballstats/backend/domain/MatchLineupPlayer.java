@@ -31,6 +31,9 @@ public class MatchLineupPlayer {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder = 1;
 
+    @Column(name = "is_starter", nullable = false)
+    private boolean starter = true;
+
     @Column(name = "created_by_user_id")
     private Long createdByUserId;
 
@@ -69,6 +72,14 @@ public class MatchLineupPlayer {
 
     public void setSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public boolean isStarter() {
+        return starter;
+    }
+
+    public void setStarter(boolean starter) {
+        this.starter = starter;
     }
 
     public Long getCreatedByUserId() {

@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -41,6 +42,8 @@ import java.util.HashSet;
 
 @Service
 public class MatchProtocolService {
+
+    private static final DateTimeFormatter EXPORT_FILE_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     private static final TypeReference<List<SeasonProtocolExportRefereeData>> EXPORT_REFEREES_TYPE = new TypeReference<>() {};
     private static final TypeReference<List<SeasonProtocolExportTeamData>> EXPORT_TEAMS_TYPE = new TypeReference<>() {};
@@ -59,6 +62,8 @@ public class MatchProtocolService {
     private final SeasonStandingsService seasonStandingsService;
     private final SeasonDisciplineService seasonDisciplineService;
     private final ObjectMapper objectMapper;
+    private final CompetitionService competitionService;
+    private final CompetitionDisciplineService competitionDisciplineService;
 
     public MatchProtocolService(
         TourMatchRepository tourMatchRepository,
@@ -74,7 +79,9 @@ public class MatchProtocolService {
         SeasonPlayerService seasonPlayerService,
         SeasonStandingsService seasonStandingsService,
         SeasonDisciplineService seasonDisciplineService,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        CompetitionService competitionService,
+        CompetitionDisciplineService competitionDisciplineService
     ) {
         this.tourMatchRepository = tourMatchRepository;
         this.matchProtocolRepository = matchProtocolRepository;
@@ -90,6 +97,8 @@ public class MatchProtocolService {
         this.seasonStandingsService = seasonStandingsService;
         this.seasonDisciplineService = seasonDisciplineService;
         this.objectMapper = objectMapper;
+        this.competitionService = competitionService;
+        this.competitionDisciplineService = competitionDisciplineService;
     }
 
     @Transactional(readOnly = true)
@@ -216,6 +225,10 @@ public class MatchProtocolService {
         protocol.setUpdatedAt(OffsetDateTime.now());
         matchProtocolRepository.save(protocol);
 
+        if (protocol.getStatus() == MatchProtocolStatus.VERIFIED && isCupMatch(match)) {
+            competitionService.refreshCupAfterMatch(matchId);
+        }
+
         if (previousStatus == MatchProtocolStatus.VERIFIED || protocol.getStatus() == MatchProtocolStatus.VERIFIED) {
             seasonStandingsService.recalculateSeasonStandings(match.getTour().getSeason().getId(), actorUserId);
         }
@@ -259,7 +272,8 @@ public class MatchProtocolService {
     public MatchDetailsData upsertLineup(
         Long matchId,
         Long teamId,
-        List<Long> playerIds,
+        List<Long> starterPlayerIds,
+        List<Long> substitutePlayerIds,
         Long actorUserId,
         boolean superAdmin
     ) {
@@ -271,16 +285,41 @@ public class MatchProtocolService {
         }
 
         Long seasonId = match.getTour().getSeason().getId();
-        Map<Long, SeasonDisciplineService.PlayerMatchDiscipline> suspendedPlayers = seasonDisciplineService.getSuspendedPlayersForMatch(seasonId, matchId);
-        List<PlayerTeam> eligibleRoster = seasonPlayerService.listEligibleRosterMemberships(lineupTeam.getId(), seasonId);
+        Map<Long, SeasonDisciplineService.PlayerMatchDiscipline> suspendedPlayers = isCupMatch(match)
+            ? competitionDisciplineService.suspendedForMatch(match.getTour().getCompetition().getId(), matchId)
+            : seasonDisciplineService.getSuspendedPlayersForMatch(seasonId, matchId);
         Map<Long, Player> eligiblePlayers = new LinkedHashMap<>();
-        for (PlayerTeam playerTeam : eligibleRoster) {
-            eligiblePlayers.put(playerTeam.getPlayer().getId(), playerTeam.getPlayer());
+        if (isCupMatch(match)) {
+            for (Player player : competitionService.eligiblePlayers(seasonId, match.getTour().getCompetition().getId(), lineupTeam.getId())) {
+                eligiblePlayers.put(player.getId(), player);
+            }
+        } else {
+            for (PlayerTeam playerTeam : seasonPlayerService.listEligibleRosterMemberships(lineupTeam.getId(), seasonId)) {
+                eligiblePlayers.put(playerTeam.getPlayer().getId(), playerTeam.getPlayer());
+            }
         }
 
-        List<Long> normalizedIds = playerIds == null ? List.of() : playerIds.stream()
+        List<Long> normalizedStarterIds = starterPlayerIds == null ? List.of() : starterPlayerIds.stream()
             .filter(id -> id != null)
             .toList();
+        List<Long> normalizedSubstituteIds = substitutePlayerIds == null ? List.of() : substitutePlayerIds.stream()
+            .filter(id -> id != null)
+            .toList();
+        int requiredStarters = isCupMatch(match)
+            ? match.getTour().getCompetition().getPlayersOnField()
+            : match.getTour().getSeason().getPlayersOnField();
+        if (normalizedStarterIds.size() != requiredStarters) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Основной состав должен содержать ровно " + requiredStarters + " игроков."
+            );
+        }
+        List<Long> normalizedIds = new java.util.ArrayList<>(normalizedStarterIds);
+        normalizedIds.addAll(normalizedSubstituteIds);
+        Integer matchRosterLimit = isCupMatch(match) ? match.getTour().getCompetition().getMatchRosterSize() : null;
+        if (matchRosterLimit != null && normalizedIds.size() > matchRosterLimit) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "В протокол Кубка можно включить не более " + matchRosterLimit + " игроков.");
+        }
         Set<Long> uniqueIds = new HashSet<>();
         for (Long playerId : normalizedIds) {
             if (!uniqueIds.add(playerId)) {
@@ -298,16 +337,6 @@ public class MatchProtocolService {
         }
 
         MatchLineup lineup = matchLineupRepository.findByMatch_IdAndTeam_Id(matchId, lineupTeam.getId()).orElse(null);
-        if (normalizedIds.isEmpty()) {
-            if (lineup != null) {
-                matchLineupPlayerRepository.deleteByLineup_Id(lineup.getId());
-                matchLineupPlayerRepository.flush();
-                matchLineupRepository.delete(lineup);
-            }
-            syncProtocolStatusAfterLineupChange(match, actorUserId);
-            return getMatchDetails(matchId);
-        }
-
         OffsetDateTime now = OffsetDateTime.now();
         if (lineup == null) {
             lineup = new MatchLineup();
@@ -330,6 +359,7 @@ public class MatchProtocolService {
             lineupPlayer.setLineup(savedLineup);
             lineupPlayer.setPlayer(eligiblePlayers.get(playerId));
             lineupPlayer.setSortOrder(index + 1);
+            lineupPlayer.setStarter(index < normalizedStarterIds.size());
             lineupPlayer.setCreatedByUserId(actorUserId);
             lineupPlayer.setUpdatedByUserId(actorUserId);
             lineupPlayer.setCreatedAt(now);
@@ -473,7 +503,9 @@ public class MatchProtocolService {
     private MatchLineupsData loadLineups(TourMatch match) {
         Long matchId = match.getId();
         Long seasonId = match.getTour().getSeason().getId();
-        Map<Long, SeasonDisciplineService.PlayerMatchDiscipline> suspendedPlayers = seasonDisciplineService.getSuspendedPlayersForMatch(seasonId, matchId);
+        Map<Long, SeasonDisciplineService.PlayerMatchDiscipline> suspendedPlayers = isCupMatch(match)
+            ? competitionDisciplineService.suspendedForMatch(match.getTour().getCompetition().getId(), matchId)
+            : seasonDisciplineService.getSuspendedPlayersForMatch(seasonId, matchId);
 
         Map<Long, List<MatchLineupPlayer>> playersByTeamId = new LinkedHashMap<>();
         for (MatchLineupPlayer lineupPlayer : matchLineupPlayerRepository.findAllDetailedByMatchId(matchId)) {
@@ -522,6 +554,31 @@ public class MatchProtocolService {
     }
 
     private SeasonProtocolExportMatchData toSeasonProtocolExportMatchData(MatchProtocolExportSnapshot snapshot) {
+        Map<Long, Boolean> starterByPlayerId = matchLineupPlayerRepository.findAllDetailedByMatchId(snapshot.getMatchId()).stream()
+            .collect(java.util.stream.Collectors.toMap(
+                lineupPlayer -> lineupPlayer.getPlayer().getId(),
+                MatchLineupPlayer::isStarter,
+                (existing, ignored) -> existing,
+                LinkedHashMap::new
+            ));
+        List<SeasonProtocolExportTeamData> teams = readSnapshotJson(snapshot.getTeamsJson(), EXPORT_TEAMS_TYPE);
+        List<SeasonProtocolExportTeamData> teamsWithLineupRoles = teams.stream()
+            .map(team -> new SeasonProtocolExportTeamData(
+                team.teamName(),
+                team.players().stream()
+                    .map(player -> new SeasonProtocolExportPlayerData(
+                        player.playerId(),
+                        player.playerName(),
+                        player.sortOrder(),
+                        starterByPlayerId.getOrDefault(player.playerId(), player.isStarter()),
+                        player.goals(),
+                        player.yellowCards(),
+                        player.redCards()
+                    ))
+                    .toList()
+            ))
+            .toList();
+
         return new SeasonProtocolExportMatchData(
             snapshot.getMatchId(),
             snapshot.getTourName(),
@@ -534,8 +591,12 @@ public class MatchProtocolService {
             snapshot.isAwayTechnicalDefeat(),
             snapshot.getNote(),
             readSnapshotJson(snapshot.getRefereesJson(), EXPORT_REFEREES_TYPE),
-            readSnapshotJson(snapshot.getTeamsJson(), EXPORT_TEAMS_TYPE),
-            snapshot.getFileName()
+            teamsWithLineupRoles,
+            buildProtocolExportFileName(
+                snapshot.getKickoffAt(),
+                firstNonBlank(snapshot.getHomeTeamShortName(), snapshot.getHomeTeamName()),
+                firstNonBlank(snapshot.getAwayTeamShortName(), snapshot.getAwayTeamName())
+            )
         );
     }
 
@@ -559,6 +620,8 @@ public class MatchProtocolService {
         snapshot.setTourName(exportData.tourName());
         snapshot.setHomeTeamName(exportData.homeTeamName());
         snapshot.setAwayTeamName(exportData.awayTeamName());
+        snapshot.setHomeTeamShortName(firstNonBlank(data.match().getHomeTeam().getShortName(), data.match().getHomeTeam().getName()));
+        snapshot.setAwayTeamShortName(firstNonBlank(data.match().getAwayTeam().getShortName(), data.match().getAwayTeam().getName()));
         snapshot.setHomeScore(exportData.homeScore());
         snapshot.setAwayScore(exportData.awayScore());
         snapshot.setHomeTechnicalDefeat(exportData.homeTechnicalDefeat());
@@ -597,6 +660,7 @@ public class MatchProtocolService {
                         player.playerId(),
                         player.playerName(),
                         player.sortOrder(),
+                        player.isStarter(),
                         stats.goals(),
                         stats.yellowCards(),
                         stats.redCards()
@@ -639,21 +703,35 @@ public class MatchProtocolService {
     }
 
     private String buildSeasonProtocolExportFileName(TourMatch match) {
-        String date = match.getKickoffAt() == null ? "match" : match.getKickoffAt().toLocalDate().toString();
-        String tour = sanitizeFileNamePart(match.getTour().getName(), "tour");
-        String home = sanitizeFileNamePart(match.getHomeTeam().getName(), "home");
-        String away = sanitizeFileNamePart(match.getAwayTeam().getName(), "away");
-        return "protocol_" + date + "_" + tour + "_" + home + "_vs_" + away + ".pdf";
+        return buildProtocolExportFileName(
+            match.getKickoffAt(),
+            firstNonBlank(match.getHomeTeam().getShortName(), match.getHomeTeam().getName()),
+            firstNonBlank(match.getAwayTeam().getShortName(), match.getAwayTeam().getName())
+        );
     }
 
-    private String sanitizeFileNamePart(String value, String fallback) {
+    static String buildProtocolExportFileName(OffsetDateTime kickoffAt, String homeTeamName, String awayTeamName) {
+        String date = kickoffAt == null ? "date-unknown" : kickoffAt.format(EXPORT_FILE_DATE_FORMATTER);
+        String home = sanitizeFileNamePart(homeTeamName, "home");
+        String away = sanitizeFileNamePart(awayTeamName, "away");
+        return "protocol_" + home + "_" + away + "_" + date + ".pdf";
+    }
+
+    private static String firstNonBlank(String preferred, String fallback) {
+        return preferred == null || preferred.isBlank() ? fallback : preferred;
+    }
+
+    private static String sanitizeFileNamePart(String value, String fallback) {
         String normalized = value == null ? fallback : value.trim();
         if (normalized.isEmpty()) {
             normalized = fallback;
         }
-        return normalized
+        String sanitized = normalized
             .replaceAll("[\\\\/:*?\"<>|]", "_")
-            .replaceAll("\\s+", "_");
+            .replaceAll("\\s+", "_")
+            .replaceAll("_+", "_")
+            .replaceAll("^_|_$", "");
+        return sanitized.isEmpty() ? fallback : sanitized;
     }
 
     private String playerStatsKey(Long teamId, Long playerId) {
@@ -674,6 +752,7 @@ public class MatchProtocolService {
                 item.getPlayer().getId(),
                 item.getPlayer().getFullName(),
                 item.getPlayer().isGoalkeeper(),
+                item.isStarter(),
                 item.getSortOrder(),
                 seasonId,
                 suspendedPlayers.containsKey(item.getPlayer().getId()),
@@ -683,15 +762,18 @@ public class MatchProtocolService {
         Set<Long> selectedPlayerIds = players.stream()
             .map(LineupPlayerData::playerId)
             .collect(java.util.stream.Collectors.toSet());
-        List<AvailablePlayerData> availablePlayers = seasonPlayerService.listEligibleRosterMemberships(team.getId(), seasonId).stream()
-            .filter(item -> !selectedPlayerIds.contains(item.getPlayer().getId()))
+        List<Player> eligiblePlayers = isCupMatch(match)
+            ? competitionService.eligiblePlayers(seasonId, match.getTour().getCompetition().getId(), team.getId())
+            : seasonPlayerService.listEligibleRosterMemberships(team.getId(), seasonId).stream().map(PlayerTeam::getPlayer).toList();
+        List<AvailablePlayerData> availablePlayers = eligiblePlayers.stream()
+            .filter(item -> !selectedPlayerIds.contains(item.getId()))
             .map(item -> new AvailablePlayerData(
-                item.getPlayer().getId(),
-                item.getPlayer().getFullName(),
-                item.getPlayer().isGoalkeeper(),
+                item.getId(),
+                item.getFullName(),
+                item.isGoalkeeper(),
                 seasonId,
-                suspendedPlayers.containsKey(item.getPlayer().getId()),
-                suspendedPlayers.containsKey(item.getPlayer().getId()) ? suspendedPlayers.get(item.getPlayer().getId()).reason() : null
+                suspendedPlayers.containsKey(item.getId()),
+                suspendedPlayers.containsKey(item.getId()) ? suspendedPlayers.get(item.getId()).reason() : null
             ))
             .toList();
 
@@ -718,6 +800,11 @@ public class MatchProtocolService {
         protocol.setUpdatedByUserId(actorUserId);
         protocol.setUpdatedAt(OffsetDateTime.now());
         matchProtocolRepository.save(protocol);
+    }
+
+    private boolean isCupMatch(TourMatch match) {
+        return match.getTour().getCompetition() != null
+            && match.getTour().getCompetition().getType() == com.footballstats.backend.domain.CompetitionType.CUP;
     }
 
     private void validateRequiredLineupsForProtocolStatus(TourMatch match, MatchProtocolStatus status, boolean allowMissingLineups) {
@@ -946,6 +1033,7 @@ public class MatchProtocolService {
         Long playerId,
         String playerName,
         int sortOrder,
+        boolean isStarter,
         int goals,
         int yellowCards,
         int redCards
@@ -985,6 +1073,7 @@ public class MatchProtocolService {
         Long playerId,
         String playerName,
         boolean isGoalkeeper,
+        boolean isStarter,
         int sortOrder,
         Long seasonId,
         boolean suspended,

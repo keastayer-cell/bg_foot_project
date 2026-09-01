@@ -10,13 +10,13 @@ describe('matches api', () => {
       authorizedRequest,
     })
 
-    await api.saveLineup('match/1', 'team 2', [10, 11])
+    await api.saveLineup('match/1', 'team 2', [10, 11], [12])
 
     expect(authorizedRequest).toHaveBeenCalledWith(
       '/api/matches/match%2F1/lineups/team%202',
       {
         method: 'PUT',
-        body: JSON.stringify({ playerIds: [10, 11] }),
+        body: JSON.stringify({ starterPlayerIds: [10, 11], substitutePlayerIds: [12] }),
       },
     )
   })

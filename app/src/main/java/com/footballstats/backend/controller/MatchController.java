@@ -115,7 +115,8 @@ public class MatchController {
         return ResponseEntity.ok(toResponse(matchProtocolService.upsertLineup(
             matchId,
             teamId,
-            request.playerIds(),
+            request.starterPlayerIds(),
+            request.substitutePlayerIds(),
             currentUserId(authentication),
             isSuperAdmin(authentication)
         )));
@@ -130,6 +131,9 @@ public class MatchController {
             match.getTour().getName(),
             match.getTour().getSeason().getId(),
             match.getTour().getSeason().getName(),
+            match.getTour().getCompetition() == null
+                ? match.getTour().getSeason().getPlayersOnField()
+                : match.getTour().getCompetition().getPlayersOnField(),
             toTeamResponse(match.getHomeTeam()),
             toTeamResponse(match.getAwayTeam()),
             match.getKickoffAt(),
@@ -179,6 +183,7 @@ public class MatchController {
                     player.playerId(),
                     player.playerName(),
                     player.isGoalkeeper(),
+                    player.isStarter(),
                     player.sortOrder(),
                     player.seasonId(),
                     player.suspended(),
@@ -238,6 +243,7 @@ public class MatchController {
         String tourName,
         Long seasonId,
         String seasonName,
+        Integer playersOnField,
         TeamResponse homeTeam,
         TeamResponse awayTeam,
         OffsetDateTime kickoffAt,
@@ -302,6 +308,7 @@ public class MatchController {
         Long playerId,
         String playerName,
         boolean isGoalkeeper,
+        boolean isStarter,
         int sortOrder,
         Long seasonId,
         boolean suspended,
@@ -346,7 +353,8 @@ public class MatchController {
     ) {}
 
     public record MatchLineupUpsertRequest(
-        @jakarta.validation.constraints.NotNull(message = "Состав обязателен.") List<@NotNull Long> playerIds
+        @jakarta.validation.constraints.NotNull(message = "Основной состав обязателен.") List<@NotNull Long> starterPlayerIds,
+        @jakarta.validation.constraints.NotNull(message = "Список запасных обязателен.") List<@NotNull Long> substitutePlayerIds
     ) {}
 
     public record MatchEventUpsertRequest(

@@ -12,12 +12,12 @@ export function createMatchesApi({
       return optionalRawRequest(`/api/matches/${encodeURIComponent(matchId)}/protocol/pdf`, { method: 'GET' })
     },
 
-    saveLineup(matchId, teamId, playerIds) {
+    saveLineup(matchId, teamId, starterPlayerIds, substitutePlayerIds) {
       return authorizedRequest(
         `/api/matches/${encodeURIComponent(matchId)}/lineups/${encodeURIComponent(teamId)}`,
         {
           method: 'PUT',
-          body: JSON.stringify({ playerIds }),
+          body: JSON.stringify({ starterPlayerIds, substitutePlayerIds }),
         },
       )
     },

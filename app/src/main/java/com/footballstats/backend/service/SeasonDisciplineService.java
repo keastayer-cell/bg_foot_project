@@ -152,33 +152,23 @@ public class SeasonDisciplineService {
 
             if (cards.redCards > 0) {
                 state.yellowCycle = 0;
+                state.pendingSuspensions += config.getRedCardsForSuspension() * cards.redCards;
+                state.lastSuspensionType = SuspensionType.RED;
             } else if (config.getYellowCardsForSuspension() > 0 && cards.yellowCards > 0) {
                 state.yellowCycle += cards.yellowCards;
                 while (state.yellowCycle >= config.getYellowCardsForSuspension()) {
                     state.yellowCycle -= config.getYellowCardsForSuspension();
-                    state.pendingSuspensions += 1;
+                    state.pendingSuspensions += config.getYellowSuspensionMatches();
                     state.lastSuspensionType = SuspensionType.YELLOW;
                 }
             }
 
-            if (config.getRedCardsForSuspension() > 0 && cards.redCards > 0) {
-                state.redCycle += cards.redCards;
-                while (state.redCycle >= config.getRedCardsForSuspension()) {
-                    state.redCycle -= config.getRedCardsForSuspension();
-                    state.pendingSuspensions += 1;
-                    state.lastSuspensionType = SuspensionType.RED;
-                }
-            }
         }
     }
 
     private String buildReason(TeamDisciplineState state, SeasonStandingsConfig config, Season season) {
         if (state.lastSuspensionType == SuspensionType.RED) {
-            int threshold = config.getRedCardsForSuspension();
-            if (threshold > 0) {
-                return "Дисквалификация на матч: достигнут порог КК (" + threshold + ") в сезоне «" + season.getName() + "».";
-            }
-            return "Игрок дисквалифицирован по красной карточке в сезоне «" + season.getName() + "».";
+            return "Дисквалификация за КК в сезоне «" + season.getName() + "»: осталось матчей — " + state.pendingSuspensions + ".";
         }
         int threshold = config.getYellowCardsForSuspension();
         return "Дисквалификация на матч: достигнут порог ЖК (" + threshold + ") в сезоне «" + season.getName() + "».";
@@ -189,7 +179,6 @@ public class SeasonDisciplineService {
     private static final class TeamDisciplineState {
         private Long teamId;
         private int yellowCycle;
-        private int redCycle;
         private int pendingSuspensions;
         private SuspensionType lastSuspensionType = SuspensionType.YELLOW;
 

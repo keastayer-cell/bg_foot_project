@@ -42,6 +42,9 @@ public class Season {
     @Column(name = "max_roster_size")
     private Integer maxRosterSize;
 
+    @Column(name = "players_on_field", nullable = false)
+    private int playersOnField = 11;
+
     @Column(name = "transfer_window_start_date")
     private LocalDate transferWindowStartDate;
 
@@ -147,6 +150,14 @@ public class Season {
 
     public void setMaxRosterSize(Integer maxRosterSize) {
         this.maxRosterSize = maxRosterSize;
+    }
+
+    public int getPlayersOnField() {
+        return playersOnField;
+    }
+
+    public void setPlayersOnField(int playersOnField) {
+        this.playersOnField = playersOnField;
     }
 
     public LocalDate getTransferWindowStartDate() {

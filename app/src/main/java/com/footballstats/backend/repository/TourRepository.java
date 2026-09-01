@@ -22,7 +22,9 @@ public interface TourRepository extends JpaRepository<Tour, Long> {
         SELECT t
         FROM Tour t
         JOIN FETCH t.season season
+        LEFT JOIN t.competition competition
         WHERE season.id = :seasonId
+          AND (competition IS NULL OR competition.type = com.footballstats.backend.domain.CompetitionType.CHAMPIONSHIP)
           AND t.active = TRUE
         ORDER BY t.sortOrder ASC, t.id ASC
         """)
@@ -32,7 +34,9 @@ public interface TourRepository extends JpaRepository<Tour, Long> {
                 SELECT t
                 FROM Tour t
                 JOIN FETCH t.season season
+                LEFT JOIN t.competition competition
                 WHERE season.id = :seasonId
+                    AND (competition IS NULL OR competition.type = com.footballstats.backend.domain.CompetitionType.CHAMPIONSHIP)
                     AND t.active = TRUE
                     AND t.published = TRUE
                 ORDER BY t.sortOrder ASC, t.id ASC
@@ -43,7 +47,9 @@ public interface TourRepository extends JpaRepository<Tour, Long> {
         SELECT t
         FROM Tour t
         JOIN FETCH t.season season
+        LEFT JOIN t.competition competition
         WHERE season.id = :seasonId
+          AND (competition IS NULL OR competition.type = com.footballstats.backend.domain.CompetitionType.CHAMPIONSHIP)
         ORDER BY t.sortOrder ASC, t.id ASC
         """)
     List<Tour> findAllDetailedBySeasonId(@Param("seasonId") Long seasonId);
@@ -53,4 +59,7 @@ public interface TourRepository extends JpaRepository<Tour, Long> {
     List<Tour> findAllBySeason_IdAndPublishedTrueAndActiveTrueOrderBySortOrderAscIdAsc(Long seasonId);
 
     Optional<Tour> findBySeason_IdAndNameIgnoreCase(Long seasonId, String name);
+
+    List<Tour> findAllByCompetition_IdOrderBySortOrderAscIdAsc(Long competitionId);
+    Optional<Tour> findByCompetition_IdAndNameIgnoreCase(Long competitionId, String name);
 }

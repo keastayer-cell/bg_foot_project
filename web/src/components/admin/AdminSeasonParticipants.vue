@@ -3,7 +3,7 @@
     <div class="admin-season-section-head">
       <div class="admin-season-section-copy">
         <h4 class="admin-list-title">Команды сезона</h4>
-        <p class="muted-text">Состав сезона и краткая сводка по формату собраны в одном месте.</p>
+        <p class="muted-text">Общий пул команд, из которого выбираются участники чемпионата и Кубков.</p>
       </div>
     </div>
     <div class="actions-row admin-season-team-row">
@@ -22,33 +22,6 @@
           <p class="muted-text">Команда включена в состав сезона.</p>
         </div>
         <button class="btn-danger btn-sm" type="button" @click="$emit('remove-team', team.id)">Убрать</button>
-      </article>
-    </div>
-    <div class="admin-season-meta-grid">
-      <article class="admin-season-meta-card">
-        <span class="admin-season-meta-label">Регулярный этап</span>
-        <strong>{{ regularToursCount }} туров</strong>
-        <p class="muted-text">При {{ selectedTeams.length }} командах.</p>
-      </article>
-      <article class="admin-season-meta-card">
-        <span class="admin-season-meta-label">Дисциплина</span>
-        <strong>{{ Number(form.yellowCardsForSuspension || 0) || 0 }} ЖК / {{ Number(form.redCardsForSuspension || 0) || 0 }} КК</strong>
-        <p class="muted-text">Порог автоматического пропуска.</p>
-      </article>
-      <article class="admin-season-meta-card">
-        <span class="admin-season-meta-label">Регламент состава</span>
-        <strong>{{ form.maxRosterSize || 'Без лимита' }}</strong>
-        <p class="muted-text">Статус: {{ statusLabel }}.</p>
-      </article>
-      <article class="admin-season-meta-card">
-        <span class="admin-season-meta-label">Трансферы</span>
-        <strong>{{ transferWindowLabel }}</strong>
-        <p class="muted-text">Пустые даты означают отсутствие ограничений.</p>
-      </article>
-      <article v-if="form.playoffEnabled && form.playoffTeamCount" class="admin-season-meta-card admin-season-meta-card-accent">
-        <span class="admin-season-meta-label">Плей-офф</span>
-        <strong>{{ form.playoffTeamCount }} команд</strong>
-        <p class="muted-text">{{ form.thirdPlaceEnabled ? 'С матчем за 3 место.' : 'Без матча за 3 место.' }}</p>
       </article>
     </div>
   </section>
@@ -82,9 +55,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
 
-const props = defineProps({
+defineProps({
   availableReferees: { type: Array, required: true },
   availableTeams: { type: Array, required: true },
   form: { type: Object, required: true },
@@ -105,16 +77,4 @@ defineEmits([
   'update:teamToAddId',
 ])
 
-const statusLabel = computed(() => {
-  if (props.form.status === 'ACTIVE') return 'Активный'
-  if (props.form.status === 'CLOSED') return 'Закрыт'
-  return 'Черновик'
-})
-
-const transferWindowLabel = computed(() => {
-  if (!props.form.transferWindowStartDate && !props.form.transferWindowEndDate) {
-    return 'Без окна'
-  }
-  return `${props.form.transferWindowStartDate || '...'} - ${props.form.transferWindowEndDate || '...'}`
-})
 </script>

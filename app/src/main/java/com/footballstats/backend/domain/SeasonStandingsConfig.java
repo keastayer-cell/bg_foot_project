@@ -39,8 +39,11 @@ public class SeasonStandingsConfig {
     @Column(name = "yellow_cards_for_suspension", nullable = false)
     private int yellowCardsForSuspension = 0;
 
+    @Column(name = "yellow_suspension_matches", nullable = false)
+    private int yellowSuspensionMatches = 1;
+
     @Column(name = "red_cards_for_suspension", nullable = false)
-    private int redCardsForSuspension = 0;
+    private int redCardsForSuspension = 1;
 
     @Column(name = "last_calculated_at")
     private OffsetDateTime lastCalculatedAt;
@@ -107,6 +110,14 @@ public class SeasonStandingsConfig {
 
     public void setYellowCardsForSuspension(int yellowCardsForSuspension) {
         this.yellowCardsForSuspension = yellowCardsForSuspension;
+    }
+
+    public int getYellowSuspensionMatches() {
+        return yellowSuspensionMatches;
+    }
+
+    public void setYellowSuspensionMatches(int yellowSuspensionMatches) {
+        this.yellowSuspensionMatches = yellowSuspensionMatches;
     }
 
     public int getRedCardsForSuspension() {

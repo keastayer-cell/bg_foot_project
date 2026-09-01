@@ -33,6 +33,7 @@ public class SeasonProtocolArchiveService {
     private static final Color BORDER_COLOR = new Color(0xCF, 0xD7, 0xE6);
     private static final Color TEAM_HEADER_COLOR = new Color(0xE8, 0xED, 0xF7);
     private static final Color TABLE_HEADER_COLOR = new Color(0xF4, 0xF7, 0xFB);
+    private static final Color LINEUP_GROUP_COLOR = new Color(0xEE, 0xF2, 0xF8);
     private static final int PAGE_WIDTH = 1240;
     private static final int PAGE_HEIGHT = 1754;
     private static final int PAGE_MARGIN = 72;
@@ -98,7 +99,7 @@ public class SeasonProtocolArchiveService {
 
             for (MatchProtocolService.SeasonProtocolExportTeamData team : match.teams()) {
                 cursorY = drawTeamTable(graphics, cursorY, team);
-                cursorY += 24;
+                cursorY += 16;
             }
 
             cursorY = drawReferees(graphics, cursorY, match.referees());
@@ -179,56 +180,106 @@ public class SeasonProtocolArchiveService {
     private int drawTeamTable(Graphics2D graphics, int topY, MatchProtocolService.SeasonProtocolExportTeamData team) {
         int tableWidth = PAGE_WIDTH - PAGE_MARGIN * 2;
         int[] columnWidths = new int[] {80, tableWidth - 80 - 120 * 3, 120, 120, 120};
-        int rowHeight = 38;
+        int teamHeaderHeight = 32;
+        int columnHeaderHeight = 30;
+        int playerRowHeight = 27;
+        int groupRowHeight = 21;
         int x = PAGE_MARGIN;
         int y = topY;
 
         graphics.setColor(TEAM_HEADER_COLOR);
-        graphics.fillRect(x, y, tableWidth, rowHeight);
-        drawBorder(graphics, x, y, tableWidth, rowHeight);
-        drawCellText(graphics, defaultString(team.teamName()), x + 14, y, tableWidth - 28, rowHeight, new Font(Font.SANS_SERIF, Font.BOLD, 20), TEXT_COLOR, false);
-        y += rowHeight;
+        graphics.fillRect(x, y, tableWidth, teamHeaderHeight);
+        drawBorder(graphics, x, y, tableWidth, teamHeaderHeight);
+        drawCellText(graphics, defaultString(team.teamName()), x + 14, y, tableWidth - 28, teamHeaderHeight, new Font(Font.SANS_SERIF, Font.BOLD, 18), TEXT_COLOR, false);
+        y += teamHeaderHeight;
 
         String[] headers = new String[] {"№", "Игрок", "Г", "ЖК", "КК"};
         graphics.setColor(TABLE_HEADER_COLOR);
-        graphics.fillRect(x, y, tableWidth, rowHeight);
-        drawBorder(graphics, x, y, tableWidth, rowHeight);
+        graphics.fillRect(x, y, tableWidth, columnHeaderHeight);
+        drawBorder(graphics, x, y, tableWidth, columnHeaderHeight);
         int headerX = x;
         for (int index = 0; index < headers.length; index += 1) {
-            drawBorder(graphics, headerX, y, columnWidths[index], rowHeight);
-            drawCellText(graphics, headers[index], headerX, y, columnWidths[index], rowHeight, new Font(Font.SANS_SERIF, Font.BOLD, 18), TEXT_COLOR, true);
+            drawBorder(graphics, headerX, y, columnWidths[index], columnHeaderHeight);
+            drawCellText(graphics, headers[index], headerX, y, columnWidths[index], columnHeaderHeight, new Font(Font.SANS_SERIF, Font.BOLD, 16), TEXT_COLOR, true);
             headerX += columnWidths[index];
         }
-        y += rowHeight;
+        y += columnHeaderHeight;
 
         List<MatchProtocolService.SeasonProtocolExportPlayerData> players = team.players() == null ? List.of() : team.players().stream()
             .sorted(Comparator.comparingInt(MatchProtocolService.SeasonProtocolExportPlayerData::sortOrder))
             .toList();
 
         if (players.isEmpty()) {
-            drawBorder(graphics, x, y, tableWidth, rowHeight + 10);
+            drawBorder(graphics, x, y, tableWidth, playerRowHeight + 10);
             drawCellText(
                 graphics,
                 "Заявка команды пока не заполнена.",
                 x + 14,
                 y,
                 tableWidth - 28,
-                rowHeight + 10,
-                new Font(Font.SANS_SERIF, Font.PLAIN, 18),
+                playerRowHeight + 10,
+                new Font(Font.SANS_SERIF, Font.PLAIN, 16),
                 MUTED_COLOR,
                 false
             );
-            return y + rowHeight + 10;
+            return y + playerRowHeight + 10;
         }
 
+        List<MatchProtocolService.SeasonProtocolExportPlayerData> starters = players.stream()
+            .filter(MatchProtocolService.SeasonProtocolExportPlayerData::isStarter)
+            .toList();
+        List<MatchProtocolService.SeasonProtocolExportPlayerData> substitutes = players.stream()
+            .filter(player -> !player.isStarter())
+            .toList();
+
+        if (!starters.isEmpty()) {
+            y = drawLineupGroup(graphics, x, y, tableWidth, groupRowHeight, "Основной состав");
+            y = drawPlayerRows(graphics, x, y, columnWidths, playerRowHeight, starters);
+        }
+        if (!substitutes.isEmpty()) {
+            y = drawLineupGroup(graphics, x, y, tableWidth, groupRowHeight, "Запасные");
+            y = drawPlayerRows(graphics, x, y, columnWidths, playerRowHeight, substitutes);
+        }
+
+        return y;
+    }
+
+    private int drawLineupGroup(Graphics2D graphics, int x, int y, int width, int height, String label) {
+        graphics.setColor(LINEUP_GROUP_COLOR);
+        graphics.fillRect(x, y, width, height);
+        drawBorder(graphics, x, y, width, height);
+        drawCellText(
+            graphics,
+            label,
+            x + 14,
+            y,
+            width - 28,
+            height,
+            new Font(Font.SANS_SERIF, Font.BOLD, 14),
+            MUTED_COLOR,
+            false
+        );
+        return y + height;
+    }
+
+    private int drawPlayerRows(
+        Graphics2D graphics,
+        int x,
+        int startY,
+        int[] columnWidths,
+        int rowHeight,
+        List<MatchProtocolService.SeasonProtocolExportPlayerData> players
+    ) {
+        int y = startY;
+        int tableWidth = java.util.Arrays.stream(columnWidths).sum();
         for (MatchProtocolService.SeasonProtocolExportPlayerData player : players) {
             int cellX = x;
             drawBorder(graphics, x, y, tableWidth, rowHeight);
             drawBorder(graphics, cellX, y, columnWidths[0], rowHeight);
-            drawCellText(graphics, String.valueOf(player.sortOrder()), cellX, y, columnWidths[0], rowHeight, new Font(Font.SANS_SERIF, Font.PLAIN, 18), TEXT_COLOR, true);
+            drawCellText(graphics, String.valueOf(player.sortOrder()), cellX, y, columnWidths[0], rowHeight, new Font(Font.SANS_SERIF, Font.PLAIN, 16), TEXT_COLOR, true);
             cellX += columnWidths[0];
             drawBorder(graphics, cellX, y, columnWidths[1], rowHeight);
-            drawCellText(graphics, defaultString(player.playerName()), cellX + 10, y, columnWidths[1] - 20, rowHeight, new Font(Font.SANS_SERIF, Font.PLAIN, 18), TEXT_COLOR, false);
+            drawCellText(graphics, defaultString(player.playerName()), cellX + 10, y, columnWidths[1] - 20, rowHeight, new Font(Font.SANS_SERIF, Font.PLAIN, 16), TEXT_COLOR, false);
             cellX += columnWidths[1];
             drawStatCell(graphics, cellX, y, columnWidths[2], rowHeight, player.goals());
             cellX += columnWidths[2];
@@ -285,7 +336,7 @@ public class SeasonProtocolArchiveService {
 
     private void drawStatCell(Graphics2D graphics, int x, int y, int width, int height, Integer value) {
         drawBorder(graphics, x, y, width, height);
-        drawCellText(graphics, value == null || value == 0 ? "—" : String.valueOf(value), x, y, width, height, new Font(Font.SANS_SERIF, Font.PLAIN, 18), TEXT_COLOR, true);
+        drawCellText(graphics, value == null || value == 0 ? "—" : String.valueOf(value), x, y, width, height, new Font(Font.SANS_SERIF, Font.PLAIN, 16), TEXT_COLOR, true);
     }
 
     private void drawCellText(Graphics2D graphics, String text, int x, int y, int width, int height, Font font, Color color, boolean centered) {

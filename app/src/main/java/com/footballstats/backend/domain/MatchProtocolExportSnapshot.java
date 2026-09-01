@@ -38,6 +38,12 @@ public class MatchProtocolExportSnapshot {
     @Column(name = "away_team_name", nullable = false, length = 160)
     private String awayTeamName;
 
+    @Column(name = "home_team_short_name", length = 60)
+    private String homeTeamShortName;
+
+    @Column(name = "away_team_short_name", length = 60)
+    private String awayTeamShortName;
+
     @Column(name = "home_score")
     private Integer homeScore;
 
@@ -126,6 +132,22 @@ public class MatchProtocolExportSnapshot {
 
     public void setAwayTeamName(String awayTeamName) {
         this.awayTeamName = awayTeamName;
+    }
+
+    public String getHomeTeamShortName() {
+        return homeTeamShortName;
+    }
+
+    public void setHomeTeamShortName(String homeTeamShortName) {
+        this.homeTeamShortName = homeTeamShortName;
+    }
+
+    public String getAwayTeamShortName() {
+        return awayTeamShortName;
+    }
+
+    public void setAwayTeamShortName(String awayTeamShortName) {
+        this.awayTeamShortName = awayTeamShortName;
     }
 
     public Integer getHomeScore() {

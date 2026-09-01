@@ -186,7 +186,8 @@ public class SeasonPlayoffService {
             .orElseGet(() -> syncSeasonPlayoffConfig(seasonId, season.isPlayoffEnabled(), season.getPlayoffTeamCount(), false, actorUserId));
 
         if (!config.isEnabled() || config.getTeamCount() == null) {
-            season.setStatus(SeasonStatus.CLOSED);
+            // Завершение чемпионата не закрывает сезон-контейнер: параллельные Кубки могут продолжаться.
+            season.setStatus(SeasonStatus.ACTIVE);
             season.setUpdatedByUserId(actorUserId);
             season.setUpdatedAt(OffsetDateTime.now());
             return seasonRepository.save(season);

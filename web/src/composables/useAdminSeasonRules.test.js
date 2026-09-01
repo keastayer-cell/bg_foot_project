@@ -14,12 +14,14 @@ function createRules(overrides = {}) {
     thirdPlaceEnabled: false,
     status: 'DRAFT',
     maxRosterSize: '',
+    playersOnField: '11',
     applicationDeadline: '',
     transferWindowStartDate: '',
     transferWindowEndDate: '',
     rankingRules: ['GOAL_DIFFERENCE', 'GOALS_FOR'],
     yellowCardsForSuspension: '0',
-    redCardsForSuspension: '0',
+    yellowSuspensionMatches: '1',
+    redCardsForSuspension: '1',
     ...overrides,
   })
 
@@ -46,6 +48,7 @@ describe('useAdminSeasonRules', () => {
       playoffTeamCount: '4',
       thirdPlaceEnabled: true,
       maxRosterSize: '18',
+      playersOnField: '8',
     })
 
     expect(rules.buildPayload()).toMatchObject({
@@ -53,7 +56,9 @@ describe('useAdminSeasonRules', () => {
       playoffTeamCount: 4,
       thirdPlaceEnabled: true,
       maxRosterSize: 18,
+      playersOnField: 8,
       rankingRules: ['POINTS', 'GOAL_DIFFERENCE', 'GOALS_FOR', 'ALPHABETICAL'],
+      yellowSuspensionMatches: 1,
       refereeIds: [4, 7],
     })
   })

@@ -51,39 +51,101 @@
             <span class="muted-text">{{ lineupSubmittedLabel(lineup) }}</span>
           </div>
 
-          <ol class="lineup-list" v-if="lineup.players?.length">
-            <li class="lineup-item" v-for="player in lineup.players" :key="player.playerId">
+          <div v-if="(showProtocolEditor || isVerifiedProtocol) && lineup.players?.length" class="lineup-stats-head" aria-hidden="true">
+            <span class="lineup-stats-player-label">Игрок</span>
+            <span class="lineup-stat-heading goals-heading" title="Голы">⚽</span>
+            <span class="lineup-stat-heading yellow-heading" title="Желтые карточки"><span class="heading-card"></span></span>
+            <span class="lineup-stat-heading red-heading" title="Красные карточки"><span class="heading-card"></span></span>
+          </div>
+
+          <div v-if="lineup.players?.length" class="lineup-groups">
+            <section v-for="group in lineupPlayerGroups(lineup)" :key="`${lineup.teamId}-${group.key}`" class="lineup-group">
+              <div class="lineup-group-head">
+                <strong>{{ group.title }}</strong>
+                <span>{{ group.countLabel }}</span>
+              </div>
+              <ol class="lineup-list">
+            <li class="lineup-item" :class="{ 'lineup-item-with-stats': showProtocolEditor || isVerifiedProtocol }" v-for="player in group.players" :key="player.playerId">
               <div class="lineup-player-main">
                 <span class="lineup-order">{{ player.sortOrder }}</span>
                 <div class="lineup-player-inline">
-                  <span class="player-name-single-line">{{ player.playerName }}</span>
+                  <span class="player-name-single-line">{{ lineupPlayerDisplayName(lineup, player) }}</span>
                   <span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
                   <span v-if="player.suspended" class="player-suspension-badge" :title="player.suspensionReason || 'Игрок дисквалифицирован'">Дискв.</span>
-                  <div class="player-stat-icons" v-if="hasVisibleSavedStats(lineup.teamId, player.playerId)">
-                    <div class="stat-icon-group" v-if="savedStatsFor(lineup.teamId, player.playerId).goals > 0" aria-label="Голы">
-                      <span class="goal-ball" v-for="index in repeatCount(savedStatsFor(lineup.teamId, player.playerId).goals)" :key="`goal-${player.playerId}-${index}`">⚽</span>
-                    </div>
-                    <div class="stat-icon-group" v-if="savedStatsFor(lineup.teamId, player.playerId).yellowCards > 0" aria-label="Желтые карточки">
-                      <span class="card-icon yellow-card" v-for="index in repeatCount(savedStatsFor(lineup.teamId, player.playerId).yellowCards)" :key="`yellow-${player.playerId}-${index}`"></span>
-                    </div>
-                    <div class="stat-icon-group" v-if="savedStatsFor(lineup.teamId, player.playerId).redCards > 0" aria-label="Красные карточки">
-                      <span class="card-icon red-card" v-for="index in repeatCount(savedStatsFor(lineup.teamId, player.playerId).redCards)" :key="`red-${player.playerId}-${index}`"></span>
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              <button
-                v-if="canEditLineup(lineup.teamId)"
-                class="btn-danger btn-compact"
-                type="button"
-                @click="removeLineupPlayer(lineup.teamId, player.playerId)"
-                :disabled="Boolean(lineupSaving[lineup.teamId])"
-              >
-                Убрать
-              </button>
+              <template v-if="showProtocolEditor">
+                <label class="lineup-stat-cell goals-stat-cell" title="Голы">
+                  <input
+                    v-model.number="findOrCreateDraftPlayerStat(lineup, player).goals"
+                    :disabled="protocolSaving || isTechnicalDefeatDraft"
+                    min="0"
+                    type="number"
+                    class="lineup-stat-input"
+                    aria-label="Голы"
+                  />
+                </label>
+                <label class="lineup-stat-cell yellow-stat-cell" title="Желтые карточки">
+                  <input
+                    v-model.number="findOrCreateDraftPlayerStat(lineup, player).yellowCards"
+                    :disabled="protocolSaving || isTechnicalDefeatDraft"
+                    min="0"
+                    type="number"
+                    class="lineup-stat-input"
+                    aria-label="Желтые карточки"
+                  />
+                </label>
+                <label class="lineup-stat-cell red-stat-cell" title="Красные карточки">
+                  <input
+                    v-model.number="findOrCreateDraftPlayerStat(lineup, player).redCards"
+                    :disabled="protocolSaving || isTechnicalDefeatDraft"
+                    min="0"
+                    type="number"
+                    class="lineup-stat-input"
+                    aria-label="Красные карточки"
+                  />
+                </label>
+              </template>
+
+              <template v-else-if="isVerifiedProtocol">
+                <span class="lineup-stat-cell goals-stat-cell">
+                  <span
+                    v-if="savedStatsFor(lineup.teamId, player.playerId).goals"
+                    class="lineup-stat-marker goal-marker"
+                    :title="`Голы: ${savedStatsFor(lineup.teamId, player.playerId).goals}`"
+                    :aria-label="`Голы: ${savedStatsFor(lineup.teamId, player.playerId).goals}`"
+                  >
+                    <span class="soccer-ball">⚽</span>
+                    <span v-if="savedStatsFor(lineup.teamId, player.playerId).goals > 1" class="stat-count-badge">{{ savedStatsFor(lineup.teamId, player.playerId).goals }}</span>
+                  </span>
+                </span>
+                <span class="lineup-stat-cell yellow-stat-cell">
+                  <span
+                    v-if="savedStatsFor(lineup.teamId, player.playerId).yellowCards"
+                    class="lineup-stat-marker card-marker yellow-card-marker"
+                    :title="`Желтые карточки: ${savedStatsFor(lineup.teamId, player.playerId).yellowCards}`"
+                    :aria-label="`Желтые карточки: ${savedStatsFor(lineup.teamId, player.playerId).yellowCards}`"
+                  >
+                    <span v-if="savedStatsFor(lineup.teamId, player.playerId).yellowCards > 1" class="stat-count-badge">{{ savedStatsFor(lineup.teamId, player.playerId).yellowCards }}</span>
+                  </span>
+                </span>
+                <span class="lineup-stat-cell red-stat-cell">
+                  <span
+                    v-if="savedStatsFor(lineup.teamId, player.playerId).redCards"
+                    class="lineup-stat-marker card-marker red-card-marker"
+                    :title="`Красные карточки: ${savedStatsFor(lineup.teamId, player.playerId).redCards}`"
+                    :aria-label="`Красные карточки: ${savedStatsFor(lineup.teamId, player.playerId).redCards}`"
+                  >
+                    <span v-if="savedStatsFor(lineup.teamId, player.playerId).redCards > 1" class="stat-count-badge">{{ savedStatsFor(lineup.teamId, player.playerId).redCards }}</span>
+                  </span>
+                </span>
+              </template>
+
             </li>
-          </ol>
+              </ol>
+            </section>
+          </div>
           <p class="empty-text" v-else>Заявка этой команды пока не подана.</p>
 
           <div v-if="canEditLineup(lineup.teamId)" class="lineup-editor">
@@ -105,12 +167,9 @@
                 class="btn-primary"
                 type="button"
                 @click="openAddPlayerModal(lineup.teamId)"
-                :disabled="Boolean(lineupSaving[lineup.teamId]) || !availableSelectableCount(lineup)"
+                :disabled="Boolean(lineupSaving[lineup.teamId])"
               >
-                Добавить игрока
-              </button>
-              <button class="btn-ghost" type="button" @click="clearLineup(lineup.teamId)" :disabled="Boolean(lineupSaving[lineup.teamId]) || !lineup.players?.length">
-                Очистить
+                {{ lineup.players?.length ? 'Изменить состав' : 'Заполнить состав' }}
               </button>
             </div>
           </div>
@@ -214,46 +273,6 @@
 
           <p class="muted-text">{{ protocolScoreHint }}</p>
 
-          <div class="admin-protocol-grid">
-            <article class="protocol-team-card" v-for="team in adminProtocolTeams" :key="team.teamId">
-              <div class="section-head match-section-head">
-                <div>
-                  <h4 class="section-title">{{ team.teamName }}</h4>
-                  <p class="muted-text">Заполняй только маленькие поля напротив игроков из заявки.</p>
-                </div>
-              </div>
-
-              <div class="protocol-player-list" v-if="team.players.length">
-                <article class="protocol-player-row" v-for="player in team.players" :key="player.playerId">
-                  <div class="protocol-player-name">
-                    <span class="lineup-order">{{ player.sortOrder }}</span>
-                    <span class="player-name-single-line">{{ player.playerName }}</span>
-                    <span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
-                  </div>
-
-                  <div class="player-stat-inputs">
-                    <label class="tiny-field">
-                      <span>Г</span>
-                      <input v-model.number="player.goals" :disabled="protocolSaving || isTechnicalDefeatDraft" min="0" type="number" class="micro-input" />
-                    </label>
-
-                    <label class="tiny-field">
-                      <span>ЖК</span>
-                      <input v-model.number="player.yellowCards" :disabled="protocolSaving || isTechnicalDefeatDraft" min="0" type="number" class="micro-input" />
-                    </label>
-
-                    <label class="tiny-field">
-                      <span>КК</span>
-                      <input v-model.number="player.redCards" :disabled="protocolSaving || isTechnicalDefeatDraft" min="0" type="number" class="micro-input" />
-                    </label>
-                  </div>
-                </article>
-              </div>
-
-              <p class="empty-text" v-else>Для этой команды пока нет игроков в заявке матча.</p>
-            </article>
-          </div>
-
           <div class="protocol-editor-actions protocol-editor-actions-bottom">
             <button class="btn-ghost" type="button" @click="resetProtocolDraft" :disabled="protocolSaving">Сбросить</button>
             <button class="btn-primary" type="button" @click="saveProtocol(false)" :disabled="protocolSaving">{{ protocolSaving ? 'Сохранение...' : 'Сохранить' }}</button>
@@ -285,20 +304,46 @@
         <article class="card auth-modal team-rep-modal lineup-modal">
           <div class="toolbar auth-modal-head">
             <div>
-              <h3 class="section-title">Добавить игрока в состав</h3>
+              <h3 class="section-title">Состав на матч</h3>
               <p class="muted-text">{{ activeLineupForModal.teamName }} · {{ match.seasonName }}</p>
             </div>
             <button class="btn-ghost" type="button" @click="closeAddPlayerModal">Закрыть</button>
           </div>
 
           <div class="lineup-modal-body">
-            <SearchableSelect
-              v-model="selectedAvailablePlayerId"
-              :options="activeLineupPlayerOptions"
-              placeholder="Выберите игрока"
-              search-placeholder="Начните вводить ФИО игрока"
-              empty-text="Игрок по такому ФИО не найден"
-            />
+            <div class="lineup-selection-section">
+              <div class="lineup-selection-head">
+                <strong>Основной состав</strong>
+                <span :class="{ 'is-complete': starterCountIsValid }">{{ selectedStarterPlayerIds.length }} / {{ requiredStarterCount }}</span>
+              </div>
+              <SearchableSelect
+                v-model="selectedStarterPlayerIds"
+                :options="starterPlayerOptions"
+                multiple
+                placeholder="Выберите основной состав"
+                search-placeholder="Найдите игрока основного состава"
+                empty-text="Игрок по такому ФИО не найден"
+                multiple-summary-text="Выбрано основных"
+                multiple-action-hint="Количество должно соответствовать формату сезона"
+              />
+            </div>
+
+            <div class="lineup-selection-section">
+              <div class="lineup-selection-head">
+                <strong>Запасные</strong>
+                <span class="is-complete">{{ selectedSubstitutePlayerIds.length }}</span>
+              </div>
+              <SearchableSelect
+                v-model="selectedSubstitutePlayerIds"
+                :options="substitutePlayerOptions"
+                multiple
+                placeholder="Выберите запасных"
+                search-placeholder="Найдите запасного игрока"
+                empty-text="Игрок по такому ФИО не найден"
+                multiple-summary-text="Выбрано запасных"
+                multiple-action-hint="Количество запасных не ограничено"
+              />
+            </div>
 
             <div v-if="suspendedAvailablePlayers(activeLineupForModal).length" class="lineup-suspension-list">
               <p class="muted-text">Дисквалифицированы на этот матч:</p>
@@ -308,15 +353,16 @@
             </div>
 
             <p class="error-text" v-if="lineupErrors[activeLineupForModal.teamId]">{{ lineupErrors[activeLineupForModal.teamId] }}</p>
+            <p class="error-text" v-else-if="!starterCountIsValid">Выберите ровно {{ requiredStarterCount }} игроков основного состава.</p>
 
             <div class="lineup-actions">
               <button
                 class="btn-primary"
                 type="button"
-                @click="addLineupPlayer"
-                :disabled="Boolean(lineupSaving[activeLineupForModal.teamId]) || !selectedAvailablePlayerId"
+                @click="saveLineupSelection"
+                :disabled="Boolean(lineupSaving[activeLineupForModal.teamId]) || !starterCountIsValid"
               >
-                {{ lineupSaving[activeLineupForModal.teamId] ? 'Сохранение...' : 'Добавить' }}
+                {{ lineupSaving[activeLineupForModal.teamId] ? 'Сохранение...' : 'Сохранить состав' }}
               </button>
             </div>
           </div>
@@ -337,7 +383,8 @@ const {
   lineupSaving,
   lineupErrors,
   lineupNotices,
-  selectedAvailablePlayerId,
+  selectedStarterPlayerIds,
+  selectedSubstitutePlayerIds,
   protocolSaving,
   protocolError,
   protocolNotice,
@@ -349,15 +396,18 @@ const {
   backLinkArrowLabel,
   lineupCards,
   activeLineupForModal,
-  activeLineupPlayerOptions,
+  starterPlayerOptions,
+  substitutePlayerOptions,
+  requiredStarterCount,
+  starterCountIsValid,
   hasSubmittedLineups,
   canBypassLineupsForProtocol,
+  isVerifiedProtocol,
   canDownloadProtocol,
   canReopenVerifiedProtocol,
   showProtocolEditor,
   isTechnicalDefeatDraft,
   protocolScoreHint,
-  adminProtocolTeams,
   protocolEditorRoleLabel,
   availableRefereeOptions,
   protocolRefereeCards,
@@ -365,16 +415,15 @@ const {
   canEditLineup,
   openAddPlayerModal,
   closeAddPlayerModal,
-  addLineupPlayer,
-  removeLineupPlayer,
-  clearLineup,
+  saveLineupSelection,
   resetProtocolDraft,
   saveProtocol,
   reopenVerifiedProtocol,
   toggleTechnicalDefeat,
   savedStatsFor,
-  hasVisibleSavedStats,
-  repeatCount,
+  findOrCreateDraftPlayerStat,
+  lineupPlayerDisplayName,
+  lineupPlayerGroups,
   availableSelectableCount,
   suspendedAvailablePlayers,
   formatDateTime,

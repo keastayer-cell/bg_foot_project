@@ -77,6 +77,14 @@ public class TourService {
             : tourMatchRepository.findAllActiveDetailedByTourId(tourId);
     }
 
+    @Transactional(readOnly = true)
+    public List<TourMatch> listSeasonMatches(Long seasonId, boolean includeInactive) {
+        getExistingSeason(seasonId);
+        return includeInactive
+            ? tourMatchRepository.findAllDetailedByAnyCompetitionSeasonId(seasonId)
+            : tourMatchRepository.findAllActiveDetailedByAnyCompetitionSeasonId(seasonId);
+    }
+
     @Transactional
     public Tour publishTour(Long tourId, Long actorUserId) {
         Tour tour = getExistingTour(tourId);

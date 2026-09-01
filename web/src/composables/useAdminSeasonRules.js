@@ -98,6 +98,12 @@ export function useAdminSeasonRules({
     if (form.maxRosterSize && Number(form.maxRosterSize) < 1) {
       return 'Максимальный размер заявки должен быть не меньше 1.'
     }
+    if (Number(form.playersOnField || 0) < 1) {
+      return 'Количество игроков на поле должно быть не меньше 1.'
+    }
+    if (form.maxRosterSize && Number(form.playersOnField) > Number(form.maxRosterSize)) {
+      return 'Количество игроков на поле не может превышать лимит сезонной заявки.'
+    }
     if (
       form.transferWindowStartDate
       && form.transferWindowEndDate
@@ -124,12 +130,14 @@ export function useAdminSeasonRules({
       applicationDeadline: form.applicationDeadline || null,
       status: form.status || 'ACTIVE',
       maxRosterSize: form.maxRosterSize ? Number(form.maxRosterSize) : null,
+      playersOnField: Number(form.playersOnField || 11),
       transferWindowStartDate: form.transferWindowStartDate || null,
       transferWindowEndDate: form.transferWindowEndDate || null,
       rankingRules: buildRankingRulesPayload(),
       refereeIds: unref(refereeIds),
       yellowCardsForSuspension: Number(form.yellowCardsForSuspension || 0),
-      redCardsForSuspension: Number(form.redCardsForSuspension || 0),
+      yellowSuspensionMatches: Number(form.yellowSuspensionMatches || 1),
+      redCardsForSuspension: Number(form.redCardsForSuspension || 1),
     }
   }
 

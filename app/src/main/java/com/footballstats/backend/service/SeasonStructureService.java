@@ -3,6 +3,9 @@ package com.footballstats.backend.service;
 import com.footballstats.backend.domain.Season;
 import com.footballstats.backend.domain.Tour;
 import com.footballstats.backend.repository.SeasonTeamRepository;
+import com.footballstats.backend.repository.CompetitionRepository;
+import com.footballstats.backend.domain.Competition;
+import com.footballstats.backend.domain.CompetitionType;
 import com.footballstats.backend.repository.TourMatchRepository;
 import com.footballstats.backend.repository.TourRepository;
 import org.springframework.stereotype.Service;
@@ -19,15 +22,18 @@ public class SeasonStructureService {
     private final TourRepository tourRepository;
     private final TourMatchRepository tourMatchRepository;
     private final SeasonTeamRepository seasonTeamRepository;
+    private final CompetitionRepository competitionRepository;
 
     public SeasonStructureService(
         TourRepository tourRepository,
         TourMatchRepository tourMatchRepository,
-        SeasonTeamRepository seasonTeamRepository
+        SeasonTeamRepository seasonTeamRepository,
+        CompetitionRepository competitionRepository
     ) {
         this.tourRepository = tourRepository;
         this.tourMatchRepository = tourMatchRepository;
         this.seasonTeamRepository = seasonTeamRepository;
+        this.competitionRepository = competitionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -51,6 +57,8 @@ public class SeasonStructureService {
 
     @Transactional
     public void syncRegularToursForSeason(Season season, Long actorUserId) {
+        Competition championship = competitionRepository.findBySeason_IdAndTypeAndActiveTrue(season.getId(), CompetitionType.CHAMPIONSHIP)
+            .orElseThrow(() -> new IllegalArgumentException("Сначала создайте чемпионат внутри сезона."));
         int desiredCount = calculateRegularToursCountForSeason(season.getId(), season.getRoundsCount());
         List<Tour> existingRegularTours = tourRepository.findAllBySeason_IdAndStageTypeOrderBySortOrderAscIdAsc(
             season.getId(),
@@ -70,6 +78,7 @@ public class SeasonStructureService {
                 tour.setSeason(season);
                 tour.setCreatedByUserId(actorUserId);
             }
+            tour.setCompetition(championship);
             tour.setName(roundNumber + " тур");
             tour.setStageType(REGULAR_STAGE);
             tour.setRoundNumber(roundNumber);

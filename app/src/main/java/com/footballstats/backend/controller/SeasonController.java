@@ -14,6 +14,7 @@ import com.footballstats.backend.domain.SeasonTransferStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.service.MediaAssetService;
+import com.footballstats.backend.service.CompetitionService;
 import com.footballstats.backend.service.MatchProtocolService;
 import com.footballstats.backend.service.SeasonPlayoffService;
 import com.footballstats.backend.service.SeasonProtocolArchiveService;
@@ -64,6 +65,7 @@ public class SeasonController {
     private final MediaAssetService mediaAssetService;
     private final ObjectMapper objectMapper;
     private final SeasonPlayoffTieMatchRepository playoffTieMatchRepository;
+    private final CompetitionService competitionService;
 
     public SeasonController(
         SeasonService seasonService,
@@ -77,7 +79,8 @@ public class SeasonController {
         SeasonQueryService seasonQueryService,
         MediaAssetService mediaAssetService,
         ObjectMapper objectMapper,
-        SeasonPlayoffTieMatchRepository playoffTieMatchRepository
+        SeasonPlayoffTieMatchRepository playoffTieMatchRepository,
+        CompetitionService competitionService
     ) {
         this.seasonService = seasonService;
         this.tourService = tourService;
@@ -91,6 +94,7 @@ public class SeasonController {
         this.mediaAssetService = mediaAssetService;
         this.objectMapper = objectMapper;
         this.playoffTieMatchRepository = playoffTieMatchRepository;
+        this.competitionService = competitionService;
     }
 
     @GetMapping("/api/seasons")
@@ -117,12 +121,14 @@ public class SeasonController {
             request.applicationDeadline(),
             request.status(),
             request.maxRosterSize(),
+            request.playersOnField(),
             request.transferWindowStartDate(),
             request.transferWindowEndDate(),
             request.thirdPlaceEnabled(),
             request.rankingRules(),
             request.refereeIds(),
             request.yellowCardsForSuspension(),
+            request.yellowSuspensionMatches(),
             request.redCardsForSuspension(),
             actorUserId
         );
@@ -145,12 +151,14 @@ public class SeasonController {
             request.applicationDeadline(),
             request.status(),
             request.maxRosterSize(),
+            request.playersOnField(),
             request.transferWindowStartDate(),
             request.transferWindowEndDate(),
             request.thirdPlaceEnabled(),
             request.rankingRules(),
             request.refereeIds(),
             request.yellowCardsForSuspension(),
+            request.yellowSuspensionMatches(),
             request.redCardsForSuspension(),
             currentUserId(authentication)
         )));
@@ -159,7 +167,10 @@ public class SeasonController {
     @PostMapping("/api/seasons/{seasonId}/complete-regular-season")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<SeasonResponse> completeRegularSeason(@PathVariable Long seasonId, Authentication authentication) {
-        return ResponseEntity.ok(toResponse(seasonPlayoffService.completeRegularSeason(seasonId, currentUserId(authentication))));
+        Long actorUserId = currentUserId(authentication);
+        Season season = seasonPlayoffService.completeRegularSeason(seasonId, actorUserId);
+        if (!season.isPlayoffEnabled()) competitionService.markChampionshipFinished(seasonId, actorUserId);
+        return ResponseEntity.ok(toResponse(season));
     }
 
     @DeleteMapping("/api/seasons/{seasonId}")
@@ -226,6 +237,7 @@ public class SeasonController {
                 item.playerId(),
                 item.fullName(),
                 item.teamName(),
+                item.teamShortName(),
                 item.goals(),
                 item.yellowCards(),
                 item.redCards()
@@ -309,12 +321,14 @@ public class SeasonController {
             season.getApplicationDeadline(),
             season.getStatus(),
             season.getMaxRosterSize(),
+            season.getPlayersOnField(),
             season.getTransferWindowStartDate(),
             season.getTransferWindowEndDate(),
             seasonService.calculateRegularToursCount(season.getId()),
             StandingsRankingRules.fromJson(config.getRankingRulesJson(), objectMapper),
             seasonService.listSeasonReferees(season.getId()).stream().map(this::toRefereeResponse).toList(),
             config.getYellowCardsForSuspension(),
+            config.getYellowSuspensionMatches(),
             config.getRedCardsForSuspension(),
             season.getRegulationMediaId() != null,
             season.getRegulationUpdatedAt(),
@@ -419,6 +433,7 @@ public class SeasonController {
             config.getLossPoints(),
             StandingsRankingRules.fromJson(config.getRankingRulesJson(), objectMapper),
             config.getYellowCardsForSuspension(),
+            config.getYellowSuspensionMatches(),
             config.getRedCardsForSuspension(),
             config.getLastCalculatedAt()
         );
@@ -469,12 +484,14 @@ public class SeasonController {
         LocalDate applicationDeadline,
         SeasonStatus status,
         Integer maxRosterSize,
+        Integer playersOnField,
         LocalDate transferWindowStartDate,
         LocalDate transferWindowEndDate,
         Integer regularToursCount,
         List<String> rankingRules,
         List<RefereeResponse> referees,
         Integer yellowCardsForSuspension,
+        Integer yellowSuspensionMatches,
         Integer redCardsForSuspension,
         boolean regulationDocumentAvailable,
         OffsetDateTime regulationUpdatedAt,
@@ -495,11 +512,13 @@ public class SeasonController {
         LocalDate applicationDeadline,
         SeasonStatus status,
         @jakarta.validation.constraints.Positive Integer maxRosterSize,
+        @jakarta.validation.constraints.Positive Integer playersOnField,
         LocalDate transferWindowStartDate,
         LocalDate transferWindowEndDate,
         List<String> rankingRules,
         List<Long> refereeIds,
-        @jakarta.validation.constraints.Positive Integer yellowCardsForSuspension,
+        @jakarta.validation.constraints.PositiveOrZero Integer yellowCardsForSuspension,
+        @jakarta.validation.constraints.Positive Integer yellowSuspensionMatches,
         @jakarta.validation.constraints.Positive Integer redCardsForSuspension
     ) {}
 
@@ -595,6 +614,7 @@ public class SeasonController {
         Integer lossPoints,
         List<String> rankingRules,
         Integer yellowCardsForSuspension,
+        Integer yellowSuspensionMatches,
         Integer redCardsForSuspension,
         OffsetDateTime lastCalculatedAt
     ) {}
@@ -616,6 +636,7 @@ public class SeasonController {
         Long playerId,
         String fullName,
         String teamName,
+        String teamShortName,
         Integer goals,
         Integer yellowCards,
         Integer redCards

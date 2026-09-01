@@ -42,8 +42,8 @@
         <tbody>
           <tr v-for="(row, index) in rows" :key="`scorers-${row.playerId}`">
             <td class="player-stats-rank">{{ index + 1 }}</td>
-            <td><strong class="player-stats-name">{{ row.fullName }}</strong></td>
-            <td><span class="player-stats-team">{{ row.teamName || '—' }}</span></td>
+            <td><strong class="player-stats-name">{{ playerDisplayName(row) }}</strong></td>
+            <td><span class="player-stats-team">{{ row.teamShortName || row.teamName || '—' }}</span></td>
             <td><strong>{{ row.goals }}</strong></td>
           </tr>
         </tbody>
@@ -62,8 +62,8 @@
         <tbody>
           <tr v-for="(row, index) in rows" :key="`discipline-${row.playerId}`">
             <td class="player-stats-rank">{{ index + 1 }}</td>
-            <td><strong class="player-stats-name">{{ row.fullName }}</strong></td>
-            <td><span class="player-stats-team">{{ row.teamName || '—' }}</span></td>
+            <td><strong class="player-stats-name">{{ playerDisplayName(row) }}</strong></td>
+            <td><span class="player-stats-team">{{ row.teamShortName || row.teamName || '—' }}</span></td>
             <td class="player-stats-yellow">{{ row.yellowCards }}</td>
             <td class="player-stats-red">{{ row.redCards }}</td>
           </tr>
@@ -77,6 +77,20 @@
 </template>
 
 <script setup>
+import { stripTeamSuffix } from '../../utils/matchPresentation'
+
+function splitTeamNames(value) {
+  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+function playerDisplayName(row) {
+  return stripTeamSuffix(
+    row?.fullName,
+    ...splitTeamNames(row?.teamShortName),
+    ...splitTeamNames(row?.teamName),
+  )
+}
+
 defineProps({
   selectedSeason: {
     type: Object,

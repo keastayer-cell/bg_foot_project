@@ -3,6 +3,7 @@ import { useRoute } from 'vue-router'
 import { useAuth } from '../store/auth'
 import { createMatchesApi } from '../api/matches'
 import { useMatchLineups } from './useMatchLineups'
+import { stripTeamSuffix } from '../utils/matchPresentation'
 
 export function useMatchPage() {
   const route = useRoute()
@@ -28,18 +29,21 @@ export function useMatchPage() {
     lineupErrors,
     lineupNotices,
     addPlayerModalTeamId,
-    selectedAvailablePlayerId,
+    selectedStarterPlayerIds,
+    selectedSubstitutePlayerIds,
     lineupCards,
     activeLineupForModal,
     activeLineupPlayerOptions,
+    starterPlayerOptions,
+    substitutePlayerOptions,
+    requiredStarterCount,
+    starterCountIsValid,
     canEditLineup,
     lineupByTeamId,
     refreshMatch,
     openAddPlayerModal,
     closeAddPlayerModal,
-    addLineupPlayer,
-    removeLineupPlayer,
-    clearLineup,
+    saveLineupSelection,
     saveLineup,
     availableSelectableCount,
     suspendedAvailablePlayers,
@@ -179,14 +183,6 @@ export function useMatchPage() {
       return 'При тех. поражении счет выставляется автоматически: 0:3.'
     }
     return 'Если тех.поражение не включено, сумма голов по игрокам должна совпадать со счетом матча.'
-  })
-
-  const adminProtocolTeams = computed(() => {
-    return lineupCards.value.map((lineup) => ({
-      teamId: lineup.teamId,
-      teamName: lineup.teamName,
-      players: (lineup.players || []).map((player) => findOrCreateDraftPlayerStat(lineup, player)),
-    }))
   })
 
   watch(
@@ -505,11 +501,6 @@ export function useMatchPage() {
     return savedStatsMap.value.get(statKey(teamId, playerId)) || emptyStats()
   }
 
-  function hasVisibleSavedStats(teamId, playerId) {
-    const stats = savedStatsFor(teamId, playerId)
-    return stats.goals > 0 || stats.yellowCards > 0 || stats.redCards > 0
-  }
-
   function sumGoals(teamId) {
     return protocolDraft.value.playerStats
       .filter((item) => item.teamId === teamId)
@@ -528,10 +519,6 @@ export function useMatchPage() {
 
   function emptyStats() {
     return { goals: 0, yellowCards: 0, redCards: 0 }
-  }
-
-  function repeatCount(count) {
-    return Array.from({ length: Math.max(0, count) }, (_, index) => index + 1)
   }
 
   function formatPlayerOptionLabel(player) {
@@ -577,6 +564,39 @@ export function useMatchPage() {
     return `Подана ${formatDateTime(lineup.submittedAt)}`
   }
 
+  function lineupPlayerDisplayName(lineup, player) {
+    const team = [match.value?.homeTeam, match.value?.awayTeam]
+      .find((item) => String(item?.id) === String(lineup?.teamId))
+    return stripTeamSuffix(player?.playerName, team?.shortName, lineup?.teamName)
+  }
+
+  function startingLineupPlayers(lineup) {
+    return (lineup?.players || []).filter((player) => player.isStarter)
+  }
+
+  function substituteLineupPlayers(lineup) {
+    return (lineup?.players || []).filter((player) => !player.isStarter)
+  }
+
+  function lineupPlayerGroups(lineup) {
+    const starters = startingLineupPlayers(lineup)
+    const substitutes = substituteLineupPlayers(lineup)
+    return [
+      {
+        key: 'starters',
+        title: 'Основной состав',
+        countLabel: `${starters.length} / ${Number(match.value?.playersOnField || 11)}`,
+        players: starters,
+      },
+      {
+        key: 'substitutes',
+        title: 'Запасные',
+        countLabel: String(substitutes.length),
+        players: substitutes,
+      },
+    ]
+  }
+
   function refereeOptionLabel(referee) {
     if (!referee) return ''
     const city = referee.city ? `, ${referee.city}` : ''
@@ -602,7 +622,8 @@ export function useMatchPage() {
     lineupErrors,
     lineupNotices,
     addPlayerModalTeamId,
-    selectedAvailablePlayerId,
+    selectedStarterPlayerIds,
+    selectedSubstitutePlayerIds,
     protocolSaving,
     protocolError,
     protocolNotice,
@@ -615,6 +636,10 @@ export function useMatchPage() {
     lineupCards,
     activeLineupForModal,
     activeLineupPlayerOptions,
+    starterPlayerOptions,
+    substitutePlayerOptions,
+    requiredStarterCount,
+    starterCountIsValid,
     savedStatsMap,
     hasSubmittedLineups,
     canBypassLineupsForProtocol,
@@ -624,7 +649,6 @@ export function useMatchPage() {
     showProtocolEditor,
     isTechnicalDefeatDraft,
     protocolScoreHint,
-    adminProtocolTeams,
     loadMatch,
     canEditProtocol,
     protocolEditorRoleLabel,
@@ -636,9 +660,7 @@ export function useMatchPage() {
     refreshMatch,
     openAddPlayerModal,
     closeAddPlayerModal,
-    addLineupPlayer,
-    removeLineupPlayer,
-    clearLineup,
+    saveLineupSelection,
     saveLineup,
     createEmptyProtocolDraft,
     syncProtocolDraft,
@@ -651,12 +673,10 @@ export function useMatchPage() {
     findOrCreateDraftPlayerStat,
     buildSavedStatsMap,
     savedStatsFor,
-    hasVisibleSavedStats,
     sumGoals,
     normalizeNonNegative,
     statKey,
     emptyStats,
-    repeatCount,
     formatPlayerOptionLabel,
     availableSelectableCount,
     suspendedAvailablePlayers,
@@ -665,6 +685,10 @@ export function useMatchPage() {
     matchScoreLabel,
     protocolResultLabel,
     lineupSubmittedLabel,
+    lineupPlayerDisplayName,
+    startingLineupPlayers,
+    substituteLineupPlayers,
+    lineupPlayerGroups,
     refereeOptionLabel,
     buildProtocolRefereeCard,
   }

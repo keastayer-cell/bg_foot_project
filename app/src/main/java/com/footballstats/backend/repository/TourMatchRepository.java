@@ -40,6 +40,7 @@ public interface TourMatchRepository extends JpaRepository<TourMatch, Long> {
       FROM TourMatch tm
       JOIN FETCH tm.tour tour
       JOIN FETCH tour.season season
+      LEFT JOIN FETCH tour.competition competition
       JOIN FETCH tm.homeTeam homeTeam
       JOIN FETCH tm.awayTeam awayTeam
       LEFT JOIN FETCH tm.protocol protocol
@@ -56,6 +57,24 @@ public interface TourMatchRepository extends JpaRepository<TourMatch, Long> {
         FROM TourMatch tm
         JOIN FETCH tm.tour tour
         JOIN FETCH tour.season season
+        LEFT JOIN tour.competition competition
+        JOIN FETCH tm.homeTeam homeTeam
+        JOIN FETCH tm.awayTeam awayTeam
+        LEFT JOIN FETCH tm.protocol protocol
+        WHERE tour.season.id = :seasonId
+          AND (competition IS NULL OR competition.type = com.footballstats.backend.domain.CompetitionType.CHAMPIONSHIP)
+          AND tour.active = TRUE
+          AND tm.active = TRUE
+        ORDER BY tour.sortOrder ASC, tm.kickoffAt ASC, tm.id ASC
+        """)
+    List<TourMatch> findAllActiveDetailedBySeasonId(@Param("seasonId") Long seasonId);
+
+    @Query("""
+        SELECT tm
+        FROM TourMatch tm
+        JOIN FETCH tm.tour tour
+        JOIN FETCH tour.season season
+        LEFT JOIN FETCH tour.competition competition
         JOIN FETCH tm.homeTeam homeTeam
         JOIN FETCH tm.awayTeam awayTeam
         LEFT JOIN FETCH tm.protocol protocol
@@ -64,7 +83,21 @@ public interface TourMatchRepository extends JpaRepository<TourMatch, Long> {
           AND tm.active = TRUE
         ORDER BY tour.sortOrder ASC, tm.kickoffAt ASC, tm.id ASC
         """)
-    List<TourMatch> findAllActiveDetailedBySeasonId(@Param("seasonId") Long seasonId);
+    List<TourMatch> findAllActiveDetailedByAnyCompetitionSeasonId(@Param("seasonId") Long seasonId);
+
+    @Query("""
+        SELECT tm
+        FROM TourMatch tm
+        JOIN FETCH tm.tour tour
+        JOIN FETCH tour.season season
+        LEFT JOIN FETCH tour.competition competition
+        JOIN FETCH tm.homeTeam homeTeam
+        JOIN FETCH tm.awayTeam awayTeam
+        LEFT JOIN FETCH tm.protocol protocol
+        WHERE tour.season.id = :seasonId
+        ORDER BY tour.sortOrder ASC, tm.kickoffAt ASC, tm.id ASC
+        """)
+    List<TourMatch> findAllDetailedByAnyCompetitionSeasonId(@Param("seasonId") Long seasonId);
 
     @Query("""
         SELECT tm
@@ -95,10 +128,12 @@ public interface TourMatchRepository extends JpaRepository<TourMatch, Long> {
         SELECT tm
         FROM TourMatch tm
         JOIN FETCH tm.tour tour
+        LEFT JOIN tour.competition competition
         JOIN FETCH tm.homeTeam homeTeam
         JOIN FETCH tm.awayTeam awayTeam
         LEFT JOIN FETCH tm.protocol protocol
         WHERE tour.season.id = :seasonId
+          AND (competition IS NULL OR competition.type = com.footballstats.backend.domain.CompetitionType.CHAMPIONSHIP)
           AND tour.active = TRUE
           AND tour.published = TRUE
           AND tm.active = TRUE

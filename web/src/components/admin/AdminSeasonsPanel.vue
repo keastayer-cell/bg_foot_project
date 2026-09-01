@@ -1,8 +1,8 @@
 <template>
   <article class="card admin-panel">
     <div class="admin-panel-head">
-      <h3 class="section-title">Сезоны и регламент</h3>
-      <p class="muted-text">Создание сезона, настройка регламента и состава участников.</p>
+      <h3 class="section-title">Сезоны</h3>
+      <p class="muted-text">Сезон объединяет команды, чемпионат и Кубки. Регламенты настраиваются внутри соревнований.</p>
     </div>
     <div v-if="messageError || messageOk" class="admin-inline-message">
       <p v-if="messageError" class="error-text">{{ messageError }}</p>
@@ -72,15 +72,6 @@
           @remove-referee="removeSeasonRefereeFromForm"
           @remove-team="removeSeasonTeamFromForm"
         />
-        <AdminSeasonRankingRules
-          :available-options="availableTieBreakerRuleOptions"
-          :form="seasonForm"
-          :rule-options="tieBreakerRuleOptions"
-          :summary="seasonRankingRulesSummary"
-          @add="addSeasonRankingRule"
-          @remove="removeSeasonRankingRule"
-        />
-
         <div class="actions-row admin-season-actions">
           <button
             v-if="seasonSubMode === 'create'"
@@ -89,9 +80,6 @@
             :disabled="isSeasonCreateDisabled"
           >Создать сезон</button>
           <template v-else>
-            <button class="btn-ghost" type="button" :disabled="completingRegularSeason" @click="completeRegularSeason">
-              {{ completingRegularSeason ? 'Выполняется...' : seasonCompletionActionLabel }}
-            </button>
             <button class="btn-primary" type="submit">Сохранить изменения</button>
             <button class="btn-danger" type="button" @click="deactivateSeason(editingSeasonId)">Удалить сезон</button>
             <button class="btn-ghost" type="button" @click="cancelSelection">Отмена</button>
@@ -106,20 +94,15 @@
 import { toRefs } from 'vue'
 import AdminSeasonFields from './AdminSeasonFields.vue'
 import AdminSeasonParticipants from './AdminSeasonParticipants.vue'
-import AdminSeasonRankingRules from './AdminSeasonRankingRules.vue'
 
 const props = defineProps({
   panel: { type: Object, required: true },
 })
 
 const {
-  addSeasonRankingRule,
   addSeasonRefereeToForm,
   addSeasonTeamToForm,
-  availableTieBreakerRuleOptions,
   cancelEditSeason,
-  completeRegularSeason,
-  completingRegularSeason,
   createSeason,
   deactivateSeason,
   downloadSeasonProtocolsArchive,
@@ -131,18 +114,15 @@ const {
   messageOk,
   onSeasonSelectChange,
   playoffTeamOptions,
-  removeSeasonRankingRule,
   removeSeasonRefereeFromForm,
   removeSeasonTeamFromForm,
   saveEditSeason,
   seasonAvailableReferees,
   seasonAvailableTeams,
-  seasonCompletionActionLabel,
   seasonEditSelectId,
   seasonForm,
   seasonProtocolMenuOpen,
   seasonProtocolProgressText,
-  seasonRankingRulesSummary,
   seasonRefereeToAddId,
   seasonRegularToursCount,
   seasonsList,
@@ -150,7 +130,6 @@ const {
   seasonSelectedTeams,
   seasonSubMode,
   seasonTeamToAddId,
-  tieBreakerRuleOptions,
   toggleSeasonProtocolMenu,
 } = toRefs(props.panel)
 

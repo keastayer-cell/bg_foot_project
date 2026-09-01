@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { stripTeamSuffix } from '../utils/matchPresentation'
 
 export function useMatchLineups({
   match,
@@ -12,7 +13,8 @@ export function useMatchLineups({
   const lineupErrors = ref({})
   const lineupNotices = ref({})
   const addPlayerModalTeamId = ref(null)
-  const selectedAvailablePlayerId = ref('')
+  const selectedStarterPlayerIds = ref([])
+  const selectedSubstitutePlayerIds = ref([])
 
   const lineupCards = computed(() => {
     if (!match.value) return []
@@ -26,13 +28,39 @@ export function useMatchLineups({
   })
 
   const activeLineupPlayerOptions = computed(() => {
-    return (activeLineupForModal.value?.availablePlayers || []).map((player) => ({
+    const lineup = activeLineupForModal.value
+    const team = [match.value?.homeTeam, match.value?.awayTeam]
+      .find((item) => String(item?.id) === String(lineup?.teamId))
+    const playersById = new Map()
+    for (const player of [...(lineup?.players || []), ...(lineup?.availablePlayers || [])]) {
+      playersById.set(String(player.playerId), player)
+    }
+    return Array.from(playersById.values()).map((player) => ({
       value: String(player.playerId),
-      label: player.playerName || '',
+      label: stripTeamSuffix(player.playerName, team?.shortName, lineup?.teamName),
       keywords: player.playerName || '',
       disabled: Boolean(player.suspended),
     }))
   })
+
+  const starterPlayerOptions = computed(() => {
+    const substitutes = new Set(selectedSubstitutePlayerIds.value.map(String))
+    return activeLineupPlayerOptions.value.map((option) => ({
+      ...option,
+      disabled: option.disabled || substitutes.has(option.value),
+    }))
+  })
+
+  const substitutePlayerOptions = computed(() => {
+    const starters = new Set(selectedStarterPlayerIds.value.map(String))
+    return activeLineupPlayerOptions.value.map((option) => ({
+      ...option,
+      disabled: option.disabled || starters.has(option.value),
+    }))
+  })
+
+  const requiredStarterCount = computed(() => Number(match.value?.playersOnField || 11))
+  const starterCountIsValid = computed(() => selectedStarterPlayerIds.value.length === requiredStarterCount.value)
 
   function canEditLineup(teamId) {
     if (!user.value || match.value?.protocol?.status === 'VERIFIED') return false
@@ -57,57 +85,36 @@ export function useMatchLineups({
     clearPageError()
     await refreshMatch()
     const lineup = lineupByTeamId(teamId)
-    if (!availableSelectableCount(lineup)) {
-      lineupNotices.value = {
-        ...lineupNotices.value,
-        [teamId]: lineup?.availablePlayers?.length
-          ? 'Все оставшиеся игроки этой команды сейчас дисквалифицированы на матч.'
-          : 'Для этой команды сейчас нет доступных игроков для добавления.',
-      }
-      return
-    }
-
     addPlayerModalTeamId.value = teamId
-    selectedAvailablePlayerId.value = ''
+    selectedStarterPlayerIds.value = (lineup?.players || [])
+      .filter((player) => player.isStarter)
+      .map((player) => String(player.playerId))
+    selectedSubstitutePlayerIds.value = (lineup?.players || [])
+      .filter((player) => !player.isStarter)
+      .map((player) => String(player.playerId))
     lineupNotices.value = { ...lineupNotices.value, [teamId]: '' }
     lineupErrors.value = { ...lineupErrors.value, [teamId]: '' }
   }
 
   function closeAddPlayerModal() {
     addPlayerModalTeamId.value = null
-    selectedAvailablePlayerId.value = ''
+    selectedStarterPlayerIds.value = []
+    selectedSubstitutePlayerIds.value = []
   }
 
-  async function addLineupPlayer() {
-    if (!activeLineupForModal.value || !selectedAvailablePlayerId.value) return
+  async function saveLineupSelection() {
+    const lineup = activeLineupForModal.value
+    if (!lineup || !starterCountIsValid.value) return
 
-    const currentIds = (activeLineupForModal.value.players || []).map((player) => player.playerId)
-    await saveLineup(
-      activeLineupForModal.value.teamId,
-      [...currentIds, Number(selectedAvailablePlayerId.value)],
-      'Игрок добавлен в заявку.',
-    )
-    if (!lineupErrors.value[activeLineupForModal.value.teamId]) {
+    const starterIds = selectedStarterPlayerIds.value.map(Number).filter(Number.isFinite)
+    const substituteIds = selectedSubstitutePlayerIds.value.map(Number).filter(Number.isFinite)
+    const saved = await saveLineup(lineup.teamId, starterIds, substituteIds)
+    if (saved) {
       closeAddPlayerModal()
     }
   }
 
-  async function removeLineupPlayer(teamId, playerId) {
-    const lineup = lineupByTeamId(teamId)
-    if (!lineup) return
-    const playerIds = (lineup.players || [])
-      .map((player) => player.playerId)
-      .filter((id) => id !== playerId)
-    await saveLineup(teamId, playerIds, 'Игрок убран из заявки.')
-  }
-
-  async function clearLineup(teamId) {
-    lineupNotices.value = { ...lineupNotices.value, [teamId]: '' }
-    lineupErrors.value = { ...lineupErrors.value, [teamId]: '' }
-    await saveLineup(teamId, [], 'Заявка очищена.')
-  }
-
-  async function saveLineup(teamId, playerIds, successMessage) {
+  async function saveLineup(teamId, starterIds, substituteIds) {
     if (!match.value) return
 
     lineupSaving.value = { ...lineupSaving.value, [teamId]: true }
@@ -115,11 +122,12 @@ export function useMatchLineups({
     lineupNotices.value = { ...lineupNotices.value, [teamId]: '' }
 
     try {
-      onMatchUpdated(await api.saveLineup(match.value.id, teamId, playerIds))
+      onMatchUpdated(await api.saveLineup(match.value.id, teamId, starterIds, substituteIds))
       lineupNotices.value = {
         ...lineupNotices.value,
-        [teamId]: successMessage || 'Заявка сохранена.',
+        [teamId]: 'Состав матча сохранён.',
       }
+      return true
     } catch (error) {
       lineupErrors.value = {
         ...lineupErrors.value,
@@ -143,18 +151,21 @@ export function useMatchLineups({
     lineupErrors,
     lineupNotices,
     addPlayerModalTeamId,
-    selectedAvailablePlayerId,
+    selectedStarterPlayerIds,
+    selectedSubstitutePlayerIds,
     lineupCards,
     activeLineupForModal,
     activeLineupPlayerOptions,
+    starterPlayerOptions,
+    substitutePlayerOptions,
+    requiredStarterCount,
+    starterCountIsValid,
     canEditLineup,
     lineupByTeamId,
     refreshMatch,
     openAddPlayerModal,
     closeAddPlayerModal,
-    addLineupPlayer,
-    removeLineupPlayer,
-    clearLineup,
+    saveLineupSelection,
     saveLineup,
     availableSelectableCount,
     suspendedAvailablePlayers,

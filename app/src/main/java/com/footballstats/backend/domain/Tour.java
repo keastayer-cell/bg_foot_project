@@ -24,6 +24,10 @@ public class Tour {
     @JoinColumn(name = "season_id", nullable = false)
     private Season season;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "competition_id")
+    private Competition competition;
+
     @Column(nullable = false, length = 120)
     private String name;
 
@@ -64,6 +68,14 @@ public class Tour {
 
     public void setSeason(Season season) {
         this.season = season;
+    }
+
+    public Competition getCompetition() {
+        return competition;
+    }
+
+    public void setCompetition(Competition competition) {
+        this.competition = competition;
     }
 
     public String getName() {

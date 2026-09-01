@@ -205,6 +205,7 @@ export const endpointGroups = [
           playoffEnabled: true,
           playoffTeamCount: 8,
           maxRosterSize: 25,
+          playersOnField: 11,
           applicationDeadline: '2026-04-20',
           transferWindowStartDate: '2026-05-01',
           transferWindowEndDate: '2026-05-31',
@@ -348,6 +349,7 @@ export const endpointGroups = [
           playoffEnabled: true,
           playoffTeamCount: 8,
           maxRosterSize: 25,
+          playersOnField: 11,
           applicationDeadline: '2026-04-20',
           transferWindowStartDate: '2026-05-01',
           transferWindowEndDate: '2026-05-31',
@@ -679,7 +681,8 @@ export const endpointGroups = [
           { name: 'teamId', placeholder: 'например 1' },
         ],
         bodyExample: {
-          playerIds: [11, 14, 21],
+          starterPlayerIds: [11, 14, 21, 25, 27],
+          substitutePlayerIds: [30, 31],
         },
       },
       {

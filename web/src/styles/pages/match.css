@@ -24,7 +24,6 @@
 
 .match-hero,
 .lineup-grid,
-.admin-protocol-grid,
 .protocol-layout-top {
   display: grid;
   gap: 16px;
@@ -36,8 +35,7 @@
   gap: 18px;
 }
 
-.lineup-grid,
-.admin-protocol-grid {
+.lineup-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -71,8 +69,7 @@
 .match-score-card,
 .match-section,
 .protocol-side-card,
-.protocol-score-center,
-.protocol-team-card {
+.protocol-score-center {
   padding: 16px 18px;
   border-radius: 14px;
   border: 1px solid var(--line);
@@ -87,7 +84,6 @@
 }
 
 .match-team-card h2,
-.protocol-player-name,
 .protocol-side-card h4 {
   margin: 0;
 }
@@ -121,8 +117,6 @@
 
 .match-section,
 .lineup-editor,
-.protocol-team-card,
-.protocol-player-list,
 .protocol-toolbar-footer,
 .protocol-side-card,
 .protocol-score-center,
@@ -139,10 +133,6 @@
 }
 
 .lineup-card {
-  align-content: start;
-}
-
-.protocol-team-card {
   align-content: start;
 }
 
@@ -475,8 +465,7 @@
   margin-bottom: 0;
 }
 
-.lineup-list,
-.protocol-player-list {
+.lineup-list {
   display: grid;
   gap: 6px;
   margin: 0;
@@ -484,19 +473,93 @@
   list-style: none;
 }
 
-.protocol-player-list {
-  width: min(100%, 460px);
-  justify-self: center;
-  align-content: start;
-}
-
 .lineup-list {
   gap: 4px;
   align-content: start;
 }
 
-.lineup-item,
-.protocol-player-row {
+.lineup-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.lineup-group {
+  display: grid;
+  gap: 5px;
+}
+
+.lineup-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.lineup-group-head strong {
+  color: #dfe6f7;
+  font-size: 0.74rem;
+}
+
+.lineup-group-head span {
+  font-variant-numeric: tabular-nums;
+}
+
+.lineup-stats-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(3, 44px);
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.lineup-stats-player-label {
+  padding-left: 38px;
+  text-align: left;
+}
+
+.lineup-stat-heading {
+  display: grid;
+  min-height: 28px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.9rem;
+}
+
+.yellow-heading {
+  background: rgba(242, 207, 87, 0.08);
+  border-color: rgba(242, 207, 87, 0.15);
+}
+
+.red-heading {
+  background: rgba(255, 114, 114, 0.08);
+  border-color: rgba(255, 114, 114, 0.15);
+}
+
+.heading-card {
+  width: 10px;
+  height: 15px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.yellow-heading .heading-card {
+  color: #f2cf57;
+}
+
+.red-heading .heading-card {
+  color: #ff7272;
+}
+
+.lineup-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
@@ -507,8 +570,7 @@
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.lineup-player-main,
-.protocol-player-name {
+.lineup-player-main {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);
   gap: 8px;
@@ -526,6 +588,122 @@
 
 .lineup-item {
   padding: 2px 8px;
+}
+
+.lineup-item.lineup-item-with-stats {
+  grid-template-columns: minmax(0, 1fr) repeat(3, 44px);
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.lineup-item-with-stats .lineup-player-main {
+  min-height: 30px;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.lineup-stat-cell {
+  display: grid;
+  min-width: 0;
+  min-height: 30px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  text-align: center;
+}
+
+.lineup-stat-input {
+  width: 34px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 26px;
+  text-align: center;
+  text-indent: 0;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.lineup-stat-input::-webkit-outer-spin-button,
+.lineup-stat-input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.goals-stat-cell {
+  background: rgba(224, 232, 247, 0.035);
+}
+
+.yellow-stat-cell {
+  border-color: rgba(242, 207, 87, 0.09);
+  background: rgba(242, 207, 87, 0.035);
+}
+
+.red-stat-cell {
+  border-color: rgba(255, 114, 114, 0.09);
+  background: rgba(255, 114, 114, 0.035);
+}
+
+.lineup-stat-marker {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.goal-marker {
+  width: 24px;
+  height: 24px;
+}
+
+.soccer-ball {
+  display: block;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.card-marker {
+  width: 17px;
+  height: 23px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 2px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.22);
+}
+
+.yellow-card-marker {
+  background: #f2cf57;
+}
+
+.red-card-marker {
+  background: #ff7272;
+}
+
+.stat-count-badge {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+  display: grid;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  place-items: center;
+  border: 2px solid #151a2d;
+  border-radius: 8px;
+  background: #f4f7fc;
+  color: #101423;
+  font-size: 0.58rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .lineup-order {
@@ -564,50 +742,6 @@
   flex-shrink: 0;
 }
 
-.player-stat-icons,
-.player-stat-inputs {
-  display: grid;
-  align-items: start;
-  gap: 4px;
-}
-
-.player-stat-icons {
-  min-height: 16px;
-  flex-shrink: 0;
-}
-
-.player-stat-inputs {
-  grid-template-columns: repeat(3, 52px);
-  justify-content: end;
-}
-
-.stat-icon-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.goal-ball {
-  font-size: 0.92rem;
-  line-height: 1;
-}
-
-.card-icon {
-  display: inline-block;
-  width: 14px;
-  height: 20px;
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-.yellow-card {
-  background: linear-gradient(180deg, #ffde59 0%, #deb017 100%);
-}
-
-.red-card {
-  background: linear-gradient(180deg, #ff7272 0%, #db4545 100%);
-}
-
 .technical-defeat-toggle {
   display: inline-flex;
   align-items: center;
@@ -617,36 +751,6 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: var(--muted);
-}
-
-.tiny-field {
-  display: grid;
-  justify-items: center;
-  gap: 3px;
-  width: 52px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #eef2ff;
-}
-
-.micro-input {
-  width: 38px;
-  height: 38px;
-  padding: 0;
-  border-radius: 12px;
-  text-align: center;
-  text-indent: 0;
-  font-size: 0.98rem;
-  font-weight: 700;
-  line-height: 38px;
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
-
-.micro-input::-webkit-outer-spin-button,
-.micro-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
 }
 
 .protocol-editor-actions-bottom {
@@ -661,6 +765,31 @@
 .lineup-modal-body {
   display: grid;
   gap: 14px;
+}
+
+.lineup-selection-section {
+  display: grid;
+  gap: 7px;
+}
+
+.lineup-selection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #dfe6f7;
+  font-size: 0.82rem;
+}
+
+.lineup-selection-head span {
+  min-width: 42px;
+  color: #ff9a9a;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  text-align: right;
+}
+
+.lineup-selection-head span.is-complete {
+  color: var(--brand);
 }
 
 .lineup-suspension-list {
@@ -684,7 +813,6 @@
 @media (max-width: 960px) {
   .match-hero,
   .lineup-grid,
-  .admin-protocol-grid,
   .protocol-layout-top,
   .referee-summary-grid,
   .protocol-referee-grid,
@@ -715,9 +843,6 @@
     text-align: left;
   }
 
-  .protocol-player-list {
-    width: 100%;
-  }
 }
 
 @media (max-width: 640px) {
@@ -756,8 +881,7 @@
   .match-score-card,
   .match-section,
   .protocol-side-card,
-  .protocol-score-center,
-  .protocol-team-card {
+  .protocol-score-center {
     padding: 14px;
   }
 
@@ -840,13 +964,20 @@
     font-size: 1.35rem;
   }
 
-  .lineup-item,
-  .protocol-player-row {
+  .lineup-item {
     grid-template-columns: 1fr;
   }
 
-  .lineup-player-main,
-  .protocol-player-name {
+  .lineup-stats-head,
+  .lineup-item.lineup-item-with-stats {
+    grid-template-columns: minmax(0, 1fr) repeat(3, 34px);
+  }
+
+  .lineup-stats-player-label {
+    padding-left: 30px;
+  }
+
+  .lineup-player-main {
     grid-template-columns: 24px minmax(0, 1fr);
     gap: 6px;
   }
