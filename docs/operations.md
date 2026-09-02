@@ -2,7 +2,15 @@
 
 ## CI
 
-`.github/workflows/ci.yml` запускается для pull request в `dev`, `test`, `main`, `prod` и для push в `dev`.
+`.github/workflows/ci.yml` запускается для pull request в `dev`, `test`, `prod` и для push в `dev`.
+
+Актуальная модель веток: `dev -> test -> prod`.
+
+- `dev` — разработка и обязательный CI;
+- `test` — автоматически разворачиваемая версия тестового окружения;
+- `prod` — история принятых production-релизов.
+
+Ветка `main` не используется, поскольку в этой модели она дублировала бы назначение `prod`.
 
 Проверяются:
 
