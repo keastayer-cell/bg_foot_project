@@ -1,28 +1,47 @@
 <template>
   <article class="card admin-panel admin-league-panel">
-    <div class="admin-panel-head">
+    <header class="admin-panel-head">
+      <p class="admin-panel-kicker">Турнир</p>
       <h3 class="section-title">Лига</h3>
       <p class="muted-text">Руководство лиги, места проведения и PDF положения по каждому сезону.</p>
-    </div>
+    </header>
 
     <UiState v-if="messageError" tone="error" title="Операция не выполнена" :message="messageError" />
     <UiState v-if="messageOk" tone="success" title="Готово" :message="messageOk" />
 
+    <nav class="admin-league-modules" aria-label="Разделы управления лигой">
+      <button
+        v-for="module in leagueModules"
+        :key="module.value"
+        class="admin-league-module"
+        :class="{ 'is-active': activeLeagueSection === module.value }"
+        type="button"
+        @click="activeLeagueSection = module.value"
+      >
+        <span class="admin-league-module-number">{{ module.number }}</span>
+        <span class="admin-league-module-copy">
+          <strong>{{ module.label }}</strong>
+          <small>{{ module.description }}</small>
+        </span>
+        <span class="admin-league-module-count">{{ module.count }}</span>
+      </button>
+    </nav>
+
     <div class="admin-grid admin-league-grid">
-      <section class="card admin-league-section">
+      <section v-if="activeLeagueSection === 'officials'" class="admin-step-section admin-league-section">
         <div class="section-head admin-league-head">
+          <span class="admin-step-number">1</span>
           <div>
             <p class="eyebrow">Руководство</p>
             <h4 class="section-title">Карточки руководства</h4>
+            <p class="muted-text">Создавайте и упорядочивайте публичный состав руководителей лиги.</p>
           </div>
+          <span class="admin-step-count">{{ officialsList.length }}</span>
         </div>
 
-        <div class="admin-subnav">
-          <button class="btn-ghost admin-subnav-btn" :class="{ 'admin-subnav-active': officialMode === 'create' }" type="button" @click="switchOfficialMode('create')">Создать</button>
-          <button class="btn-ghost admin-subnav-btn" :class="{ 'admin-subnav-active': officialMode === 'edit' }" type="button" @click="switchOfficialMode('edit')">Редактировать</button>
-        </div>
+        <AdminEntityModeSwitch :model-value="officialMode" :options="officialModeOptions" @update:model-value="switchOfficialMode" />
 
-        <form v-if="officialMode === 'create'" class="admin-form" @submit.prevent="createOfficial">
+        <form v-if="officialMode === 'create'" class="admin-form admin-league-entity-form" @submit.prevent="createOfficial">
           <label>
             ФИО
             <input v-model.trim="officialForm.fullName" type="text" required />
@@ -35,29 +54,29 @@
             Порядок вывода
             <input v-model="officialForm.sortOrder" type="number" min="0" />
           </label>
-          <label>
+          <label class="admin-league-wide-field">
             Краткое описание
             <textarea v-model.trim="officialForm.bio" rows="4" placeholder="Чем отвечает в лиге"></textarea>
           </label>
-          <label>
+          <label class="admin-league-wide-field admin-league-file-field">
             Фото
             <input type="file" accept="image/*" @change="onOfficialPhotoSelected" />
           </label>
           <img v-if="officialForm.photoDataUrl" :src="officialForm.photoDataUrl" alt="Превью фото руководителя" class="team-rep-player-photo-preview" />
-          <div class="actions-row">
+          <div class="admin-primary-actions admin-league-form-actions">
             <button class="btn-primary" type="submit">Создать карточку</button>
           </div>
         </form>
 
-        <div v-else class="admin-form">
-          <label>
+        <div v-else class="admin-entity-flow admin-league-edit-flow">
+          <label class="admin-league-record-picker">
             Выберите карточку
             <select v-model="officialEditId" @change="onOfficialSelectChange">
               <option value="">— выберите —</option>
               <option v-for="item in officialsList" :key="item.id" :value="String(item.id)">{{ item.fullName }} · {{ item.positionTitle }}</option>
             </select>
           </label>
-          <template v-if="editingOfficialId">
+          <form v-if="editingOfficialId" class="admin-form admin-league-entity-form" @submit.prevent="saveOfficial">
             <label>
               ФИО
               <input v-model.trim="officialForm.fullName" type="text" />
@@ -70,38 +89,42 @@
               Порядок вывода
               <input v-model="officialForm.sortOrder" type="number" min="0" />
             </label>
-            <label>
+            <label class="admin-league-wide-field">
               Краткое описание
               <textarea v-model.trim="officialForm.bio" rows="4"></textarea>
             </label>
-            <label>
+            <label class="admin-league-wide-field admin-league-file-field">
               Фото
               <input type="file" accept="image/*" @change="onOfficialPhotoSelected" />
             </label>
             <img v-if="officialForm.photoDataUrl" :src="officialForm.photoDataUrl" alt="Превью фото руководителя" class="team-rep-player-photo-preview" />
-            <div class="actions-row">
-              <button class="btn-primary" type="button" @click="saveOfficial">Сохранить</button>
-              <button class="btn-danger" type="button" @click="deactivateOfficial(editingOfficialId)">Удалить</button>
+            <div class="admin-primary-actions admin-league-form-actions">
               <button class="btn-ghost" type="button" @click="switchOfficialMode('create')">Отмена</button>
+              <button class="btn-primary" type="submit">Сохранить изменения</button>
             </div>
-          </template>
+            <div class="admin-danger-zone admin-league-danger-zone">
+              <div><strong>Удаление карточки</strong><p>Руководитель исчезнет с публичной страницы лиги.</p></div>
+              <button class="btn-danger btn-sm" type="button" @click="deactivateOfficial(editingOfficialId)">Удалить карточку</button>
+            </div>
+          </form>
+          <div v-else class="admin-record-placeholder"><span>↳</span><span>Выберите руководителя, чтобы открыть его карточку.</span></div>
         </div>
       </section>
 
-      <section class="card admin-league-section">
+      <section v-if="activeLeagueSection === 'venues'" class="admin-step-section admin-league-section">
         <div class="section-head admin-league-head">
+          <span class="admin-step-number">2</span>
           <div>
             <p class="eyebrow">Площадки</p>
             <h4 class="section-title">Места проведения</h4>
+            <p class="muted-text">Ведите единый реестр стадионов и площадок турнира.</p>
           </div>
+          <span class="admin-step-count">{{ venuesList.length }}</span>
         </div>
 
-        <div class="admin-subnav">
-          <button class="btn-ghost admin-subnav-btn" :class="{ 'admin-subnav-active': venueMode === 'create' }" type="button" @click="switchVenueMode('create')">Создать</button>
-          <button class="btn-ghost admin-subnav-btn" :class="{ 'admin-subnav-active': venueMode === 'edit' }" type="button" @click="switchVenueMode('edit')">Редактировать</button>
-        </div>
+        <AdminEntityModeSwitch :model-value="venueMode" :options="venueModeOptions" @update:model-value="switchVenueMode" />
 
-        <form v-if="venueMode === 'create'" class="admin-form" @submit.prevent="createVenue">
+        <form v-if="venueMode === 'create'" class="admin-form admin-league-entity-form" @submit.prevent="createVenue">
           <label>
             Название площадки
             <input v-model.trim="venueForm.name" type="text" required />
@@ -118,29 +141,29 @@
             Порядок вывода
             <input v-model="venueForm.sortOrder" type="number" min="0" />
           </label>
-          <label>
+          <label class="admin-league-wide-field">
             Описание
             <textarea v-model.trim="venueForm.description" rows="4"></textarea>
           </label>
-          <label>
+          <label class="admin-league-wide-field admin-league-file-field">
             Фото площадки
             <input type="file" accept="image/*" @change="onVenuePhotoSelected" />
           </label>
           <img v-if="venueForm.photoDataUrl" :src="venueForm.photoDataUrl" alt="Превью площадки" class="team-rep-player-photo-preview" />
-          <div class="actions-row">
+          <div class="admin-primary-actions admin-league-form-actions">
             <button class="btn-primary" type="submit">Создать площадку</button>
           </div>
         </form>
 
-        <div v-else class="admin-form">
-          <label>
+        <div v-else class="admin-entity-flow admin-league-edit-flow">
+          <label class="admin-league-record-picker">
             Выберите площадку
             <select v-model="venueEditId" @change="onVenueSelectChange">
               <option value="">— выберите —</option>
               <option v-for="item in venuesList" :key="item.id" :value="String(item.id)">{{ item.name }}</option>
             </select>
           </label>
-          <template v-if="editingVenueId">
+          <form v-if="editingVenueId" class="admin-form admin-league-entity-form" @submit.prevent="saveVenue">
             <label>
               Название площадки
               <input v-model.trim="venueForm.name" type="text" />
@@ -157,32 +180,38 @@
               Порядок вывода
               <input v-model="venueForm.sortOrder" type="number" min="0" />
             </label>
-            <label>
+            <label class="admin-league-wide-field">
               Описание
               <textarea v-model.trim="venueForm.description" rows="4"></textarea>
             </label>
-            <label>
+            <label class="admin-league-wide-field admin-league-file-field">
               Фото площадки
               <input type="file" accept="image/*" @change="onVenuePhotoSelected" />
             </label>
             <img v-if="venueForm.photoDataUrl" :src="venueForm.photoDataUrl" alt="Превью площадки" class="team-rep-player-photo-preview" />
-            <div class="actions-row">
-              <button class="btn-primary" type="button" @click="saveVenue">Сохранить</button>
-              <button class="btn-danger" type="button" @click="deactivateVenue(editingVenueId)">Удалить</button>
+            <div class="admin-primary-actions admin-league-form-actions">
               <button class="btn-ghost" type="button" @click="switchVenueMode('create')">Отмена</button>
+              <button class="btn-primary" type="submit">Сохранить изменения</button>
             </div>
-          </template>
+            <div class="admin-danger-zone admin-league-danger-zone">
+              <div><strong>Удаление площадки</strong><p>Площадка исчезнет с публичной страницы лиги.</p></div>
+              <button class="btn-danger btn-sm" type="button" @click="deactivateVenue(editingVenueId)">Удалить площадку</button>
+            </div>
+          </form>
+          <div v-else class="admin-record-placeholder"><span>↳</span><span>Выберите площадку, чтобы открыть её карточку.</span></div>
         </div>
       </section>
     </div>
 
-    <section class="card admin-league-section admin-league-docs">
+    <section v-if="activeLeagueSection === 'documents'" class="admin-step-section admin-league-section admin-league-docs">
       <div class="section-head admin-league-head">
+        <span class="admin-step-number">3</span>
         <div>
           <p class="eyebrow">Документы</p>
           <h4 class="section-title">Положение сезона в PDF</h4>
+          <p class="muted-text">Храните актуальное положение отдельно для каждого сезона.</p>
         </div>
-        <p class="muted-text">Загрузите подписанный PDF в конкретный сезон, после чего его смогут скачать все пользователи.</p>
+        <span class="admin-step-count">{{ uploadedRegulationsCount }}</span>
       </div>
 
       <div class="admin-form admin-league-doc-form">
@@ -200,16 +229,19 @@
           <p><strong>Обновлен:</strong> {{ selectedSeason.regulationUpdatedAt ? formatDateTime(selectedSeason.regulationUpdatedAt) : '—' }}</p>
         </div>
 
-        <label>
+        <label class="admin-league-file-field">
           PDF-файл положения
           <input type="file" accept="application/pdf" @change="onRegulationFileSelected" />
         </label>
         <p v-if="regulationFileName" class="muted-text">Выбран файл: {{ regulationFileName }}</p>
 
-        <div class="actions-row">
+        <div class="admin-primary-actions admin-league-doc-actions">
           <button class="btn-primary" type="button" :disabled="!regulationSeasonId || !regulationDataUrl" @click="saveSeasonRegulation">Сохранить PDF</button>
-          <button class="btn-danger" type="button" :disabled="!selectedSeason?.regulationDocumentAvailable" @click="removeSeasonRegulation">Удалить PDF</button>
           <button class="btn-ghost" type="button" :disabled="!selectedSeason?.regulationDownloadUrl" @click="downloadSeasonRegulation">Скачать текущий PDF</button>
+        </div>
+        <div v-if="selectedSeason?.regulationDocumentAvailable" class="admin-danger-zone admin-league-danger-zone">
+          <div><strong>Удаление документа</strong><p>Положение выбранного сезона станет недоступно для скачивания.</p></div>
+          <button class="btn-danger btn-sm" type="button" @click="removeSeasonRegulation">Удалить PDF</button>
         </div>
       </div>
     </section>
@@ -219,6 +251,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import UiState from './UiState.vue'
+import AdminEntityModeSwitch from './admin/AdminEntityModeSwitch.vue'
 import { useAuth } from '../store/auth'
 import { createAdminLeagueApi } from '../api/adminLeague'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
@@ -229,6 +262,15 @@ const props = defineProps({
     default: () => [],
   },
 })
+
+const officialModeOptions = [
+  { value: 'create', label: 'Создать', description: 'Новая карточка' },
+  { value: 'edit', label: 'Редактировать', description: 'Реестр руководства' },
+]
+const venueModeOptions = [
+  { value: 'create', label: 'Создать', description: 'Новая площадка' },
+  { value: 'edit', label: 'Редактировать', description: 'Реестр площадок' },
+]
 
 const emit = defineEmits(['refresh-seasons'])
 
@@ -242,6 +284,7 @@ const messageOk = ref('')
 
 const officialsList = ref([])
 const venuesList = ref([])
+const activeLeagueSection = ref('officials')
 
 const officialMode = ref('create')
 const officialEditId = ref('')
@@ -273,6 +316,34 @@ const regulationFileName = ref('')
 const selectedSeason = computed(() => {
   return props.seasonsList.find((season) => String(season.id) === String(regulationSeasonId.value)) || null
 })
+
+const uploadedRegulationsCount = computed(() => props.seasonsList.filter(
+  (season) => season.regulationDocumentAvailable
+).length)
+
+const leagueModules = computed(() => [
+  {
+    value: 'officials',
+    number: '01',
+    label: 'Руководство',
+    description: 'Люди и должности',
+    count: officialsList.value.length,
+  },
+  {
+    value: 'venues',
+    number: '02',
+    label: 'Площадки',
+    description: 'Адреса и места игр',
+    count: venuesList.value.length,
+  },
+  {
+    value: 'documents',
+    number: '03',
+    label: 'Документы',
+    description: 'Положения сезонов',
+    count: uploadedRegulationsCount.value,
+  },
+])
 
 watch(
   () => props.seasonsList,
@@ -571,38 +642,243 @@ function formatDateTime(value) {
   gap: 18px;
 }
 
+.admin-league-modules {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid rgba(124, 163, 255, .17);
+  border-radius: 14px;
+  background: rgba(6, 11, 28, .52);
+}
+
+.admin-league-module {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, color .18s ease;
+}
+
+.admin-league-module:hover {
+  border-color: rgba(124, 163, 255, .18);
+  background: rgba(124, 163, 255, .055);
+  color: var(--text);
+}
+
+.admin-league-module.is-active {
+  border-color: rgba(97, 232, 162, .4);
+  background: linear-gradient(135deg, rgba(97, 232, 162, .12), rgba(97, 232, 162, .045));
+  color: var(--text);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.admin-league-module-number {
+  color: var(--brand);
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.admin-league-module-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-league-module-copy strong,
+.admin-league-module-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-league-module-copy strong { font-size: .82rem; }
+.admin-league-module-copy small { color: var(--muted); font-size: .68rem; }
+
+.admin-league-module-count {
+  display: grid;
+  place-items: center;
+  min-width: 27px;
+  height: 25px;
+  padding: 0 7px;
+  border-radius: 7px;
+  background: rgba(124, 163, 255, .1);
+  color: #cbd8ff;
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.admin-league-module.is-active .admin-league-module-count {
+  background: rgba(97, 232, 162, .13);
+  color: var(--brand);
+}
+
 .admin-league-grid {
+  grid-template-columns: 1fr;
   align-items: start;
 }
 
 .admin-league-section {
   display: grid;
-  gap: 16px;
-  padding: 18px;
+  gap: 18px;
+  padding: 20px;
 }
 
 .admin-league-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
+  gap: 11px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(124, 163, 255, .14);
+}
+
+.admin-league-head .eyebrow,
+.admin-league-head .section-title,
+.admin-league-head .muted-text {
+  margin: 0;
+}
+
+.admin-league-head .section-title { margin-top: 2px; font-size: .96rem; }
+.admin-league-head .muted-text { margin-top: 5px; font-size: .76rem; }
+
+.admin-league-entity-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 17px;
+  border: 1px solid rgba(124, 163, 255, .14);
+  border-radius: 12px;
+  background: rgba(5, 10, 26, .28);
+}
+
+.admin-league-entity-form > label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+}
+
+.admin-league-wide-field,
+.admin-league-entity-form > img,
+.admin-league-form-actions,
+.admin-league-danger-zone {
+  grid-column: 1 / -1;
+}
+
+.admin-league-file-field {
+  padding: 13px;
+  border: 1px dashed rgba(124, 163, 255, .22);
+  border-radius: 10px;
+  background: rgba(124, 163, 255, .035);
+}
+
+.admin-league-file-field input[type='file'] {
+  width: 100%;
+}
+
+.admin-league-edit-flow {
+  gap: 14px;
+}
+
+.admin-league-record-picker {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(124, 163, 255, .14);
+  border-radius: 12px;
+  background: rgba(5, 10, 26, .28);
+}
+
+.admin-league-form-actions {
+  margin-top: 2px;
+}
+
+.admin-league-danger-zone {
+  margin-top: 2px;
 }
 
 .admin-league-docs {
-  padding: 18px;
+  padding: 20px;
 }
 
 .admin-league-doc-form {
+  grid-template-columns: minmax(260px, .8fr) minmax(0, 1.2fr);
   gap: 14px;
+  padding: 17px;
+  border: 1px solid rgba(124, 163, 255, .14);
+  border-radius: 12px;
+  background: rgba(5, 10, 26, .28);
+}
+
+.admin-league-doc-form > label {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.admin-league-doc-form > .admin-league-file-field,
+.admin-league-doc-form > .muted-text,
+.admin-league-doc-actions,
+.admin-league-doc-form > .admin-league-danger-zone {
+  grid-column: 1 / -1;
 }
 
 .admin-league-doc-meta {
   display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-self: end;
+  overflow: hidden;
+  border: 1px solid rgba(124, 163, 255, .14);
+  border-radius: 10px;
+  background: rgba(124, 163, 255, .035);
 }
 
 .admin-league-doc-meta p {
   margin: 0;
+  padding: 12px;
+  border-right: 1px solid rgba(124, 163, 255, .12);
+  font-size: .7rem;
+}
+
+.admin-league-doc-meta p:last-child { border-right: 0; }
+
+.admin-league-doc-actions {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .admin-league-modules { grid-template-columns: 1fr; }
+  .admin-league-entity-form,
+  .admin-league-doc-form { grid-template-columns: 1fr; }
+  .admin-league-wide-field,
+  .admin-league-entity-form > img,
+  .admin-league-form-actions,
+  .admin-league-danger-zone,
+  .admin-league-doc-form > .admin-league-file-field,
+  .admin-league-doc-form > .muted-text,
+  .admin-league-doc-actions,
+  .admin-league-doc-form > .admin-league-danger-zone { grid-column: 1; }
+  .admin-league-doc-meta { grid-template-columns: 1fr; }
+  .admin-league-doc-meta p { border-right: 0; border-bottom: 1px solid rgba(124, 163, 255, .12); }
+  .admin-league-doc-meta p:last-child { border-bottom: 0; }
+}
+
+@media (max-width: 560px) {
+  .admin-league-section { padding: 15px; }
+  .admin-league-head { grid-template-columns: auto minmax(0, 1fr); }
+  .admin-league-head .admin-step-count { display: none; }
+  .admin-league-entity-form,
+  .admin-league-doc-form { padding: 13px; }
+  .admin-league-form-actions,
+  .admin-league-doc-actions { align-items: stretch; flex-direction: column-reverse; }
+  .admin-league-form-actions > *,
+  .admin-league-doc-actions > * { width: 100%; }
 }
 </style>

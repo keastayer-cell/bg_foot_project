@@ -33,6 +33,13 @@ export const ADMIN_TAB_GROUPS = [
     ],
   },
   {
+    id: 'communications',
+    title: 'Коммуникации',
+    items: [
+      { id: 'notifications', label: 'Оповещения' },
+    ],
+  },
+  {
     id: 'local-tools',
     title: 'Локальная проверка',
     roles: ['SUPER_ADMIN'],

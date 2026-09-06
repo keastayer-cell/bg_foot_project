@@ -1,34 +1,27 @@
 <template>
   <article class="card admin-panel">
-    <div class="admin-panel-head">
+    <header class="admin-panel-head">
+      <p class="admin-panel-kicker">Турнир</p>
       <h3 class="section-title">Сезоны</h3>
       <p class="muted-text">Сезон объединяет команды, чемпионат и Кубки. Регламенты настраиваются внутри соревнований.</p>
-    </div>
+    </header>
     <div v-if="messageError || messageOk" class="admin-inline-message">
       <p v-if="messageError" class="error-text">{{ messageError }}</p>
       <p v-if="messageOk" class="success-text">{{ messageOk }}</p>
     </div>
-    <div class="admin-subnav">
-      <button
-        class="btn-ghost admin-subnav-btn"
-        :class="{ 'admin-subnav-active': seasonSubMode === 'create' }"
-        type="button"
-        @click="showCreate"
-      >Создать сезон</button>
-      <button
-        class="btn-ghost admin-subnav-btn"
-        :class="{ 'admin-subnav-active': seasonSubMode === 'edit' }"
-        type="button"
-        @click="seasonSubMode = 'edit'"
-      >Редактировать</button>
-    </div>
+    <AdminEntityModeSwitch v-model="seasonSubMode" :options="modeOptions" @update:model-value="changeMode" />
 
-    <div class="admin-form admin-surface">
-      <div v-if="seasonSubMode === 'edit'" class="admin-season-edit-toolbar">
+    <div class="admin-entity-flow">
+      <section v-if="seasonSubMode === 'edit'" class="admin-step-section admin-season-edit-toolbar">
+        <div class="admin-step-heading admin-field-wide">
+          <span class="admin-step-number">1</span>
+          <div><h4>Выберите сезон</h4><p>Откройте настройки существующего сезона или выгрузите его протоколы.</p></div>
+          <span class="admin-step-count">{{ seasonsList.length }}</span>
+        </div>
         <label class="admin-season-edit-picker">
-          Выберите сезон
+          Сезон
           <select v-model="seasonEditSelectId" @change="onSeasonSelectChange">
-            <option value="">— выберите —</option>
+            <option value="">— выберите сезон —</option>
             <option v-for="item in seasonsList" :key="item.id" :value="String(item.id)">{{ item.name }}</option>
           </select>
         </label>
@@ -45,13 +38,17 @@
             >Скачать все подтвержденные (.zip)</button>
           </div>
         </div>
-      </div>
+      </section>
 
       <form
         v-if="seasonSubMode === 'create' || editingSeasonId"
-        class="admin-form admin-season-form"
+        class="admin-form admin-step-section admin-season-form"
         @submit.prevent="submitSeason"
       >
+        <div class="admin-step-heading">
+          <span class="admin-step-number">{{ seasonSubMode === 'create' ? '1' : '2' }}</span>
+          <div><h4>{{ seasonSubMode === 'create' ? 'Новый сезон' : 'Настройки сезона' }}</h4><p>Основные параметры, участники и календарные ограничения.</p></div>
+        </div>
         <AdminSeasonFields
           :form="seasonForm"
           :is-create="seasonSubMode === 'create'"
@@ -72,7 +69,7 @@
           @remove-referee="removeSeasonRefereeFromForm"
           @remove-team="removeSeasonTeamFromForm"
         />
-        <div class="actions-row admin-season-actions">
+        <div class="admin-primary-actions admin-season-actions">
           <button
             v-if="seasonSubMode === 'create'"
             class="btn-primary"
@@ -80,18 +77,23 @@
             :disabled="isSeasonCreateDisabled"
           >Создать сезон</button>
           <template v-else>
-            <button class="btn-primary" type="submit">Сохранить изменения</button>
-            <button class="btn-danger" type="button" @click="deactivateSeason(editingSeasonId)">Удалить сезон</button>
             <button class="btn-ghost" type="button" @click="cancelSelection">Отмена</button>
+            <button class="btn-primary" type="submit">Сохранить изменения</button>
           </template>
         </div>
+        <div v-if="seasonSubMode === 'edit'" class="admin-danger-zone">
+          <div><strong>Удаление сезона</strong><p>Сезон будет деактивирован вместе с доступом к его настройкам.</p></div>
+          <button class="btn-danger btn-sm" type="button" @click="deactivateSeason(editingSeasonId)">Удалить сезон</button>
+        </div>
       </form>
+      <div v-else-if="seasonSubMode === 'edit'" class="admin-record-placeholder"><span>↳</span><span>Выберите сезон, чтобы открыть его настройки.</span></div>
     </div>
   </article>
 </template>
 
 <script setup>
 import { toRefs } from 'vue'
+import AdminEntityModeSwitch from './AdminEntityModeSwitch.vue'
 import AdminSeasonFields from './AdminSeasonFields.vue'
 import AdminSeasonParticipants from './AdminSeasonParticipants.vue'
 
@@ -133,10 +135,19 @@ const {
   toggleSeasonProtocolMenu,
 } = toRefs(props.panel)
 
+const modeOptions = [
+  { value: 'create', label: 'Создать', description: 'Новый турнирный сезон' },
+  { value: 'edit', label: 'Редактировать', description: 'Настройки и участники' },
+]
+
 function showCreate() {
   seasonSubMode.value = 'create'
   cancelEditSeason.value()
   seasonEditSelectId.value = ''
+}
+
+function changeMode(mode) {
+  if (mode === 'create') showCreate()
 }
 
 function cancelSelection() {
@@ -150,3 +161,21 @@ function submitSeason() {
     : saveEditSeason.value()
 }
 </script>
+
+<style scoped>
+.admin-season-edit-toolbar {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto;
+  align-items: end;
+}
+
+.admin-season-edit-toolbar .admin-step-heading {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .admin-season-edit-toolbar { grid-template-columns: 1fr; }
+  .admin-season-export-wrap, .admin-season-export-wrap button { width: 100%; }
+}
+</style>

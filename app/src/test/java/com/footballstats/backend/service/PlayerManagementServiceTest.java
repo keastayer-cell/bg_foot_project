@@ -2,6 +2,7 @@ package com.footballstats.backend.service;
 
 import com.footballstats.backend.domain.Player;
 import com.footballstats.backend.domain.PlayerTeam;
+import com.footballstats.backend.domain.PlayerPosition;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.repository.PlayerRepository;
 import com.footballstats.backend.repository.PlayerTeamRepository;
@@ -16,6 +17,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -75,6 +77,28 @@ class PlayerManagementServiceTest {
         assertThat(result.getContent().getFirst().photoDataUrl()).startsWith("data:image/png");
         verify(playerTeamRepository).findActiveByPlayerIds(List.of(1L, 2L));
         verify(mediaAssetService, never()).loadDataUrl(any(), any(), any());
+    }
+
+    @Test
+    void createPersistsOptionalPlayerPositionAndSynchronizesGoalkeeperFlag() {
+        when(playerRepository.existsByFullNameIgnoreCase("Новый Вратарь")).thenReturn(false);
+        when(playerRepository.save(any(Player.class))).thenAnswer(invocation -> {
+            Player player = invocation.getArgument(0);
+            ReflectionTestUtils.setField(player, "id", 50L);
+            return player;
+        });
+        when(playerTeamRepository.findByPlayer_IdAndActiveTrue(50L)).thenReturn(List.of());
+
+        var result = service.create(new PlayerManagementService.PlayerUpsert(
+            "Новый Вратарь",
+            LocalDate.of(2000, 1, 1),
+            "Богородск",
+            PlayerPosition.GOALKEEPER,
+            null
+        ), 7L);
+
+        assertThat(result.position()).isEqualTo(PlayerPosition.GOALKEEPER);
+        assertThat(result.isGoalkeeper()).isTrue();
     }
 
     private Player player(Long id, String name) {

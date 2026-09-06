@@ -23,7 +23,8 @@ class NotificationEventServiceTest {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(11L);
         NotificationEventService service = new NotificationEventService(
-            jdbcTemplate, new ObjectMapper(), false, "http://127.0.0.1:8090/internal/notifications/process"
+            jdbcTemplate, new ObjectMapper(), false, "http://127.0.0.1:8090/internal/notifications/process",
+            "http://127.0.0.1:5173"
         );
         AppUser user = user(42L);
 
@@ -45,7 +46,8 @@ class NotificationEventServiceTest {
         JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
         when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(12L);
         NotificationEventService service = new NotificationEventService(
-            jdbcTemplate, new ObjectMapper(), false, "http://127.0.0.1:8090/internal/notifications/process"
+            jdbcTemplate, new ObjectMapper(), false, "http://127.0.0.1:8090/internal/notifications/process",
+            "http://127.0.0.1:5173"
         );
         String resetLink = "https://example.test/reset-password?token=top-secret";
 

@@ -17,6 +17,10 @@ public final class StandingsRankingRules {
     public static final String GOALS_FOR = "GOALS_FOR";
     public static final String WINS = "WINS";
     public static final String HEAD_TO_HEAD = "HEAD_TO_HEAD";
+    public static final String GOALS_AGAINST = "GOALS_AGAINST";
+    public static final String AWAY_WINS = "AWAY_WINS";
+    public static final String AWAY_GOALS = "AWAY_GOALS";
+    public static final String DISCIPLINARY_POINTS = "DISCIPLINARY_POINTS";
     public static final String ALPHABETICAL = "ALPHABETICAL";
 
     public static final List<String> DEFAULT_RULES = List.of(
@@ -32,6 +36,10 @@ public final class StandingsRankingRules {
         GOALS_FOR,
         WINS,
         HEAD_TO_HEAD,
+        GOALS_AGAINST,
+        AWAY_WINS,
+        AWAY_GOALS,
+        DISCIPLINARY_POINTS,
         ALPHABETICAL
     );
 

@@ -9,7 +9,7 @@ export function useAdminPlayers({ request, clearMessages, errorMessage, successM
     fullName: '',
     birthDate: '',
     residence: '',
-    isGoalkeeper: false,
+    position: '',
     photoDataUrl: '',
   })
 
@@ -25,7 +25,7 @@ export function useAdminPlayers({ request, clearMessages, errorMessage, successM
     playerForm.fullName = ''
     playerForm.birthDate = ''
     playerForm.residence = ''
-    playerForm.isGoalkeeper = false
+    playerForm.position = ''
     playerForm.photoDataUrl = ''
   }
 
@@ -34,7 +34,7 @@ export function useAdminPlayers({ request, clearMessages, errorMessage, successM
     playerForm.fullName = item.fullName
     playerForm.birthDate = item.birthDate
     playerForm.residence = item.residence
-    playerForm.isGoalkeeper = Boolean(item.isGoalkeeper)
+    playerForm.position = item.position || (item.isGoalkeeper ? 'GOALKEEPER' : '')
     playerForm.photoDataUrl = item.photoDataUrl || ''
     clearMessages()
   }
@@ -75,7 +75,8 @@ export function useAdminPlayers({ request, clearMessages, errorMessage, successM
       fullName: playerForm.fullName,
       birthDate: playerForm.birthDate,
       residence: playerForm.residence,
-      isGoalkeeper: Boolean(playerForm.isGoalkeeper),
+      position: playerForm.position || null,
+      isGoalkeeper: playerForm.position === 'GOALKEEPER',
       photoDataUrl: playerForm.photoDataUrl,
     }
   }

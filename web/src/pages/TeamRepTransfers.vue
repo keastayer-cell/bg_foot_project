@@ -1,128 +1,109 @@
 <template>
   <section :class="embedded ? 'team-rep-transfers-embedded' : 'section-wrap team-rep-page team-rep-transfers-page'">
-    <article v-if="!embedded" class="card team-rep-profile-card">
-      <div class="toolbar team-rep-card-head">
+    <article v-if="!embedded" class="card transfer-control-card">
+      <header class="transfer-page-header">
         <div>
-          <h2 class="section-title">Управление трансферами внутри сезона</h2>
+          <p class="admin-panel-kicker">Турнир / Трансферы</p>
+          <h2 class="section-title">Трансферы сезона</h2>
+          <p class="muted-text">Создание, согласование и история переходов игроков между командами.</p>
         </div>
-        <div class="actions-row">
+        <div class="transfer-header-actions">
           <button v-if="hasRole('TEAM_REP')" class="btn-ghost" type="button" @click="router.push('/team-rep-dashboard')">К заявке сезона</button>
-          <button class="btn-primary" type="button" @click="openTransferRequestModal" :disabled="!selectedSeasonId || !canOpenTransferRequestModal">Заявка на трансфер</button>
-          <button class="btn-ghost" type="button" @click="loadSeasons" :disabled="seasonLoading || overviewLoading">Обновить</button>
+          <button class="btn-ghost" type="button" @click="loadSeasons" :disabled="seasonLoading || overviewLoading">Обновить данные</button>
         </div>
-      </div>
+      </header>
 
       <UiState v-if="pageError" tone="error" title="Операция не выполнена" :message="pageError" />
       <UiState v-if="pageSuccess" tone="success" title="Готово" :message="pageSuccess" />
 
-      <div class="team-rep-form">
-        <label>
-          Выберите сезон
-          <select v-model="selectedSeasonId">
-            <option value="">— выберите —</option>
-            <option v-for="season in teamSeasons" :key="season.id" :value="String(season.id)">
-              {{ season.name }}
-            </option>
-          </select>
-        </label>
-      </div>
+      <section class="transfer-context-card">
+        <div class="transfer-step-heading">
+          <span class="admin-step-number">1</span>
+          <div><h3>Рабочий сезон</h3><p>Все заявки и доступные команды зависят от выбранного сезона.</p></div>
+        </div>
+        <div class="transfer-context-layout">
+          <label class="transfer-season-field">
+            <span>Сезон</span>
+            <select v-model="selectedSeasonId">
+              <option value="">— выберите сезон —</option>
+              <option v-for="season in teamSeasons" :key="season.id" :value="String(season.id)">{{ season.name }}</option>
+            </select>
+          </label>
 
-      <div v-if="overview" class="team-rep-badge-row team-rep-transfer-badges">
-        <span class="team-rep-season-chip">Статус: {{ formatSeasonStatus(overview.seasonStatus) }}</span>
-        <span class="team-rep-season-chip" :class="overview.transferWindowOpen ? 'team-rep-season-chip-open' : 'team-rep-season-chip-closed'">
-          {{ overview.transferWindowOpen ? 'Трансферы открыты' : 'Трансферы закрыты' }}
-        </span>
-        <span class="team-rep-season-chip" v-if="overview.maxRosterSize">
-          Лимит заявки: {{ overview.selectedPlayersCount }} / {{ overview.maxRosterSize }}
-        </span>
-        <span class="team-rep-season-chip" v-else>
-          В заявке: {{ overview.selectedPlayersCount }}
-        </span>
-      </div>
+          <div v-if="overview" class="transfer-context-metrics">
+            <div><small>Статус сезона</small><strong>{{ formatSeasonStatus(overview.seasonStatus) }}</strong></div>
+            <div :class="overview.transferWindowOpen ? 'is-open' : 'is-closed'">
+              <small>Трансферное окно</small><strong>{{ overview.transferWindowOpen ? 'Открыто' : 'Закрыто' }}</strong>
+            </div>
+            <div><small>{{ overview.maxRosterSize ? 'Заявка команды' : 'Всего заявок' }}</small><strong>{{ overview.maxRosterSize ? `${overview.selectedPlayersCount} / ${overview.maxRosterSize}` : overview.totalElements }}</strong></div>
+          </div>
+        </div>
+        <div v-if="overview" class="transfer-context-footer">
+          <p>{{ transferWindowDescription }}</p>
+          <button class="btn-primary" type="button" @click="openTransferRequestModal" :disabled="!canOpenTransferRequestModal">Создать трансфер</button>
+        </div>
+      </section>
     </article>
 
-    <article class="card team-rep-players-card" v-if="overview">
-      <div class="toolbar team-rep-card-head">
-        <div>
-          <h3 class="section-title">Заявки и история</h3>
-          <p class="muted-text">Компактный список заявок по выбранному сезону.</p>
-        </div>
+    <article v-if="overview" class="card transfer-journal-card">
+      <header class="transfer-step-heading transfer-journal-heading">
+        <span class="admin-step-number">2</span>
+        <div><h3>Журнал трансферов</h3><p>Текущие заявки и завершённые переходы выбранного сезона.</p></div>
+        <span class="admin-step-count">{{ overview.totalElements }}</span>
+      </header>
+
+      <div class="transfer-journal-summary">
+        <div><small>Всего</small><strong>{{ overview.totalElements }}</strong></div>
+        <div><small>Ожидают решения</small><strong>{{ pendingTransfersCount }}</strong></div>
+        <div><small>Подтверждены на странице</small><strong>{{ approvedTransfersCount }}</strong></div>
       </div>
 
       <UiState v-if="overviewLoading" tone="loading" title="Загружаем трансферы" />
-      <UiState
-        v-else-if="!overview.requests.length"
-        title="Трансферных заявок пока нет"
-        message="Созданные заявки и история решений появятся в этом списке."
-      />
+      <UiState v-else-if="!overview.requests.length" title="Трансферных заявок пока нет" message="Созданные заявки и история решений появятся здесь." />
 
-      <div v-else>
-        <div class="transfer-list-head team-rep-transfer-list-head">
-          <span>Куда переходит</span>
-          <span>ФИО</span>
-          <span>Клуб откуда</span>
-          <span>Дата заявки</span>
-          <span>Статус трансфера</span>
-          <span>Действие</span>
+      <div v-else class="transfer-journal">
+        <div class="transfer-journal-columns" aria-hidden="true">
+          <span>Игрок</span><span>Переход</span><span>Заявка</span><span>Статус</span><span>Действия</span>
         </div>
-
-        <div class="team-rep-transfer-list">
-          <article v-for="request in overview.requests" :key="request.id" class="team-rep-transfer-item team-rep-transfer-row">
-            <span class="transfer-cell transfer-team">{{ request.toTeamName }}</span>
-            <span class="transfer-cell transfer-player">{{ request.playerName }}<span v-if="request.playerGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></span>
-            <span class="transfer-cell transfer-team">{{ request.fromTeamName }}</span>
-            <span class="transfer-cell transfer-request-date">{{ formatDateOnly(request.requestedAt) }}</span>
-            <span class="transfer-cell transfer-status-wrap">
+        <div class="transfer-journal-list">
+          <article v-for="request in overview.requests" :key="request.id" class="transfer-journal-row">
+            <div class="transfer-player-cell">
+              <small>Игрок</small>
+              <strong>{{ request.playerName }} <span v-if="request.playerGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></strong>
+              <span v-if="request.requestComment" :title="request.requestComment">{{ request.requestComment }}</span>
+            </div>
+            <div class="transfer-route-cell">
+              <small>Переход</small>
+              <span>{{ request.fromTeamName }}</span>
+              <b aria-hidden="true">→</b>
+              <strong>{{ request.toTeamName }}</strong>
+            </div>
+            <div class="transfer-date-cell">
+              <small>Заявка</small>
+              <strong>{{ formatDateOnly(request.requestedAt) }}</strong>
+              <span>{{ request.requestedByName || '—' }}</span>
+            </div>
+            <div class="transfer-status-cell">
+              <small>Статус</small>
               <span class="team-rep-season-chip" :class="statusChipClass(request.status)">{{ formatTransferStatus(request.status) }}</span>
-            </span>
-            <span class="transfer-cell transfer-action-cell">
-              <span class="transfer-action-slot transfer-action-slot-left">
-                <button
-                  v-if="request.canApprove"
-                  class="transfer-action-btn transfer-action-btn-approve"
-                  type="button"
-                  @click="processTransferAction(request.id, 'approve')"
-                  :disabled="transferActionLoadingKey === `approve:${request.id}` || overviewLoading"
-                  title="Подтвердить трансфер"
-                  aria-label="Подтвердить трансфер"
-                >
-                  {{ transferActionLoadingKey === `approve:${request.id}` ? '...' : 'OK' }}
-                </button>
-                <span v-else class="transfer-action-placeholder" aria-hidden="true"></span>
-              </span>
-              <span class="transfer-action-slot transfer-action-slot-center">
-                <button
-                  v-if="request.canReject"
-                  class="transfer-action-btn transfer-action-btn-reject"
-                  type="button"
-                  @click="processTransferAction(request.id, 'reject')"
-                  :disabled="transferActionLoadingKey === `reject:${request.id}` || overviewLoading"
-                  title="Отклонить трансфер"
-                  aria-label="Отклонить трансфер"
-                >
-                  {{ transferActionLoadingKey === `reject:${request.id}` ? '...' : 'NO' }}
-                </button>
-                <span v-else class="transfer-action-placeholder" aria-hidden="true"></span>
-              </span>
-              <span class="transfer-action-slot transfer-action-slot-right">
-                <button
-                  v-if="request.canRevoke"
-                  class="transfer-action-btn transfer-action-btn-revoke"
-                  type="button"
-                  @click="processTransferAction(request.id, 'revoke')"
-                  :disabled="transferActionLoadingKey === `revoke:${request.id}` || overviewLoading"
-                  title="Отозвать трансфер"
-                  aria-label="Отозвать трансфер"
-                >
-                  {{ transferActionLoadingKey === `revoke:${request.id}` ? '...' : 'X' }}
-                </button>
-                <span v-else class="transfer-action-placeholder" aria-hidden="true"></span>
-              </span>
-            </span>
+            </div>
+            <div class="transfer-row-actions">
+              <small>Действия</small>
+              <button v-if="request.canApprove" class="transfer-decision transfer-decision-approve" type="button" @click="processTransferAction(request.id, 'approve')" :disabled="transferActionLoadingKey === `approve:${request.id}` || overviewLoading">
+                {{ transferActionLoadingKey === `approve:${request.id}` ? 'Сохраняем…' : 'Подтвердить' }}
+              </button>
+              <button v-if="request.canReject" class="transfer-decision transfer-decision-reject" type="button" @click="processTransferAction(request.id, 'reject')" :disabled="transferActionLoadingKey === `reject:${request.id}` || overviewLoading">
+                {{ transferActionLoadingKey === `reject:${request.id}` ? 'Сохраняем…' : 'Отклонить' }}
+              </button>
+              <button v-if="request.canRevoke" class="transfer-decision transfer-decision-revoke" type="button" @click="processTransferAction(request.id, 'revoke')" :disabled="transferActionLoadingKey === `revoke:${request.id}` || overviewLoading">
+                {{ transferActionLoadingKey === `revoke:${request.id}` ? 'Сохраняем…' : 'Отозвать' }}
+              </button>
+              <span v-if="!request.canApprove && !request.canReject && !request.canRevoke" class="transfer-no-actions">Действий нет</span>
+            </div>
           </article>
         </div>
 
-        <div class="pagination-bar" v-if="overview.totalPages > 1">
+        <div v-if="overview.totalPages > 1" class="pagination-bar">
           <button class="btn-ghost" type="button" @click="changeTransfersPage(overview.pageNumber - 1)" :disabled="overviewLoading || overview.pageNumber <= 0">Назад</button>
           <span class="muted-text">Страница {{ overview.pageNumber + 1 }} из {{ overview.totalPages }} · всего {{ overview.totalElements }}</span>
           <button class="btn-ghost" type="button" @click="changeTransfersPage(overview.pageNumber + 1)" :disabled="overviewLoading || overview.pageNumber + 1 >= overview.totalPages">Вперёд</button>
@@ -131,65 +112,55 @@
     </article>
 
     <div v-if="transferRequestModalOpen" class="modal-backdrop" @click.self="closeTransferRequestModal">
-      <article class="card auth-modal team-rep-modal team-rep-season-modal">
-        <div class="toolbar auth-modal-head">
-          <div>
-            <h3 class="section-title">Заявка на трансфер</h3>
-            <p v-if="overview" class="muted-text">{{ overview.seasonName }} · {{ overview.teamName }}</p>
-          </div>
+      <article class="card auth-modal transfer-create-modal">
+        <header class="transfer-create-header">
+          <div><p class="admin-panel-kicker">Новая операция</p><h3 class="section-title">Создать трансфер</h3><p v-if="overview" class="muted-text">{{ overview.seasonName }}{{ overview.teamName ? ` · ${overview.teamName}` : '' }}</p></div>
           <button class="btn-ghost" type="button" @click="closeTransferRequestModal">Закрыть</button>
-        </div>
+        </header>
 
-        <div class="team-rep-form team-rep-transfer-form">
-          <label v-if="overview?.privilegedAccess">
-            Команда назначения
+        <div class="transfer-create-flow">
+          <label v-if="overview?.privilegedAccess" class="transfer-create-step">
+            <span class="transfer-create-step-label"><b>01</b><span><strong>Команда назначения</strong><small>Куда переходит игрок</small></span></span>
             <select v-model="targetTeamId" :disabled="!overview?.transferWindowOpen">
-              <option value="">— выберите —</option>
-              <option v-for="team in availableTargetTeams" :key="team.id" :value="String(team.id)">
-                {{ team.name }}
-              </option>
+              <option value="">— выберите команду —</option>
+              <option v-for="team in availableTargetTeams" :key="team.id" :value="String(team.id)">{{ team.name }}</option>
             </select>
           </label>
 
-          <label>
-            Команда, из которой переводим игрока
+          <label class="transfer-create-step">
+            <span class="transfer-create-step-label"><b>{{ overview?.privilegedAccess ? '02' : '01' }}</b><span><strong>Исходная команда</strong><small>Откуда забираем игрока</small></span></span>
             <select v-model="sourceTeamId" :disabled="!canPickSourceTeam">
-              <option value="">— выберите —</option>
-              <option v-for="team in availableSourceTeams" :key="team.id" :value="String(team.id)">
-                {{ team.name }}
-              </option>
+              <option value="">{{ canPickSourceTeam ? '— выберите команду —' : 'Сначала выберите команду назначения' }}</option>
+              <option v-for="team in availableSourceTeams" :key="team.id" :value="String(team.id)">{{ team.name }}</option>
             </select>
           </label>
 
-          <label>
-            Игрок
+          <label class="transfer-create-step">
+            <span class="transfer-create-step-label"><b>{{ overview?.privilegedAccess ? '03' : '02' }}</b><span><strong>Игрок</strong><small>Кандидат из состава исходной команды</small></span></span>
             <SearchableSelect
               :key="`transfer-player-${selectedSeasonId}-${sourceTeamId}-${candidateOptions.length}`"
               v-model="selectedPlayerId"
               :options="candidateOptions"
               placeholder="Выберите игрока"
               search-placeholder="Начните вводить ФИО игрока"
-              empty-text="Игрок по такому ФИО не найден"
+              empty-text="Подходящий игрок не найден"
               :disabled="!canPickSourceTeam || !sourceTeamId || candidatesLoading"
             />
           </label>
 
-          <label>
-            Комментарий к заявке
-            <textarea v-model.trim="requestComment" rows="3" placeholder="Необязательно"></textarea>
+          <label class="transfer-create-step transfer-create-comment">
+            <span class="transfer-create-step-label"><b>{{ overview?.privilegedAccess ? '04' : '03' }}</b><span><strong>Комментарий</strong><small>Необязательное пояснение к заявке</small></span></span>
+            <textarea v-model.trim="requestComment" rows="3" placeholder="Добавьте пояснение при необходимости"></textarea>
           </label>
-
-          <div class="actions-row">
-            <button class="btn-primary" type="button" @click="submitTransferRequest" :disabled="!canSubmitTransferRequest || createLoading">
-              {{ createLoading ? 'Отправляем...' : 'Отправить заявку' }}
-            </button>
-          </div>
         </div>
 
-        <p v-if="!overview?.transferWindowOpen" class="muted-text">Создание заявок недоступно, пока сезон не активен или окно трансферов закрыто.</p>
-        <p v-else-if="!overview?.privilegedAccess && overview?.maxRosterSize && overview.selectedPlayersCount >= overview.maxRosterSize" class="muted-text">
-          Лимит заявки уже достигнут. Новые входящие трансферы не будут подтверждены, пока не освободится место.
-        </p>
+        <div class="transfer-create-summary" :class="{ 'is-ready': canSubmitTransferRequest }">
+          <div><small>Будет создан переход</small><strong>{{ transferDraftLabel }}</strong></div>
+          <button class="btn-primary" type="button" @click="submitTransferRequest" :disabled="!canSubmitTransferRequest || createLoading">{{ createLoading ? 'Отправляем…' : 'Отправить заявку' }}</button>
+        </div>
+
+        <p v-if="!overview?.transferWindowOpen" class="transfer-create-warning">Создание заявок недоступно: сезон не активен или трансферное окно закрыто.</p>
+        <p v-else-if="!overview?.privilegedAccess && overview?.maxRosterSize && overview.selectedPlayersCount >= overview.maxRosterSize" class="transfer-create-warning">Лимит заявки достигнут. Сначала освободите место в составе.</p>
       </article>
     </div>
   </section>
@@ -197,7 +168,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch, watchEffect } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import SearchableSelect from '../components/SearchableSelect.vue'
 import UiState from '../components/UiState.vue'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
@@ -215,6 +186,7 @@ const { isAuthenticated, hasRole, loadCurrentUser, authorizedApiRequest } = useA
 const { confirmAction } = useConfirmDialog()
 const transfersApi = createTeamRepTransfersApi(authorizedApiRequest)
 const router = useRouter()
+const route = useRoute()
 const pageSize = 20
 
 const teamSeasons = ref([])
@@ -282,6 +254,44 @@ const canSubmitTransferRequest = computed(() => {
   return canPickSourceTeam.value && sourceTeamId.value && selectedPlayerId.value
 })
 
+const pendingTransfersCount = computed(() => overview.value?.requests?.filter(
+  (request) => request.status === 'PENDING'
+).length || 0)
+
+const approvedTransfersCount = computed(() => overview.value?.requests?.filter(
+  (request) => request.status === 'APPROVED'
+).length || 0)
+
+const transferWindowDescription = computed(() => {
+  if (!overview.value) return ''
+  const period = overview.value.transferWindowStartDate && overview.value.transferWindowEndDate
+    ? `Период: ${formatDateOnly(overview.value.transferWindowStartDate)} — ${formatDateOnly(overview.value.transferWindowEndDate)}.`
+    : 'Период трансферного окна не задан.'
+  return overview.value.transferWindowOpen
+    ? `${period} Новые заявки можно создавать.`
+    : `${period} Создание новых заявок сейчас недоступно.`
+})
+
+const selectedSourceTeam = computed(() => availableSourceTeams.value.find(
+  (team) => String(team.id) === String(sourceTeamId.value)
+) || null)
+
+const selectedTargetTeam = computed(() => availableTargetTeams.value.find(
+  (team) => String(team.id) === String(resolvedTargetTeamId.value)
+) || null)
+
+const selectedTransferPlayer = computed(() => candidates.value.find(
+  (player) => String(player.id) === String(selectedPlayerId.value)
+) || null)
+
+const transferDraftLabel = computed(() => {
+  if (!selectedSourceTeam.value && !selectedTargetTeam.value) return 'Заполните направление и выберите игрока'
+  const playerName = selectedTransferPlayer.value?.fullName || 'Игрок не выбран'
+  const fromTeam = selectedSourceTeam.value?.name || 'Исходная команда'
+  const toTeam = selectedTargetTeam.value?.name || overview.value?.teamName || 'Команда назначения'
+  return `${playerName}: ${fromTeam} → ${toTeam}`
+})
+
 watchEffect(() => {
   if (canManageTransfers.value) {
     return
@@ -310,6 +320,13 @@ watch(selectedSeasonId, async (seasonId) => {
   await loadOverview(seasonId, 0)
 })
 
+watch(() => route.query.season, (seasonId) => {
+  const requestedSeasonId = String(seasonId || '')
+  if (requestedSeasonId && teamSeasons.value.some((season) => String(season.id) === requestedSeasonId)) {
+    selectedSeasonId.value = requestedSeasonId
+  }
+})
+
 watch([sourceTeamId, resolvedTargetTeamId], async ([teamId, currentTargetTeamId]) => {
   selectedPlayerId.value = ''
   candidates.value = []
@@ -331,6 +348,10 @@ async function loadSeasons() {
       if (!stillExists) {
         selectedSeasonId.value = ''
       }
+    }
+    const requestedSeasonId = String(route.query.season || '')
+    if (!selectedSeasonId.value && teamSeasons.value.some((season) => String(season.id) === requestedSeasonId)) {
+      selectedSeasonId.value = requestedSeasonId
     }
   } catch (error) {
     pageError.value = error.message || 'Не удалось загрузить сезоны.'
@@ -754,5 +775,347 @@ function formatDateOnly(value) {
   .pagination-bar > * {
     width: 100%;
   }
+}
+
+.transfer-control-card,
+.transfer-journal-card {
+  display: grid;
+  gap: 18px;
+}
+
+.transfer-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid rgba(124, 163, 255, .14);
+}
+
+.transfer-page-header .section-title,
+.transfer-page-header .muted-text { margin: 0; }
+.transfer-page-header .section-title { margin-top: 5px; }
+.transfer-page-header .muted-text { margin-top: 7px; }
+
+.transfer-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.transfer-context-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(124, 163, 255, .17);
+  border-radius: 14px;
+  background: rgba(7, 13, 32, .38);
+}
+
+.transfer-step-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(124, 163, 255, .14);
+}
+
+.transfer-step-heading > div { min-width: 0; }
+.transfer-step-heading h3,
+.transfer-step-heading p { margin: 0; }
+.transfer-step-heading h3 { font-size: .96rem; }
+.transfer-step-heading p { margin-top: 4px; color: var(--muted); font-size: .76rem; }
+
+.transfer-context-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, .72fr) minmax(0, 1.28fr);
+  gap: 14px;
+  align-items: end;
+}
+
+.transfer-season-field {
+  display: grid;
+  gap: 8px;
+}
+
+.transfer-season-field > span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
+}
+
+.transfer-context-metrics,
+.transfer-journal-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid rgba(124, 163, 255, .14);
+  border-radius: 10px;
+  background: rgba(124, 163, 255, .035);
+}
+
+.transfer-context-metrics > div,
+.transfer-journal-summary > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 11px 13px;
+  border-right: 1px solid rgba(124, 163, 255, .12);
+}
+
+.transfer-context-metrics > div:last-child,
+.transfer-journal-summary > div:last-child { border-right: 0; }
+.transfer-context-metrics small,
+.transfer-journal-summary small { color: var(--muted); font-size: .66rem; }
+.transfer-context-metrics strong,
+.transfer-journal-summary strong { overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+.transfer-context-metrics .is-open strong { color: var(--brand); }
+.transfer-context-metrics .is-closed strong { color: #ff8da2; }
+
+.transfer-context-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(124, 163, 255, .14);
+}
+
+.transfer-context-footer p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.transfer-journal-heading .admin-step-count { margin-left: auto; }
+.transfer-journal-summary { margin-top: -2px; }
+.transfer-journal-summary strong { color: var(--text); font-size: 1rem; }
+
+.transfer-journal {
+  min-width: 0;
+}
+
+.transfer-journal-columns,
+.transfer-journal-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.05fr) minmax(250px, 1.5fr) minmax(130px, .75fr) minmax(165px, .9fr) minmax(260px, 1.25fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.transfer-journal-columns {
+  padding: 0 13px 8px;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.transfer-journal-list {
+  display: grid;
+  gap: 8px;
+}
+
+.transfer-journal-row {
+  padding: 13px;
+  border: 1px solid rgba(124, 163, 255, .15);
+  border-radius: 12px;
+  background: rgba(7, 13, 32, .34);
+}
+
+.transfer-journal-row small {
+  display: none;
+  color: var(--muted);
+  font-size: .64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.transfer-player-cell,
+.transfer-date-cell,
+.transfer-status-cell {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.transfer-player-cell strong,
+.transfer-player-cell > span,
+.transfer-date-cell strong,
+.transfer-date-cell > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-player-cell strong { font-size: .78rem; }
+.transfer-player-cell > span,
+.transfer-date-cell > span { color: var(--muted); font-size: .67rem; }
+.transfer-date-cell strong { font-size: .74rem; }
+
+.transfer-route-cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.transfer-route-cell > span,
+.transfer-route-cell > strong {
+  overflow: hidden;
+  font-size: .74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transfer-route-cell > span { color: var(--muted); }
+.transfer-route-cell > b { color: var(--brand); font-size: .85rem; }
+.transfer-status-cell .team-rep-season-chip { justify-self: start; max-width: 100%; }
+
+.transfer-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.transfer-decision {
+  min-height: 32px;
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: .66rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.transfer-decision:disabled { opacity: .55; cursor: wait; }
+.transfer-decision-approve { border-color: rgba(97, 232, 162, .35); background: rgba(97, 232, 162, .13); color: var(--brand); }
+.transfer-decision-reject { border-color: rgba(255, 177, 79, .35); background: rgba(255, 177, 79, .1); color: #ffb86a; }
+.transfer-decision-revoke { border-color: rgba(227, 91, 116, .36); background: rgba(227, 91, 116, .11); color: #ff8da2; }
+.transfer-no-actions { color: var(--muted); font-size: .68rem; }
+
+.transfer-create-modal {
+  width: min(880px, calc(100vw - 32px));
+  max-width: 880px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.transfer-create-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(124, 163, 255, .14);
+}
+
+.transfer-create-header .section-title,
+.transfer-create-header .muted-text { margin: 0; }
+.transfer-create-header .section-title { margin-top: 4px; }
+.transfer-create-header .muted-text { margin-top: 5px; }
+
+.transfer-create-flow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.transfer-create-step {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(124, 163, 255, .15);
+  border-radius: 11px;
+  background: rgba(7, 13, 32, .38);
+}
+
+.transfer-create-step-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.transfer-create-step-label > b {
+  color: var(--brand);
+  font-size: .68rem;
+}
+
+.transfer-create-step-label > span {
+  display: grid;
+  gap: 3px;
+}
+
+.transfer-create-step-label strong { font-size: .76rem; }
+.transfer-create-step-label small { color: var(--muted); font-size: .66rem; }
+.transfer-create-step textarea { width: 100%; min-height: 82px; }
+
+.transfer-create-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(124, 163, 255, .15);
+  border-radius: 11px;
+  background: rgba(7, 13, 32, .38);
+}
+
+.transfer-create-summary.is-ready { border-color: rgba(97, 232, 162, .3); background: rgba(97, 232, 162, .055); }
+.transfer-create-summary > div { display: grid; gap: 4px; min-width: 0; }
+.transfer-create-summary small { color: var(--muted); font-size: .66rem; }
+.transfer-create-summary strong { overflow: hidden; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.transfer-create-warning {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  border: 1px solid rgba(255, 177, 79, .24);
+  border-radius: 9px;
+  background: rgba(255, 177, 79, .07);
+  color: #ffc17a;
+  font-size: .7rem;
+}
+
+@media (max-width: 1080px) {
+  .transfer-journal-columns { display: none; }
+  .transfer-journal-row { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .transfer-journal-row small { display: block; }
+  .transfer-route-cell { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .transfer-route-cell > small { grid-column: 1 / -1; }
+  .transfer-row-actions { align-items: center; grid-column: 1 / -1; padding-top: 10px; border-top: 1px solid rgba(124, 163, 255, .12); }
+  .transfer-row-actions > small { width: 100%; }
+}
+
+@media (max-width: 760px) {
+  .transfer-page-header,
+  .transfer-context-footer,
+  .transfer-create-header,
+  .transfer-create-summary { align-items: stretch; flex-direction: column; }
+  .transfer-header-actions { justify-content: flex-start; }
+  .transfer-context-layout,
+  .transfer-create-flow { grid-template-columns: 1fr; }
+  .transfer-context-metrics,
+  .transfer-journal-summary { grid-template-columns: 1fr; }
+  .transfer-context-metrics > div,
+  .transfer-journal-summary > div { border-right: 0; border-bottom: 1px solid rgba(124, 163, 255, .12); }
+  .transfer-context-metrics > div:last-child,
+  .transfer-journal-summary > div:last-child { border-bottom: 0; }
+  .transfer-context-footer .btn-primary,
+  .transfer-create-summary .btn-primary { width: 100%; }
+}
+
+@media (max-width: 560px) {
+  .transfer-journal-row { grid-template-columns: 1fr; }
+  .transfer-row-actions { grid-column: 1; }
+  .transfer-decision { flex: 1 1 120px; }
+  .transfer-route-cell > span,
+  .transfer-route-cell > strong { white-space: normal; }
 }
 </style>

@@ -35,12 +35,14 @@ public class NotificationEventService {
     private final HttpClient httpClient;
     private final boolean mailerTriggerEnabled;
     private final URI mailerTriggerUri;
+    private final String publicWebUrl;
 
     public NotificationEventService(
         JdbcTemplate jdbcTemplate,
         ObjectMapper objectMapper,
         @Value("${mailer.trigger.enabled:true}") boolean mailerTriggerEnabled,
-        @Value("${mailer.trigger.url:http://127.0.0.1:8090/internal/notifications/process}") String mailerTriggerUrl
+        @Value("${mailer.trigger.url:http://127.0.0.1:8090/internal/notifications/process}") String mailerTriggerUrl,
+        @Value("${app.public-web-url:http://127.0.0.1:5173}") String publicWebUrl
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
@@ -49,6 +51,7 @@ public class NotificationEventService {
             .build();
         this.mailerTriggerEnabled = mailerTriggerEnabled;
         this.mailerTriggerUri = URI.create(mailerTriggerUrl);
+        this.publicWebUrl = publicWebUrl.replaceAll("/+$", "");
     }
 
     public Long enqueueUserRegistered(AppUser user) {
@@ -168,6 +171,23 @@ public class NotificationEventService {
             "SEASON_APPLICATION_REJECTED", representativeUser.getId(), payload, representativeUser.getId(),
             eventVersionKey("SEASON_APPLICATION_REJECTED", applicationId, representativeUser.getId(), decisionAt), true
         );
+    }
+
+    public Long enqueueSiteNotificationEmail(
+        String eventType,
+        AppUser recipient,
+        Map<String, Object> eventPayload,
+        String actionUrl,
+        Long sourceId,
+        Long createdByUserId
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>(eventPayload == null ? Map.of() : eventPayload);
+        payload.put("recipientName", recipient.getName());
+        payload.put("recipientEmail", recipient.getEmail());
+        payload.put("siteUrl", publicWebUrl);
+        payload.put("actionUrl", publicWebUrl + (actionUrl == null || actionUrl.isBlank() ? "/" : actionUrl));
+        String deduplicationKey = eventType + ":" + sourceId + ":" + recipient.getId();
+        return enqueueEvent(eventType, recipient.getId(), payload, createdByUserId, deduplicationKey, true);
     }
 
     private Long enqueueEvent(

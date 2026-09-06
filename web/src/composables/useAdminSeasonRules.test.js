@@ -2,6 +2,8 @@ import { reactive, ref } from 'vue'
 import { describe, expect, it } from 'vitest'
 import {
   calculateRegularToursCount,
+  RANKING_RULE_PRESETS,
+  TIE_BREAKER_RULE_OPTIONS,
   useAdminSeasonRules,
 } from './useAdminSeasonRules'
 
@@ -83,5 +85,20 @@ describe('useAdminSeasonRules', () => {
       .not.toContain('GOALS_FOR')
     expect(rules.availableTieBreakerRuleOptions(0).map((option) => option.value))
       .toContain('GOAL_DIFFERENCE')
+  })
+
+  it('offers expanded unique criteria and ready-to-use presets', () => {
+    expect(TIE_BREAKER_RULE_OPTIONS.map((option) => option.value)).toEqual([
+      'HEAD_TO_HEAD',
+      'WINS',
+      'GOAL_DIFFERENCE',
+      'GOALS_FOR',
+      'GOALS_AGAINST',
+      'AWAY_WINS',
+      'AWAY_GOALS',
+      'DISCIPLINARY_POINTS',
+    ])
+    expect(RANKING_RULE_PRESETS.find((preset) => preset.value === 'extended')?.rules)
+      .toContain('DISCIPLINARY_POINTS')
   })
 })

@@ -5,6 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 
 import java.time.LocalDate;
@@ -35,6 +37,10 @@ public class Player {
 
     @Column(name = "is_goalkeeper", nullable = false)
     private boolean goalkeeper;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "position", length = 24)
+    private PlayerPosition position;
 
     @Column(nullable = false)
     private int goals;
@@ -78,7 +84,17 @@ public class Player {
     public void setSeasonId(Long seasonId) { this.seasonId = seasonId; }
 
     public boolean isGoalkeeper() { return goalkeeper; }
-    public void setGoalkeeper(boolean goalkeeper) { this.goalkeeper = goalkeeper; }
+    public void setGoalkeeper(boolean goalkeeper) {
+        this.goalkeeper = goalkeeper;
+        if (goalkeeper && position == null) position = PlayerPosition.GOALKEEPER;
+        if (!goalkeeper && position == PlayerPosition.GOALKEEPER) position = null;
+    }
+
+    public PlayerPosition getPosition() { return position; }
+    public void setPosition(PlayerPosition position) {
+        this.position = position;
+        this.goalkeeper = position == PlayerPosition.GOALKEEPER;
+    }
 
     public int getGoals() { return goals; }
     public void setGoals(int goals) { this.goals = goals; }

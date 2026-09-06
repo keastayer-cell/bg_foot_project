@@ -1,17 +1,25 @@
 <template>
   <article class="card admin-panel competition-panel">
-    <div class="admin-panel-head">
+    <header class="admin-panel-head">
+      <p class="admin-panel-kicker">Турнир</p>
       <h3 class="section-title">Соревнования сезона</h3>
       <p class="muted-text">Сезон — контейнер. Чемпионат и Кубки создаются внутри него отдельными соревнованиями.</p>
-    </div>
+    </header>
 
-    <label class="competition-season-picker">
-      Сезон
-      <select v-model="seasonId">
-        <option value="">— выберите сезон —</option>
-        <option v-for="season in seasons" :key="season.id" :value="String(season.id)">{{ season.name }}</option>
-      </select>
-    </label>
+    <section class="admin-step-section competition-context-section">
+      <div class="admin-step-heading">
+        <span class="admin-step-number">1</span>
+        <div><h4>Выберите сезон</h4><p>Список чемпионатов и кубков формируется в контексте одного сезона.</p></div>
+        <span class="admin-step-count">{{ seasons.length }}</span>
+      </div>
+      <label class="competition-season-picker">
+        Сезон
+        <select v-model="seasonId">
+          <option value="">— выберите сезон —</option>
+          <option v-for="season in seasons" :key="season.id" :value="String(season.id)">{{ season.name }}</option>
+        </select>
+      </label>
+    </section>
 
     <UiState v-if="errorText" tone="error" title="Операция не выполнена" :message="errorText" />
     <p v-if="successText" class="success-text">{{ successText }}</p>
@@ -100,9 +108,11 @@
               <AdminSeasonRankingRules
                 :available-options="availableChampionshipRuleOptions"
                 :form="championshipForm"
+                :presets="RANKING_RULE_PRESETS"
                 :rule-options="TIE_BREAKER_RULE_OPTIONS"
                 :summary="championshipRankingRulesSummary"
                 @add="addChampionshipRankingRule"
+                @apply-preset="applyChampionshipRankingPreset"
                 @move="moveChampionshipRankingRule"
                 @remove="removeChampionshipRankingRule"
               />
@@ -258,7 +268,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { createCompetitionsApi } from '../../api/competitions'
-import { TIE_BREAKER_RULE_OPTIONS } from '../../composables/useAdminSeasonRules'
+import { RANKING_RULE_PRESETS, TIE_BREAKER_RULE_OPTIONS } from '../../composables/useAdminSeasonRules'
 import AdminSeasonRankingRules from './AdminSeasonRankingRules.vue'
 import UiState from '../UiState.vue'
 
@@ -345,6 +355,9 @@ function addChampionshipRankingRule() {
   const used = new Set(normalizedChampionshipRankingRules())
   const next = TIE_BREAKER_RULE_OPTIONS.find((option) => !used.has(option.value))
   if (next) championshipForm.rankingRules.push(next.value)
+}
+function applyChampionshipRankingPreset(rules) {
+  championshipForm.rankingRules = [...rules]
 }
 function removeChampionshipRankingRule(index) { championshipForm.rankingRules.splice(index, 1) }
 function moveChampionshipRankingRule(index, offset) {

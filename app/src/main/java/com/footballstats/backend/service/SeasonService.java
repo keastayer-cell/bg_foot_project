@@ -40,6 +40,7 @@ public class SeasonService {
     private final SeasonStandingsService seasonStandingsService;
     private final ObjectMapper objectMapper;
     private final CompetitionService competitionService;
+    private final SiteNotificationService siteNotificationService;
 
     public SeasonService(
         RefereeRepository refereeRepository,
@@ -53,7 +54,8 @@ public class SeasonService {
         SeasonPlayoffService seasonPlayoffService,
         SeasonStandingsService seasonStandingsService,
         ObjectMapper objectMapper,
-        CompetitionService competitionService
+        CompetitionService competitionService,
+        SiteNotificationService siteNotificationService
     ) {
         this.refereeRepository = refereeRepository;
         this.seasonRepository = seasonRepository;
@@ -67,6 +69,7 @@ public class SeasonService {
         this.seasonStandingsService = seasonStandingsService;
         this.objectMapper = objectMapper;
         this.competitionService = competitionService;
+        this.siteNotificationService = siteNotificationService;
     }
 
     @Transactional(readOnly = true)
@@ -116,6 +119,7 @@ public class SeasonService {
         updateStandingsConfig(savedSeason.getId(), rankingRules, yellowCardsForSuspension, yellowSuspensionMatches, redCardsForSuspension, actorUserId);
         seasonPlayoffService.syncSeasonPlayoffConfig(savedSeason.getId(), savedSeason.isPlayoffEnabled(), savedSeason.getPlayoffTeamCount(), Boolean.TRUE.equals(thirdPlaceEnabled), actorUserId);
         replaceSeasonReferees(savedSeason, refereeIds, actorUserId);
+        siteNotificationService.notifySeasonStatusChanged(savedSeason, null, actorUserId);
         return savedSeason;
     }
 
@@ -141,6 +145,7 @@ public class SeasonService {
         Long actorUserId
     ) {
         Season season = getExistingSeason(seasonId);
+        SeasonStatus previousStatus = season.getStatus();
         String normalizedName = normalizeName(rawName);
         validateUniqueName(normalizedName, seasonId);
 
@@ -167,6 +172,7 @@ public class SeasonService {
             seasonStructureService.syncRegularToursForSeason(savedSeason, actorUserId);
         }
         seasonStandingsService.recalculateSeasonStandings(seasonId, actorUserId);
+        siteNotificationService.notifySeasonStatusChanged(savedSeason, previousStatus, actorUserId);
         return savedSeason;
     }
 

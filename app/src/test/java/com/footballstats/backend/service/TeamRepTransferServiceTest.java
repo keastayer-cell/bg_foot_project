@@ -42,6 +42,7 @@ class TeamRepTransferServiceTest {
     @Mock private SeasonTransferRequestRepository seasonTransferRequestRepository;
     @Mock private AppUserRepository appUserRepository;
     @Mock private MediaAssetService mediaAssetService;
+    @Mock private SiteNotificationService siteNotificationService;
 
     private TeamRepTransferService service;
 
@@ -56,7 +57,8 @@ class TeamRepTransferServiceTest {
             seasonPlayerService,
             seasonTransferRequestRepository,
             appUserRepository,
-            mediaAssetService
+            mediaAssetService,
+            siteNotificationService
         );
     }
 
@@ -97,6 +99,7 @@ class TeamRepTransferServiceTest {
         assertThat(result.privilegedAccess()).isTrue();
         verify(seasonPlayerService).transferSeasonPlayer(1L, 4L, 2L, 3L, 99L);
         verify(seasonTransferRequestRepository).save(request);
+        verify(siteNotificationService).notifyTransferDecision(request, 99L);
     }
 
     private Team team(Long id, String name) {

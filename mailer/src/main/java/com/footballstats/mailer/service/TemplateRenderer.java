@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 @Service
 public class TemplateRenderer {
 
-    private static final Pattern UNRESOLVED_MACRO_PATTERN = Pattern.compile("\\$\\{[^}]+}");
+    private static final Pattern UNRESOLVED_MACRO_PATTERN = Pattern.compile("(?:\\$\\{[^}]+}|\\{\\{[^}]+}})");
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
 
@@ -55,7 +55,9 @@ public class TemplateRenderer {
             if (escapeHtml) {
                 value = escapeHtml(value);
             }
-            rendered = rendered.replace("${" + entry.getKey() + "}", value);
+            rendered = rendered
+                .replace("${" + entry.getKey() + "}", value)
+                .replace("{{" + entry.getKey() + "}}", value);
         }
 
         if (UNRESOLVED_MACRO_PATTERN.matcher(rendered).find()) {

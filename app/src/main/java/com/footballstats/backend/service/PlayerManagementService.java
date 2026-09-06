@@ -2,6 +2,7 @@ package com.footballstats.backend.service;
 
 import com.footballstats.backend.domain.Player;
 import com.footballstats.backend.domain.PlayerTeam;
+import com.footballstats.backend.domain.PlayerPosition;
 import com.footballstats.backend.repository.PlayerRepository;
 import com.footballstats.backend.repository.PlayerTeamRepository;
 import com.footballstats.backend.repository.TeamRepository;
@@ -174,7 +175,7 @@ public class PlayerManagementService {
         player.setFullName(command.fullName().strip());
         player.setBirthDate(command.birthDate());
         player.setResidence(normalizeOptional(command.residence()));
-        player.setGoalkeeper(command.isGoalkeeper());
+        player.setPosition(command.position());
         player.setUpdatedByUserId(actorUserId);
         player.setUpdatedAt(OffsetDateTime.now());
     }
@@ -198,7 +199,7 @@ public class PlayerManagementService {
             seasonAssignment == null ? null : seasonAssignment.teamName(),
             seasonAssignment == null ? null : seasonAssignment.seasonId(),
             seasonAssignment == null ? null : seasonAssignment.seasonName(),
-            photoDataUrl, player.getBirthDate(), player.getResidence(), player.getSeasonId(), player.isGoalkeeper(),
+            photoDataUrl, player.getBirthDate(), player.getResidence(), player.getSeasonId(), player.isGoalkeeper(), player.getPosition(),
             player.getGoals(), player.getYellowCards(), player.getRedCards(), player.isActive(),
             player.getCreatedByUserId(), player.getUpdatedByUserId(), player.getCreatedAt(), player.getUpdatedAt()
         );
@@ -214,12 +215,12 @@ public class PlayerManagementService {
         Integer redCards, int pageNum, int pageSize
     ) {}
 
-    public record PlayerUpsert(String fullName, LocalDate birthDate, String residence, boolean isGoalkeeper, String photoDataUrl) {}
+    public record PlayerUpsert(String fullName, LocalDate birthDate, String residence, PlayerPosition position, String photoDataUrl) {}
 
     public record PlayerData(
         Long id, String fullName, Long currentTeamId, String currentTeamName,
         Long activeSeasonTeamId, String activeSeasonTeamName, Long activeSeasonId, String activeSeasonName,
-        String photoDataUrl, LocalDate birthDate, String residence, Long seasonId, boolean isGoalkeeper,
+        String photoDataUrl, LocalDate birthDate, String residence, Long seasonId, boolean isGoalkeeper, PlayerPosition position,
         int goals, int yellowCards, int redCards, boolean active, Long createdByUserId, Long updatedByUserId,
         OffsetDateTime createdAt, OffsetDateTime updatedAt
     ) {}

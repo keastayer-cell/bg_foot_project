@@ -43,6 +43,38 @@ describe('useAdminTours', () => {
     expect(result.availableAwayTeams.value.map((team) => team.id)).toEqual([3])
   })
 
+  it('removes a home team when it has no available opponent', () => {
+    const { result } = createTours()
+    result.seasonId.value = '3'
+    result.teams.value = [
+      { id: 1, name: 'A' },
+      { id: 2, name: 'B' },
+      { id: 3, name: 'C' },
+      { id: 4, name: 'D' },
+    ]
+    result.seasonMatches.value = [
+      { homeTeamId: 1, awayTeamId: 2 },
+      { homeTeamId: 1, awayTeamId: 3 },
+      { homeTeamId: 1, awayTeamId: 4 },
+    ]
+
+    expect(result.availableHomeTeams.value.map((team) => team.id)).toEqual([2, 3, 4])
+  })
+
+  it('explains when every season matchup is already scheduled', () => {
+    const { result } = createTours()
+    result.seasonId.value = '3'
+    result.teams.value = [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 3, name: 'C' }]
+    result.seasonMatches.value = [
+      { homeTeamId: 1, awayTeamId: 2 },
+      { homeTeamId: 1, awayTeamId: 3 },
+      { homeTeamId: 2, awayTeamId: 3 },
+    ]
+
+    expect(result.availableHomeTeams.value).toEqual([])
+    expect(result.matchAvailabilityMessage.value).toContain('каждая пара команд уже включена в календарь')
+  })
+
   it('loads season matches with one request and ignores non-regular tours', async () => {
     const request = vi.fn(async (url) => {
       if (url.startsWith('/api/tours?')) {

@@ -32,6 +32,7 @@ public class TourService {
     private final SeasonTeamRepository seasonTeamRepository;
     private final MatchProtocolRepository matchProtocolRepository;
     private final SeasonStandingsService seasonStandingsService;
+    private final SiteNotificationService siteNotificationService;
 
     public TourService(
         TourRepository tourRepository,
@@ -40,7 +41,8 @@ public class TourService {
         TeamRepository teamRepository,
         SeasonTeamRepository seasonTeamRepository,
         MatchProtocolRepository matchProtocolRepository,
-        SeasonStandingsService seasonStandingsService
+        SeasonStandingsService seasonStandingsService,
+        SiteNotificationService siteNotificationService
     ) {
         this.tourRepository = tourRepository;
         this.tourMatchRepository = tourMatchRepository;
@@ -49,6 +51,7 @@ public class TourService {
         this.seasonTeamRepository = seasonTeamRepository;
         this.matchProtocolRepository = matchProtocolRepository;
         this.seasonStandingsService = seasonStandingsService;
+        this.siteNotificationService = siteNotificationService;
     }
 
     @Transactional(readOnly = true)
@@ -99,6 +102,7 @@ public class TourService {
         tour.setUpdatedAt(OffsetDateTime.now());
         tourRepository.save(tour);
         seasonStandingsService.recalculateSeasonStandings(tour.getSeason().getId(), actorUserId);
+        siteNotificationService.notifyTourPublished(tour, actorUserId);
         return getExistingDetailedTour(tourId);
     }
 

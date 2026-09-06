@@ -48,6 +48,7 @@ public class SeasonApplicationService {
     private final SeasonApplicationPlayerRepository seasonApplicationPlayerRepository;
     private final MediaAssetService mediaAssetService;
     private final NotificationEventService notificationEventService;
+    private final SiteNotificationService siteNotificationService;
 
     public SeasonApplicationService(
         UserTeamScopeRepository userTeamScopeRepository,
@@ -60,7 +61,8 @@ public class SeasonApplicationService {
         SeasonApplicationRepository seasonApplicationRepository,
         SeasonApplicationPlayerRepository seasonApplicationPlayerRepository,
         MediaAssetService mediaAssetService,
-        NotificationEventService notificationEventService
+        NotificationEventService notificationEventService,
+        SiteNotificationService siteNotificationService
     ) {
         this.userTeamScopeRepository = userTeamScopeRepository;
         this.seasonPlayerService = seasonPlayerService;
@@ -73,6 +75,7 @@ public class SeasonApplicationService {
         this.seasonApplicationPlayerRepository = seasonApplicationPlayerRepository;
         this.mediaAssetService = mediaAssetService;
         this.notificationEventService = notificationEventService;
+        this.siteNotificationService = siteNotificationService;
     }
 
     @Transactional(readOnly = true)
@@ -355,9 +358,11 @@ public class SeasonApplicationService {
     }
 
     private void notifyReferees(SeasonApplication application) {
+        List<AppUser> recipients = new java.util.ArrayList<>();
         for (UserRole role : userRoleRepository.findByRole_CodeAndActiveTrue(RoleCode.REFEREE)) {
             AppUser user = role.getUser();
             if (user != null && user.getEmail() != null && !user.getEmail().isBlank()) {
+                recipients.add(user);
                 notificationEventService.enqueueSeasonApplicationSubmittedToReferee(
                     user,
                     application.getTeam(),
@@ -367,6 +372,7 @@ public class SeasonApplicationService {
                 );
             }
         }
+        if (!recipients.isEmpty()) siteNotificationService.notifySeasonApplicationSubmitted(application, recipients);
     }
 
     private void notifyRepresentative(SeasonApplication application, SeasonApplicationStatus status, String decisionComment) {
@@ -374,6 +380,8 @@ public class SeasonApplicationService {
         if (representative == null || representative.getEmail() == null || representative.getEmail().isBlank()) {
             return;
         }
+
+        siteNotificationService.notifySeasonApplicationDecision(application, representative, decisionComment);
 
         if (status == SeasonApplicationStatus.APPROVED) {
             notificationEventService.enqueueSeasonApplicationApproved(

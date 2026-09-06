@@ -3,10 +3,45 @@ import { computed, unref } from 'vue'
 export const PLAYOFF_TEAM_OPTIONS = [4, 8, 16]
 
 export const TIE_BREAKER_RULE_OPTIONS = [
-  { value: 'GOAL_DIFFERENCE', label: 'Разница мячей' },
-  { value: 'GOALS_FOR', label: 'Забитые мячи' },
-  { value: 'WINS', label: 'Количество побед' },
-  { value: 'HEAD_TO_HEAD', label: 'Личные встречи' },
+  {
+    value: 'HEAD_TO_HEAD',
+    label: 'Личные встречи',
+    direction: 'мини-таблица',
+    description: 'Очки → победы → разница → голы только в матчах равных команд.',
+  },
+  { value: 'WINS', label: 'Количество побед', direction: 'больше — выше', description: 'Все победы команды в чемпионате.' },
+  { value: 'GOAL_DIFFERENCE', label: 'Разница мячей', direction: 'больше — выше', description: 'Забитые мячи минус пропущенные.' },
+  { value: 'GOALS_FOR', label: 'Забитые мячи', direction: 'больше — выше', description: 'Общее количество забитых мячей.' },
+  { value: 'GOALS_AGAINST', label: 'Пропущенные мячи', direction: 'меньше — выше', description: 'Команда с меньшим числом пропущенных выше.' },
+  { value: 'AWAY_WINS', label: 'Победы в гостях', direction: 'больше — выше', description: 'Количество побед на поле соперника.' },
+  { value: 'AWAY_GOALS', label: 'Голы в гостях', direction: 'больше — выше', description: 'Количество мячей, забитых в гостевых матчах.' },
+  {
+    value: 'DISCIPLINARY_POINTS',
+    label: 'Дисциплинарные очки',
+    direction: 'меньше — выше',
+    description: 'Жёлтая карточка — 1, красная или вторая жёлтая — 3.',
+  },
+]
+
+export const RANKING_RULE_PRESETS = [
+  {
+    value: 'classic',
+    label: 'Классический',
+    description: 'Разница и забитые мячи',
+    rules: ['GOAL_DIFFERENCE', 'GOALS_FOR'],
+  },
+  {
+    value: 'head-to-head',
+    label: 'С личными встречами',
+    description: 'Очные матчи имеют первый приоритет',
+    rules: ['HEAD_TO_HEAD', 'WINS', 'GOAL_DIFFERENCE', 'GOALS_FOR'],
+  },
+  {
+    value: 'extended',
+    label: 'Расширенный',
+    description: 'Все спортивные и дисциплинарные показатели',
+    rules: ['HEAD_TO_HEAD', 'WINS', 'GOAL_DIFFERENCE', 'GOALS_FOR', 'AWAY_WINS', 'AWAY_GOALS', 'DISCIPLINARY_POINTS'],
+  },
 ]
 
 export function calculateRegularToursCount(teamCount, roundsCount) {

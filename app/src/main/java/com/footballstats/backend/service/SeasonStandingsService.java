@@ -2,6 +2,8 @@ package com.footballstats.backend.service;
 
 import com.footballstats.backend.domain.MatchProtocol;
 import com.footballstats.backend.domain.MatchProtocolStatus;
+import com.footballstats.backend.domain.MatchEvent;
+import com.footballstats.backend.domain.MatchEventType;
 import com.footballstats.backend.domain.Season;
 import com.footballstats.backend.domain.SeasonStandingsConfig;
 import com.footballstats.backend.domain.SeasonStandingsRow;
@@ -10,6 +12,7 @@ import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.TourMatch;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.footballstats.backend.repository.SeasonRepository;
+import com.footballstats.backend.repository.MatchEventRepository;
 import com.footballstats.backend.repository.SeasonStandingsConfigRepository;
 import com.footballstats.backend.repository.SeasonStandingsRowRepository;
 import com.footballstats.backend.repository.SeasonTeamRepository;
@@ -34,6 +37,7 @@ public class SeasonStandingsService {
     private final SeasonRepository seasonRepository;
     private final SeasonTeamRepository seasonTeamRepository;
     private final TourMatchRepository tourMatchRepository;
+    private final MatchEventRepository matchEventRepository;
     private final SeasonStandingsConfigRepository seasonStandingsConfigRepository;
     private final SeasonStandingsRowRepository seasonStandingsRowRepository;
     private final ObjectMapper objectMapper;
@@ -42,6 +46,7 @@ public class SeasonStandingsService {
         SeasonRepository seasonRepository,
         SeasonTeamRepository seasonTeamRepository,
         TourMatchRepository tourMatchRepository,
+        MatchEventRepository matchEventRepository,
         SeasonStandingsConfigRepository seasonStandingsConfigRepository,
         SeasonStandingsRowRepository seasonStandingsRowRepository,
         ObjectMapper objectMapper
@@ -49,6 +54,7 @@ public class SeasonStandingsService {
         this.seasonRepository = seasonRepository;
         this.seasonTeamRepository = seasonTeamRepository;
         this.tourMatchRepository = tourMatchRepository;
+        this.matchEventRepository = matchEventRepository;
         this.seasonStandingsConfigRepository = seasonStandingsConfigRepository;
         this.seasonStandingsRowRepository = seasonStandingsRowRepository;
         this.objectMapper = objectMapper;
@@ -107,6 +113,7 @@ public class SeasonStandingsService {
 
             applyMatchResult(home, away, protocol.getHomeScore(), protocol.getAwayScore(), config);
             matchResults.add(new MatchResult(
+                match.getId(),
                 match.getHomeTeam().getId(),
                 match.getAwayTeam().getId(),
                 protocol.getHomeScore(),
@@ -115,6 +122,9 @@ public class SeasonStandingsService {
         }
 
         List<String> rankingRules = StandingsRankingRules.fromJson(config.getRankingRulesJson(), objectMapper);
+        if (rankingRules.contains(StandingsRankingRules.DISCIPLINARY_POINTS)) {
+            applyDisciplinaryPoints(seasonId, table, matchResults);
+        }
         List<StandingsAccumulator> sortedRows = sortByRules(new ArrayList<>(table.values()), rankingRules, matchResults, config);
 
         seasonStandingsRowRepository.deleteAllBySeason_Id(seasonId);
@@ -167,13 +177,13 @@ public class SeasonStandingsService {
             return group;
         }
 
-        Map<Long, Integer> headToHeadPoints = StandingsRankingRules.HEAD_TO_HEAD.equals(currentRule)
-            ? calculateHeadToHeadPoints(group, matchResults, config)
-            : Map.of();
+        if (StandingsRankingRules.HEAD_TO_HEAD.equals(currentRule)) {
+            return sortByHeadToHead(group, remainingRules, matchResults, config);
+        }
 
         Map<Integer, List<StandingsAccumulator>> buckets = new HashMap<>();
         for (StandingsAccumulator accumulator : group) {
-            int metric = resolveMetric(currentRule, accumulator, headToHeadPoints);
+            int metric = resolveMetric(currentRule, accumulator);
             buckets.computeIfAbsent(metric, ignored -> new ArrayList<>()).add(accumulator);
         }
 
@@ -187,8 +197,9 @@ public class SeasonStandingsService {
         return ranked;
     }
 
-    private Map<Long, Integer> calculateHeadToHeadPoints(
+    private List<StandingsAccumulator> sortByHeadToHead(
         List<StandingsAccumulator> group,
+        List<String> remainingRules,
         List<MatchResult> matchResults,
         SeasonStandingsConfig config
     ) {
@@ -197,9 +208,9 @@ public class SeasonStandingsService {
             teamIds.add(accumulator.team().getId());
         }
 
-        Map<Long, Integer> pointsByTeamId = new HashMap<>();
+        Map<Long, HeadToHeadAccumulator> miniTable = new HashMap<>();
         for (Long teamId : teamIds) {
-            pointsByTeamId.put(teamId, 0);
+            miniTable.put(teamId, new HeadToHeadAccumulator());
         }
 
         for (MatchResult matchResult : matchResults) {
@@ -207,30 +218,109 @@ public class SeasonStandingsService {
                 continue;
             }
 
+            HeadToHeadAccumulator home = miniTable.get(matchResult.homeTeamId());
+            HeadToHeadAccumulator away = miniTable.get(matchResult.awayTeamId());
+            home.goalsFor += matchResult.homeScore();
+            home.goalsAgainst += matchResult.awayScore();
+            away.goalsFor += matchResult.awayScore();
+            away.goalsAgainst += matchResult.homeScore();
             if (matchResult.homeScore() > matchResult.awayScore()) {
-                pointsByTeamId.computeIfPresent(matchResult.homeTeamId(), (ignored, value) -> value + config.getWinPoints());
-                pointsByTeamId.computeIfPresent(matchResult.awayTeamId(), (ignored, value) -> value + config.getLossPoints());
+                home.wins += 1;
+                home.points += config.getWinPoints();
+                away.points += config.getLossPoints();
             } else if (matchResult.homeScore() < matchResult.awayScore()) {
-                pointsByTeamId.computeIfPresent(matchResult.awayTeamId(), (ignored, value) -> value + config.getWinPoints());
-                pointsByTeamId.computeIfPresent(matchResult.homeTeamId(), (ignored, value) -> value + config.getLossPoints());
+                away.wins += 1;
+                away.points += config.getWinPoints();
+                home.points += config.getLossPoints();
             } else {
-                pointsByTeamId.computeIfPresent(matchResult.homeTeamId(), (ignored, value) -> value + config.getDrawPoints());
-                pointsByTeamId.computeIfPresent(matchResult.awayTeamId(), (ignored, value) -> value + config.getDrawPoints());
+                home.points += config.getDrawPoints();
+                away.points += config.getDrawPoints();
             }
         }
 
-        return pointsByTeamId;
+        return sortByHeadToHeadMetrics(group, 0, miniTable, remainingRules, matchResults, config);
     }
 
-    private int resolveMetric(String rule, StandingsAccumulator accumulator, Map<Long, Integer> headToHeadPoints) {
+    private List<StandingsAccumulator> sortByHeadToHeadMetrics(
+        List<StandingsAccumulator> group,
+        int metricIndex,
+        Map<Long, HeadToHeadAccumulator> miniTable,
+        List<String> remainingRules,
+        List<MatchResult> matchResults,
+        SeasonStandingsConfig config
+    ) {
+        if (group.size() <= 1) {
+            return group;
+        }
+        if (metricIndex >= 4) {
+            return sortByRules(group, remainingRules, matchResults, config);
+        }
+
+        Map<Integer, List<StandingsAccumulator>> buckets = new HashMap<>();
+        for (StandingsAccumulator accumulator : group) {
+            HeadToHeadAccumulator metric = miniTable.get(accumulator.team().getId());
+            int value = switch (metricIndex) {
+                case 0 -> metric.points;
+                case 1 -> metric.wins;
+                case 2 -> metric.goalDifference();
+                default -> metric.goalsFor;
+            };
+            buckets.computeIfAbsent(value, ignored -> new ArrayList<>()).add(accumulator);
+        }
+
+        List<Integer> orderedMetrics = new ArrayList<>(buckets.keySet());
+        orderedMetrics.sort((left, right) -> Integer.compare(right, left));
+        List<StandingsAccumulator> ranked = new ArrayList<>();
+        for (Integer metric : orderedMetrics) {
+            ranked.addAll(sortByHeadToHeadMetrics(
+                buckets.get(metric), metricIndex + 1, miniTable, remainingRules, matchResults, config
+            ));
+        }
+        return ranked;
+    }
+
+    private int resolveMetric(String rule, StandingsAccumulator accumulator) {
         return switch (rule) {
             case StandingsRankingRules.POINTS -> accumulator.points();
             case StandingsRankingRules.GOAL_DIFFERENCE -> accumulator.goalDifference();
             case StandingsRankingRules.GOALS_FOR -> accumulator.goalsFor();
             case StandingsRankingRules.WINS -> accumulator.wins();
-            case StandingsRankingRules.HEAD_TO_HEAD -> headToHeadPoints.getOrDefault(accumulator.team().getId(), 0);
+            case StandingsRankingRules.GOALS_AGAINST -> -accumulator.goalsAgainst();
+            case StandingsRankingRules.AWAY_WINS -> accumulator.awayWins();
+            case StandingsRankingRules.AWAY_GOALS -> accumulator.awayGoals();
+            case StandingsRankingRules.DISCIPLINARY_POINTS -> -accumulator.disciplinaryPoints();
             default -> 0;
         };
+    }
+
+    private void applyDisciplinaryPoints(
+        Long seasonId,
+        Map<Long, StandingsAccumulator> table,
+        List<MatchResult> matchResults
+    ) {
+        Set<Long> includedMatchIds = new LinkedHashSet<>();
+        for (MatchResult matchResult : matchResults) {
+            includedMatchIds.add(matchResult.matchId());
+        }
+        if (includedMatchIds.isEmpty()) {
+            return;
+        }
+
+        for (MatchEvent event : matchEventRepository.findAllDetailedBySeasonId(seasonId)) {
+            if (event.getMatch() == null || !includedMatchIds.contains(event.getMatch().getId()) || event.getTeam() == null) {
+                continue;
+            }
+            StandingsAccumulator accumulator = table.get(event.getTeam().getId());
+            if (accumulator == null) {
+                continue;
+            }
+            if (event.getEventType() == MatchEventType.YELLOW_CARD) {
+                accumulator.disciplinaryPoints += 1;
+            } else if (event.getEventType() == MatchEventType.RED_CARD
+                || event.getEventType() == MatchEventType.SECOND_YELLOW_RED) {
+                accumulator.disciplinaryPoints += 3;
+            }
+        }
     }
 
     private void applyMatchResult(
@@ -246,6 +336,7 @@ public class SeasonStandingsService {
         home.goalsAgainst += awayScore;
         away.goalsFor += awayScore;
         away.goalsAgainst += homeScore;
+        away.awayGoals += awayScore;
 
         if (homeScore > awayScore) {
             home.wins += 1;
@@ -257,6 +348,7 @@ public class SeasonStandingsService {
 
         if (homeScore < awayScore) {
             away.wins += 1;
+            away.awayWins += 1;
             home.losses += 1;
             away.points += config.getWinPoints();
             home.points += config.getLossPoints();
@@ -289,7 +381,18 @@ public class SeasonStandingsService {
 
     public record SeasonStandingsSnapshot(SeasonStandingsConfig config, List<SeasonStandingsRow> rows) {}
 
-    private record MatchResult(Long homeTeamId, Long awayTeamId, int homeScore, int awayScore) {}
+    private record MatchResult(Long matchId, Long homeTeamId, Long awayTeamId, int homeScore, int awayScore) {}
+
+    private static final class HeadToHeadAccumulator {
+        private int points;
+        private int wins;
+        private int goalsFor;
+        private int goalsAgainst;
+
+        private int goalDifference() {
+            return goalsFor - goalsAgainst;
+        }
+    }
 
     private static final class StandingsAccumulator {
         private final Team team;
@@ -300,6 +403,9 @@ public class SeasonStandingsService {
         private int goalsFor;
         private int goalsAgainst;
         private int points;
+        private int awayWins;
+        private int awayGoals;
+        private int disciplinaryPoints;
 
         private StandingsAccumulator(Team team) {
             this.team = team;
@@ -339,6 +445,18 @@ public class SeasonStandingsService {
 
         private int points() {
             return points;
+        }
+
+        private int awayWins() {
+            return awayWins;
+        }
+
+        private int awayGoals() {
+            return awayGoals;
+        }
+
+        private int disciplinaryPoints() {
+            return disciplinaryPoints;
         }
     }
 }

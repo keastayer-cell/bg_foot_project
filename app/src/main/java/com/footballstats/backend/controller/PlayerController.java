@@ -1,6 +1,7 @@
 package com.footballstats.backend.controller;
 
 import com.footballstats.backend.security.AppUserPrincipal;
+import com.footballstats.backend.domain.PlayerPosition;
 import com.footballstats.backend.service.AccessControlService;
 import com.footballstats.backend.service.PlayerManagementService;
 import com.footballstats.backend.service.PlayerManagementService.PlayerData;
@@ -146,11 +147,15 @@ public class PlayerController {
         LocalDate birthDate,
         @Size(max = 255, message = "Место жительства не должно превышать 255 символов.")
         String residence,
+        PlayerPosition position,
         boolean isGoalkeeper,
         String photoDataUrl
     ) {
         PlayerUpsert toCommand() {
-            return new PlayerUpsert(fullName, birthDate, residence, isGoalkeeper, photoDataUrl);
+            PlayerPosition resolvedPosition = position != null
+                ? position
+                : (isGoalkeeper ? PlayerPosition.GOALKEEPER : null);
+            return new PlayerUpsert(fullName, birthDate, residence, resolvedPosition, photoDataUrl);
         }
     }
 }

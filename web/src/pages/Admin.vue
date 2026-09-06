@@ -70,6 +70,10 @@
           @refresh-seasons="handleLeagueSeasonRefresh"
         />
 
+        <AdminNotificationsPanel
+          v-if="activeTab === 'notifications'"
+        />
+
         <AdminRolesPanel
           v-if="activeTab === 'roles'"
           v-model:search="rolesSearch"
@@ -164,6 +168,7 @@ import AdminCompetitionsPanel from '../components/admin/AdminCompetitionsPanel.v
 import AdminTeamsPanel from '../components/admin/AdminTeamsPanel.vue'
 import AdminToursPanel from '../components/admin/AdminToursPanel.vue'
 import AdminLeagueContent from '../components/AdminLeagueContent.vue'
+import AdminNotificationsPanel from '../components/admin/AdminNotificationsPanel.vue'
 
 const USERS_KEY = 'football_stats_admin_users_registry'
 
@@ -348,6 +353,7 @@ const {
 })
 const {
   availableAwayTeams,
+  availableHomeTeams,
   canCreateCupMatches,
   canSaveCupTieWinner,
   canDeleteTourMatch,
@@ -366,6 +372,7 @@ const {
   drawCupManual,
   drawCupRandom,
   matchForm,
+  matchAvailabilityMessage,
   matchLimitMessage: selectedTourMatchLimitMessage,
   matchProtocolStatusLabel,
   matches: tourMatchesList,
@@ -671,6 +678,7 @@ const teamPanel = reactive({
 
 const tourPanel = reactive({
   availableAwayTeams,
+  availableHomeTeams,
   canCreateCupMatches,
   canSaveCupTieWinner,
   canDeleteTourMatch,
@@ -690,6 +698,7 @@ const tourPanel = reactive({
   drawCupRandom,
   formatDateTime,
   matchForm,
+  matchAvailabilityMessage,
   matchLimitMessage: selectedTourMatchLimitMessage,
   matchProtocolStatusLabel,
   matches: tourMatchesList,

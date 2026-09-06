@@ -51,6 +51,7 @@ public class TeamRepTransferService {
     private final SeasonTransferRequestRepository seasonTransferRequestRepository;
     private final AppUserRepository appUserRepository;
     private final MediaAssetService mediaAssetService;
+    private final SiteNotificationService siteNotificationService;
 
     public TeamRepTransferService(
         UserTeamScopeRepository userTeamScopeRepository,
@@ -61,7 +62,8 @@ public class TeamRepTransferService {
         SeasonPlayerService seasonPlayerService,
         SeasonTransferRequestRepository seasonTransferRequestRepository,
         AppUserRepository appUserRepository,
-        MediaAssetService mediaAssetService
+        MediaAssetService mediaAssetService,
+        SiteNotificationService siteNotificationService
     ) {
         this.userTeamScopeRepository = userTeamScopeRepository;
         this.teamRepository = teamRepository;
@@ -72,6 +74,7 @@ public class TeamRepTransferService {
         this.seasonTransferRequestRepository = seasonTransferRequestRepository;
         this.appUserRepository = appUserRepository;
         this.mediaAssetService = mediaAssetService;
+        this.siteNotificationService = siteNotificationService;
     }
 
     @Transactional(readOnly = true)
@@ -218,6 +221,7 @@ public class TeamRepTransferService {
         request.setRequestedAt(OffsetDateTime.now());
         request.setStatus(SeasonTransferStatus.PENDING);
         seasonTransferRequestRepository.save(request);
+        siteNotificationService.notifyTransferRequested(request, actor.userId());
 
         return getSeasonTransfers(actor, seasonId);
     }
@@ -244,6 +248,7 @@ public class TeamRepTransferService {
         request.setProcessedByUserId(actor.userId());
         request.setProcessedAt(OffsetDateTime.now());
         seasonTransferRequestRepository.save(request);
+        siteNotificationService.notifyTransferDecision(request, actor.userId());
         return getSeasonTransfers(actor, request.getSeason().getId());
     }
 
@@ -261,6 +266,7 @@ public class TeamRepTransferService {
         request.setProcessedByUserId(actor.userId());
         request.setProcessedAt(OffsetDateTime.now());
         seasonTransferRequestRepository.save(request);
+        siteNotificationService.notifyTransferDecision(request, actor.userId());
         return getSeasonTransfers(actor, request.getSeason().getId());
     }
 
@@ -291,6 +297,7 @@ public class TeamRepTransferService {
         request.setProcessedByUserId(actor.userId());
         request.setProcessedAt(OffsetDateTime.now());
         seasonTransferRequestRepository.save(request);
+        siteNotificationService.notifyTransferDecision(request, actor.userId());
         return getSeasonTransfers(actor, request.getSeason().getId());
     }
 

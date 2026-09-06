@@ -66,6 +66,21 @@ class TemplateRendererTest {
         assertThat(message.body()).contains("&lt;script&gt;", "&#39;x&#39;").doesNotContain("<script>");
     }
 
+    @Test
+    void rendersDatabaseSafeDoubleBraceMacros() {
+        NotificationTemplateRecord template = new NotificationTemplateRecord(
+            "season-started",
+            "Сезон {{seasonName}} начался",
+            "<p>Здравствуйте, {{recipientName}}!</p>",
+            "HTML"
+        );
+
+        EmailMessage message = renderer.render(event("{\"seasonName\":\"Лето 2026\"}"), template);
+
+        assertThat(message.subject()).isEqualTo("Сезон Лето 2026 начался");
+        assertThat(message.body()).contains("Здравствуйте, Иван!");
+    }
+
     private NotificationEventRecord event(String payloadJson) {
         return new NotificationEventRecord(
             1L,

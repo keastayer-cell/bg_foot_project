@@ -507,6 +507,32 @@ public class LocalDemoLeagueService {
         Long seasonId = dataset.getSeasonId();
 
         if (seasonId != null) {
+            jdbcTemplate.update(
+                """
+                    DELETE FROM work.w_site_notification_recipient
+                    WHERE notification_id IN (
+                        SELECT notification.id
+                        FROM work.w_site_notification notification
+                        WHERE (notification.source_type = 'SEASON' AND notification.source_id = ?)
+                           OR (notification.source_type = 'SEASON_TRANSFER_REQUEST' AND notification.source_id IN (
+                               SELECT request.id FROM work.w_season_transfer_request request WHERE request.season_id = ?
+                           ))
+                    )
+                    """,
+                seasonId,
+                seasonId
+            );
+            jdbcTemplate.update(
+                """
+                    DELETE FROM work.w_site_notification
+                    WHERE (source_type = 'SEASON' AND source_id = ?)
+                       OR (source_type = 'SEASON_TRANSFER_REQUEST' AND source_id IN (
+                           SELECT request.id FROM work.w_season_transfer_request request WHERE request.season_id = ?
+                       ))
+                    """,
+                seasonId,
+                seasonId
+            );
             jdbcTemplate.update("DELETE FROM work.w_season_transfer_request WHERE season_id = ?", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_season_application_player WHERE application_id IN (SELECT id FROM work.w_season_application WHERE season_id = ?)", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_season_application WHERE season_id = ?", seasonId);
@@ -1017,6 +1043,32 @@ public class LocalDemoLeagueService {
         if (userIds.isEmpty()) {
             return;
         }
+        jdbcTemplate.update(
+            """
+                DELETE FROM work.w_site_notification_recipient
+                WHERE notification_id IN (
+                    SELECT notification.id
+                    FROM work.w_site_notification notification
+                    WHERE notification.created_by_user_id IN (
+                        SELECT object_id FROM work.w_demo_dataset_object WHERE dataset_id = ? AND object_type = 'USER'
+                    )
+                )
+                """,
+            datasetId
+        );
+        jdbcTemplate.update(
+            """
+                DELETE FROM work.w_site_notification
+                WHERE created_by_user_id IN (
+                    SELECT object_id FROM work.w_demo_dataset_object WHERE dataset_id = ? AND object_type = 'USER'
+                )
+                """,
+            datasetId
+        );
+        jdbcTemplate.update(
+            "DELETE FROM work.w_site_notification_recipient WHERE user_id IN (SELECT object_id FROM work.w_demo_dataset_object WHERE dataset_id = ? AND object_type = 'USER')",
+            datasetId
+        );
         jdbcTemplate.update(
             "DELETE FROM work.w_refresh_token_session WHERE user_id IN (SELECT object_id FROM work.w_demo_dataset_object WHERE dataset_id = ? AND object_type = 'USER')",
             datasetId

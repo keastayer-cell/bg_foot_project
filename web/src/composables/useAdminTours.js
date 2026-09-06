@@ -152,16 +152,39 @@ export function useAdminTours({
   const canPublishSelectedTour = computed(() => {
     return Boolean(selectedTour.value) && !selectedTour.value.published && matches.value.length > 0
   })
+  function canScheduleRegularPair(firstTeamId, secondTeamId) {
+    if (!selectedSeason.value) return true
+    const allowedMeetings = Math.max(Number(selectedSeason.value.roundsCount || 1), 1)
+    return countHeadToHeadMeetings(
+      seasonMatches.value,
+      firstTeamId,
+      secondTeamId
+    ) < allowedMeetings
+  }
+  const availableHomeTeams = computed(() => {
+    if (!selectedSeason.value) return teams.value
+    return teams.value.filter((homeTeam) => teams.value.some((awayTeam) => (
+      Number(homeTeam.id) !== Number(awayTeam.id)
+      && canScheduleRegularPair(homeTeam.id, awayTeam.id)
+    )))
+  })
   const availableAwayTeams = computed(() => {
     const homeTeamId = Number(matchForm.homeTeamId || 0)
-    if (!selectedSeason.value || homeTeamId <= 0) return teams.value
-
-    const allowedMeetings = Math.max(Number(selectedSeason.value.roundsCount || 1), 1)
+    if (homeTeamId <= 0) return []
     return teams.value.filter((team) => {
       const awayTeamId = Number(team.id || 0)
       if (awayTeamId <= 0 || awayTeamId === homeTeamId) return false
-      return countHeadToHeadMeetings(seasonMatches.value, homeTeamId, awayTeamId) < allowedMeetings
+      return canScheduleRegularPair(homeTeamId, awayTeamId)
     })
+  })
+  const matchAvailabilityMessage = computed(() => {
+    if (!selectedSeason.value) return ''
+    if (teams.value.length < 2) {
+      return 'Для создания матча в сезоне должно быть как минимум две команды.'
+    }
+    if (availableHomeTeams.value.length) return ''
+    const allowedMeetings = Math.max(Number(selectedSeason.value.roundsCount || 1), 1)
+    return `Добавить ещё один матч регулярного этапа нельзя: каждая пара команд уже включена в календарь. Лимит сезона — ${allowedMeetings} круг(а).`
   })
   const matchLimitMessage = computed(() => {
     const homeTeamId = Number(matchForm.homeTeamId || 0)
@@ -196,6 +219,14 @@ export function useAdminTours({
       (team) => String(team.id) === String(matchForm.awayTeamId)
     )
     if (!remainsAvailable) matchForm.awayTeamId = ''
+  })
+
+  watch(availableHomeTeams, (availableTeams) => {
+    if (!matchForm.homeTeamId) return
+    const remainsAvailable = availableTeams.some(
+      (team) => String(team.id) === String(matchForm.homeTeamId)
+    )
+    if (!remainsAvailable) resetMatchForm()
   })
 
   async function onSeasonChange() {
@@ -576,6 +607,7 @@ export function useAdminTours({
 
   return {
     availableAwayTeams,
+    availableHomeTeams,
     canCreateCupMatches,
     canSaveCupTieWinner,
     canDeleteTourMatch,
@@ -594,6 +626,7 @@ export function useAdminTours({
     drawCupManual,
     drawCupRandom,
     matchForm,
+    matchAvailabilityMessage,
     matchLimitMessage,
     matchProtocolStatusLabel,
     matches,

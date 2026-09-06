@@ -1,139 +1,83 @@
 <template>
   <article class="card admin-panel">
-    <div class="admin-panel-head">
+    <header class="admin-panel-head">
+      <p class="admin-panel-kicker">Участники</p>
       <h3 class="section-title">Игроки</h3>
-      <p class="muted-text">Единый реестр игроков с быстрым созданием и редактированием карточек.</p>
-    </div>
-    <div class="admin-subnav">
-      <button
-        class="btn-ghost admin-subnav-btn"
-        :class="{ 'admin-subnav-active': subMode === 'create' }"
-        type="button"
-        @click="openCreateMode"
-      >
-        Создать игрока
-      </button>
-      <button
-        class="btn-ghost admin-subnav-btn"
-        :class="{ 'admin-subnav-active': subMode === 'edit' }"
-        type="button"
-        @click="subMode = 'edit'"
-      >
-        Редактировать
-      </button>
-    </div>
+      <p class="muted-text">Создание и ведение единого реестра игроков.</p>
+    </header>
 
-    <div class="admin-grid">
-      <form v-if="subMode === 'create'" class="admin-form admin-surface" @submit.prevent="$emit('create')">
-        <label>
-          ФИО
-          <input v-model.trim="form.fullName" type="text" required />
-        </label>
-        <label>
-          Дата рождения
-          <input v-model="form.birthDate" type="date" class="admin-temporal-input" required />
-        </label>
-        <label>
-          Прописка
-          <input v-model.trim="form.residence" type="text" placeholder="Город/деревня" required />
-        </label>
-        <label class="admin-checkbox-row">
-          <input v-model="form.isGoalkeeper" type="checkbox" />
-          <span>Вратарь</span>
-        </label>
-        <label>
-          Фото игрока
-          <input type="file" accept="image/*" @change="$emit('photo-selected', $event)" />
-        </label>
-        <img
-          v-if="form.photoDataUrl"
-          :src="form.photoDataUrl"
-          alt="Превью фото игрока"
-          class="team-rep-player-photo-preview"
-        />
-        <div class="actions-row">
-          <button class="btn-primary" type="submit">Создать игрока</button>
-        </div>
-      </form>
+    <AdminEntityModeSwitch v-model="subMode" :options="modeOptions" @update:model-value="changeMode" />
 
-      <div v-else class="admin-form admin-surface">
-        <label>
-          Выберите игрока
-          <SearchableSelect
-            v-model="editSelectId"
-            :options="editOptions"
-            placeholder="— выберите —"
-            search-placeholder="Начните вводить ФИО игрока"
-            empty-text="Игрок по такому ФИО не найден"
-          />
-        </label>
-        <template v-if="editingId">
-          <label>
-            ФИО
-            <input v-model.trim="form.fullName" type="text" />
-          </label>
-          <label>
-            Дата рождения
-            <input v-model="form.birthDate" type="date" class="admin-temporal-input" />
-          </label>
-          <label>
-            Прописка
-            <input v-model.trim="form.residence" type="text" placeholder="Город/деревня" />
-          </label>
-          <label class="admin-checkbox-row">
-            <input v-model="form.isGoalkeeper" type="checkbox" />
-            <span>Вратарь</span>
-          </label>
-          <label>
-            Фото игрока
-            <input type="file" accept="image/*" @change="$emit('photo-selected', $event)" />
-          </label>
-          <img
-            v-if="form.photoDataUrl"
-            :src="form.photoDataUrl"
-            alt="Превью фото игрока"
-            class="team-rep-player-photo-preview"
-          />
-          <div class="actions-row">
-            <button class="btn-primary" type="button" @click="$emit('save')">Сохранить изменения</button>
-            <button class="btn-danger" type="button" @click="$emit('deactivate', editingId)">Удалить игрока</button>
-            <button class="btn-ghost" type="button" @click="cancelEdit">Отмена</button>
-          </div>
-        </template>
+    <form v-if="subMode === 'create'" class="admin-step-section" @submit.prevent="$emit('create')">
+      <div class="admin-step-heading">
+        <span class="admin-step-number">1</span>
+        <div><h4>Новый игрок</h4><p>Заполните обязательные данные и при необходимости добавьте фотографию.</p></div>
       </div>
+      <PlayerFields :form="form" required-fields @photo-selected="$emit('photo-selected', $event)" />
+      <div class="admin-primary-actions"><button class="btn-primary" type="submit">Создать игрока</button></div>
+    </form>
+
+    <div v-else class="admin-entity-flow">
+      <section class="admin-step-section">
+        <div class="admin-step-heading">
+          <span class="admin-step-number">1</span>
+          <div><h4>Выберите игрока</h4><p>Найдите карточку по ФИО в едином реестре.</p></div>
+        </div>
+        <SearchableSelect
+          v-model="editSelectId"
+          :options="editOptions"
+          placeholder="— выберите игрока —"
+          search-placeholder="Начните вводить ФИО игрока"
+          empty-text="Игрок по такому ФИО не найден"
+        />
+      </section>
+
+      <section v-if="editingId" class="admin-step-section">
+        <div class="admin-step-heading">
+          <span class="admin-step-number">2</span>
+          <div><h4>Карточка игрока</h4><p>Изменения применятся после сохранения.</p></div>
+        </div>
+        <PlayerFields :form="form" @photo-selected="$emit('photo-selected', $event)" />
+        <div class="admin-primary-actions">
+          <button class="btn-ghost" type="button" @click="cancelEdit">Отмена</button>
+          <button class="btn-primary" type="button" @click="$emit('save')">Сохранить изменения</button>
+        </div>
+        <div class="admin-danger-zone">
+          <div><strong>Удаление игрока</strong><p>Карточка будет деактивирована и исчезнет из доступного реестра.</p></div>
+          <button class="btn-danger btn-sm" type="button" @click="$emit('deactivate', editingId)">Удалить игрока</button>
+        </div>
+      </section>
+
+      <div v-else class="admin-record-placeholder"><span>↳</span><span>Выберите игрока, чтобы открыть его карточку.</span></div>
     </div>
   </article>
 </template>
 
 <script setup>
+import AdminEntityModeSwitch from './AdminEntityModeSwitch.vue'
+import PlayerFields from './PlayerFields.vue'
 import SearchableSelect from '../SearchableSelect.vue'
 
 defineProps({
-  form: {
-    type: Object,
-    required: true,
-  },
-  editOptions: {
-    type: Array,
-    required: true,
-  },
-  editingId: {
-    type: [String, Number],
-    default: null,
-  },
+  form: { type: Object, required: true },
+  editOptions: { type: Array, required: true },
+  editingId: { type: [String, Number], default: null },
 })
 
 const emit = defineEmits(['cancel', 'create', 'deactivate', 'photo-selected', 'save'])
 const subMode = defineModel('subMode', { type: String, required: true })
 const editSelectId = defineModel('editSelectId', { type: String, required: true })
+const modeOptions = [
+  { value: 'create', label: 'Создать', description: 'Новая карточка игрока' },
+  { value: 'edit', label: 'Редактировать', description: 'Работа с реестром' },
+]
 
 function cancelEdit() {
   editSelectId.value = ''
   emit('cancel')
 }
 
-function openCreateMode() {
-  subMode.value = 'create'
-  cancelEdit()
+function changeMode(mode) {
+  if (mode === 'create') cancelEdit()
 }
 </script>

@@ -31,20 +31,22 @@
           </div>
         </nav>
 
-        <div class="auth-strip" v-if="isAuthenticated && user">
-          <button
-            v-if="isTeamRep"
-            class="btn-ghost auth-profile-btn"
-            type="button"
-            @click="openProfile"
-          >
-            {{ teamRepLabel }}
-          </button>
-          <span v-else class="auth-name">{{ user.name }}</span>
-          <button class="btn-ghost" type="button" @click="handleLogout">Выйти</button>
+        <div class="auth-strip">
+          <NotificationBell />
+          <template v-if="isAuthenticated && user">
+            <button
+              v-if="isTeamRep"
+              class="btn-ghost auth-profile-btn"
+              type="button"
+              @click="openProfile"
+            >
+              {{ teamRepLabel }}
+            </button>
+            <span v-else class="auth-name">{{ user.name }}</span>
+            <button class="btn-ghost" type="button" @click="handleLogout">Выйти</button>
+          </template>
+          <button v-else class="btn-ghost" type="button" @click="openAuthModal('login')">Войти / Регистрация</button>
         </div>
-
-        <button v-else class="btn-ghost" type="button" @click="openAuthModal('login')">Войти / Регистрация</button>
       </div>
     </header>
 
@@ -228,6 +230,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ConfirmDialog from './components/ConfirmDialog.vue'
+import NotificationBell from './components/NotificationBell.vue'
 import { useAuth } from './store/auth'
 import { requestPasswordReset } from './api/auth'
 import bogorodskCoat from './assets/Screenshot at Apr 28 20-18-16.png'

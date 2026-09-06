@@ -48,6 +48,7 @@ class SeasonApplicationServiceTest {
     @Mock private SeasonApplicationPlayerRepository seasonApplicationPlayerRepository;
     @Mock private MediaAssetService mediaAssetService;
     @Mock private NotificationEventService notificationEventService;
+    @Mock private SiteNotificationService siteNotificationService;
 
     private SeasonApplicationService service;
 
@@ -64,7 +65,8 @@ class SeasonApplicationServiceTest {
             seasonApplicationRepository,
             seasonApplicationPlayerRepository,
             mediaAssetService,
-            notificationEventService
+            notificationEventService,
+            siteNotificationService
         );
     }
 

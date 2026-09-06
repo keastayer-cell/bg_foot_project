@@ -38,11 +38,16 @@ describe('useAdminPlayers', () => {
       fullName: 'Игрок',
       birthDate: '2000-01-01',
       residence: 'Богородск',
+      position: 'MIDFIELDER',
     })
 
     await createPlayer()
 
     expect(request).toHaveBeenNthCalledWith(1, '/api/players', expect.objectContaining({ method: 'POST' }))
+    expect(JSON.parse(request.mock.calls[0][1].body)).toMatchObject({
+      position: 'MIDFIELDER',
+      isGoalkeeper: false,
+    })
     expect(playersList.value).toHaveLength(1)
     expect(successMessage.value).toBe('Игрок создан.')
   })

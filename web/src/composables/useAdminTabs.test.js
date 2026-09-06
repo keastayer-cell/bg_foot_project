@@ -18,6 +18,7 @@ describe('useAdminTabs', () => {
       'competition',
       'participants',
       'access',
+      'communications',
       'local-tools',
     ])
     expect(visibleTabGroups.value.flatMap((group) => group.items).map((item) => item.id))
@@ -30,9 +31,12 @@ describe('useAdminTabs', () => {
     expect(visibleTabGroups.value.map((group) => group.id)).toEqual([
       'competition',
       'participants',
+      'communications',
     ])
     expect(visibleTabGroups.value.flatMap((group) => group.items).map((item) => item.id))
       .toContain('league')
+    expect(visibleTabGroups.value.flatMap((group) => group.items).map((item) => item.id))
+      .toContain('notifications')
   })
 
   it('keeps access management exclusive to a super admin', () => {

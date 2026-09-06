@@ -736,9 +736,109 @@ a {
 	gap: 14px;
 }
 
+/* Навигация находится в лениво загружаемой админке. Держим её базовый layout
+   в основном CSS, чтобы при перезапуске Vite не возникала смесь новой разметки
+   со старым scoped-стилем компонента. */
+.admin-workspace .admin-navigation {
+	position: sticky;
+	top: 14px;
+	align-self: start;
+	display: grid;
+	min-width: 0;
+	border: 1px solid rgba(124, 163, 255, 0.16);
+	border-radius: 8px;
+	background: rgba(10, 17, 38, 0.86);
+	overflow: hidden;
+}
+
+.admin-workspace .admin-navigation-mobile {
+	display: none;
+}
+
+.admin-workspace .admin-navigation-desktop,
+.admin-workspace .admin-navigation-items,
+.admin-workspace .admin-navigation-group {
+	display: grid;
+}
+
+.admin-workspace .admin-navigation-group {
+	gap: 6px;
+	padding: 14px 10px;
+	border-bottom: 1px solid rgba(124, 163, 255, 0.12);
+}
+
+.admin-workspace .admin-navigation-group:last-child {
+	border-bottom: 0;
+}
+
+.admin-workspace .admin-navigation-title {
+	margin: 0;
+	padding: 0 8px;
+	color: rgba(208, 214, 235, 0.58);
+	font-size: 0.72rem;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.admin-workspace .admin-navigation-items {
+	gap: 3px;
+}
+
+.admin-workspace .admin-navigation-button {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 8px;
+	min-height: 42px;
+	width: 100%;
+	padding: 9px 10px;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	background: transparent;
+	color: rgba(239, 243, 255, 0.78);
+	font: inherit;
+	font-weight: 650;
+	text-align: left;
+	cursor: pointer;
+}
+
+.admin-workspace .admin-navigation-button:hover {
+	border-color: rgba(124, 163, 255, 0.18);
+	background: rgba(31, 47, 66, 0.58);
+	color: var(--text);
+}
+
+.admin-workspace .admin-navigation-button.is-active {
+	border-color: rgba(97, 232, 162, 0.34);
+	background: rgba(31, 76, 66, 0.5);
+	color: var(--text);
+}
+
+.admin-workspace .admin-navigation-external {
+	color: rgba(151, 176, 255, 0.78);
+	font-size: 0.9rem;
+}
+
 @media (max-width: 860px) {
 	.admin-workspace {
 		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.admin-workspace .admin-navigation {
+		position: static;
+	}
+
+	.admin-workspace .admin-navigation-desktop {
+		display: none;
+	}
+
+	.admin-workspace .admin-navigation-mobile {
+		display: grid;
+		gap: 6px;
+		padding: 12px;
+		color: rgba(208, 214, 235, 0.68);
+		font-size: 0.78rem;
+		font-weight: 700;
 	}
 }
 
@@ -754,6 +854,113 @@ a {
 
 .admin-panel-head .section-title {
 	margin: 0;
+}
+
+.admin-panel-kicker {
+	margin: 0 0 6px;
+	color: var(--brand);
+	font-size: 0.72rem;
+	font-weight: 800;
+	letter-spacing: 0.11em;
+	text-transform: uppercase;
+}
+
+.admin-entity-flow {
+	display: grid;
+	gap: 14px;
+}
+
+.admin-step-section {
+	display: grid;
+	gap: 16px;
+	padding: 18px;
+	border: 1px solid rgba(124, 163, 255, 0.18);
+	border-radius: 14px;
+	background: rgba(10, 16, 37, 0.62);
+}
+
+.admin-step-heading {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding-bottom: 14px;
+	border-bottom: 1px solid rgba(124, 163, 255, 0.14);
+}
+
+.admin-step-heading > div { min-width: 0; }
+.admin-step-heading h4, .admin-step-heading p { margin: 0; }
+.admin-step-heading h4 { font-size: 0.95rem; }
+.admin-step-heading p { margin-top: 3px; color: var(--muted); font-size: 0.8rem; }
+
+.admin-step-number {
+	display: inline-grid;
+	flex: 0 0 26px;
+	height: 26px;
+	place-items: center;
+	border: 1px solid rgba(97, 232, 162, 0.35);
+	border-radius: 7px;
+	color: var(--brand);
+	font-size: 0.76rem;
+	font-weight: 800;
+}
+
+.admin-step-count {
+	margin-left: auto;
+	padding: 3px 8px;
+	border-radius: 6px;
+	background: rgba(124, 163, 255, 0.12);
+	color: #cbd8ff;
+	font-size: 0.76rem;
+	font-weight: 800;
+}
+
+.admin-fields-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 14px;
+}
+
+.admin-fields-grid > label { display: grid; gap: 7px; }
+.admin-field-wide { grid-column: 1 / -1; }
+
+.admin-primary-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	padding-top: 14px;
+	border-top: 1px solid rgba(124, 163, 255, 0.14);
+}
+
+.admin-record-placeholder {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 16px;
+	border: 1px dashed rgba(124, 163, 255, 0.2);
+	border-radius: 10px;
+	color: var(--muted);
+	font-size: 0.82rem;
+}
+
+.admin-danger-zone {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 14px;
+	border: 1px solid rgba(255, 115, 115, 0.2);
+	border-radius: 10px;
+	background: rgba(255, 115, 115, 0.045);
+}
+
+.admin-danger-zone strong, .admin-danger-zone p { margin: 0; }
+.admin-danger-zone strong { font-size: 0.84rem; }
+.admin-danger-zone p { margin-top: 3px; color: var(--muted); font-size: 0.76rem; }
+
+@media (max-width: 640px) {
+	.admin-fields-grid { grid-template-columns: 1fr; }
+	.admin-primary-actions, .admin-danger-zone { align-items: stretch; flex-direction: column; }
+	.admin-primary-actions > *, .admin-danger-zone > * { width: 100%; }
 }
 
 .admin-grid {

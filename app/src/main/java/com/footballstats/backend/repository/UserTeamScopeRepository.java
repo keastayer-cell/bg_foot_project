@@ -10,5 +10,7 @@ public interface UserTeamScopeRepository extends JpaRepository<UserTeamScope, Lo
 
     List<UserTeamScope> findByUser_IdAndActiveTrue(Long userId);
 
+    List<UserTeamScope> findByTeam_IdAndActiveTrue(Long teamId);
+
     Optional<UserTeamScope> findByUser_IdAndTeam_IdAndActiveTrue(Long userId, Long teamId);
 }
