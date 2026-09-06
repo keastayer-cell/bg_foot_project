@@ -214,7 +214,7 @@ test('requires confirmation before banning a user', async ({ page }) => {
 
   await page.getByLabel('Email пользователя').fill('blocked@example.com')
   await page.getByLabel('Причина').fill('Нарушение правил')
-  await page.getByRole('button', { name: 'Забанить' }).click()
+  await page.getByRole('button', { name: 'Заблокировать пользователя' }).click()
 
   const dialog = page.getByRole('alertdialog')
   await expect(dialog).toBeVisible()
@@ -223,7 +223,7 @@ test('requires confirmation before banning a user', async ({ page }) => {
   await expect(dialog).toBeHidden()
   await expect(page.getByText('Пользователь заблокирован.')).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Забанить' }).click()
+  await page.getByRole('button', { name: 'Заблокировать пользователя' }).click()
   await dialog.getByRole('button', { name: 'Заблокировать' }).click()
   await expect(page.getByText('Пользователь заблокирован.')).toBeVisible()
 })

@@ -11,6 +11,7 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop-chromium',
+      testIgnore: /mobile-layout\.spec\.js/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
@@ -21,6 +22,7 @@ export default defineConfig({
     {
       name: 'android-modern',
       metadata: { mobile: true, platform: 'android' },
+      testMatch: /mobile-layout\.spec\.js/,
       use: { ...devices['Pixel 7'], browserName: 'chromium' },
     },
     {
@@ -31,6 +33,7 @@ export default defineConfig({
     {
       name: 'ios-modern',
       metadata: { mobile: true, platform: 'ios' },
+      testMatch: /mobile-layout\.spec\.js/,
       use: { ...devices['iPhone 13'], browserName: 'webkit' },
     },
   ],

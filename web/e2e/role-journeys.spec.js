@@ -334,7 +334,7 @@ test('представитель команды: кабинет → сезонн
   await page.getByRole('button', { name: 'Трансферы' }).click()
   await expect(page).toHaveURL(/\/team-rep-transfers$/)
   await page.getByLabel('Выберите сезон').selectOption('1')
-  await expect(page.getByText('Трансферы открыты')).toBeVisible()
+  await expect(page.locator('.transfer-context-metrics').getByText('Открыто', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Трансферных заявок пока нет' })).toBeVisible()
 })
 
@@ -368,9 +368,9 @@ test('супер-админ: управление доступом → API Explo
   await openAdminSection(page, 'roles', 'Роли и доступ')
 
   await expect(page.getByRole('heading', { name: 'Роли и доступ' })).toBeVisible()
-  await page.getByLabel('Выберите пользователя').selectOption('user@example.com')
-  await page.getByRole('button', { name: 'Найти' }).click()
-  await expect(page.getByText('Пользователь Лиги')).toBeVisible()
+  await page.locator('.access-results-field select').selectOption('user@example.com')
+  await page.getByRole('button', { name: 'Открыть', exact: true }).click()
+  await expect(page.getByText('Пользователь Лиги', { exact: true })).toBeVisible()
   await expect(page.locator('.admin-role-badge', { hasText: 'USER' })).toBeVisible()
 
   await page.getByRole('link', { name: 'API Explorer' }).click()
