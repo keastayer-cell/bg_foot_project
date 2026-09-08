@@ -8,6 +8,11 @@ import com.footballstats.backend.domain.SiteNotificationSeverity;
 import com.footballstats.backend.domain.SiteNotificationTemplate;
 import com.footballstats.backend.domain.Season;
 import com.footballstats.backend.domain.SeasonStatus;
+import com.footballstats.backend.domain.Player;
+import com.footballstats.backend.domain.Team;
+import com.footballstats.backend.domain.Tour;
+import com.footballstats.backend.domain.TourMatch;
+import com.footballstats.backend.domain.UserTeamScope;
 import com.footballstats.backend.repository.AppUserRepository;
 import com.footballstats.backend.repository.SiteNotificationRecipientRepository;
 import com.footballstats.backend.repository.SiteNotificationRepository;
@@ -31,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -161,6 +167,82 @@ class SiteNotificationServiceTest {
         verify(notificationRepository).save(captor.capture());
         assertThat(captor.getValue().getEventType()).isEqualTo("SEASON_STARTED");
         assertThat(captor.getValue().getAudienceType()).isEqualTo(SiteNotificationAudienceType.ALL);
+    }
+
+    @Test
+    void suspensionCreatesBellAndEmailForEveryTeamRepresentativeWithMatchLink() {
+        AppUser representative = user(5L, "rep@test.local");
+        Team team = new Team();
+        ReflectionTestUtils.setField(team, "id", 10L);
+        team.setName("Атлетик Богородск");
+        Team opponent = new Team();
+        ReflectionTestUtils.setField(opponent, "id", 11L);
+        opponent.setName("Волна Дуденево");
+        Player player = new Player();
+        ReflectionTestUtils.setField(player, "id", 20L);
+        player.setFullName("Александр Белов");
+        Season season = new Season();
+        ReflectionTestUtils.setField(season, "id", 1L);
+        season.setName("Сезон 2026");
+        Tour tour = new Tour();
+        tour.setSeason(season);
+        tour.setName("5 тур");
+        TourMatch match = new TourMatch();
+        ReflectionTestUtils.setField(match, "id", 44L);
+        match.setTour(tour);
+        match.setHomeTeam(team);
+        match.setAwayTeam(opponent);
+        UserTeamScope scope = new UserTeamScope();
+        scope.setUser(representative);
+        scope.setTeam(team);
+
+        SiteNotificationTemplate template = template(
+            "PLAYER_SUSPENDED_YELLOW",
+            "Дисквалификация: {{playerName}}",
+            "{{playerName}} пропустит {{suspensionMatchesText}}"
+        );
+        ReflectionTestUtils.setField(template, "bodyHtmlTemplate", "<p>{{matchName}}</p>");
+        ReflectionTestUtils.setField(template, "actionUrlTemplate", "/matches/{{matchId}}");
+        ReflectionTestUtils.setField(template, "audienceScope", "RECIPIENTS");
+        ReflectionTestUtils.setField(template, "emailEnabled", true);
+        when(notificationRepository.existsByEventTypeAndSourceTypeAndSourceId(
+            "PLAYER_SUSPENDED_YELLOW", "MATCH_DISCIPLINE_YELLOW_PLAYER_20", 44L
+        )).thenReturn(false);
+        when(userTeamScopeRepository.findByTeam_IdAndActiveTrue(10L)).thenReturn(List.of(scope));
+        when(templateRepository.findByCodeAndActiveTrue("PLAYER_SUSPENDED_YELLOW")).thenReturn(Optional.of(template));
+        when(notificationRepository.save(any(SiteNotification.class))).thenAnswer(invocation -> {
+            SiteNotification notification = invocation.getArgument(0);
+            ReflectionTestUtils.setField(notification, "id", 90L);
+            return notification;
+        });
+
+        service.notifyPlayerSuspended(match, player, team, "YELLOW", 1, 99L);
+
+        ArgumentCaptor<SiteNotification> notificationCaptor = ArgumentCaptor.forClass(SiteNotification.class);
+        verify(notificationRepository).save(notificationCaptor.capture());
+        assertThat(notificationCaptor.getValue().getActionUrl()).isEqualTo("/matches/44");
+        assertThat(notificationCaptor.getValue().getSummary()).contains("Александр Белов", "следующий матч");
+        verify(notificationEventService).enqueueSiteNotificationEmail(
+            eq("PLAYER_SUSPENDED_YELLOW"), eq(representative), any(), eq("/matches/44"), eq(90L), eq(99L)
+        );
+    }
+
+    @Test
+    void suspensionAlreadySentForMatchAndPlayerIsNotDuplicated() {
+        Team team = new Team();
+        ReflectionTestUtils.setField(team, "id", 10L);
+        Player player = new Player();
+        ReflectionTestUtils.setField(player, "id", 20L);
+        TourMatch match = new TourMatch();
+        ReflectionTestUtils.setField(match, "id", 44L);
+        when(notificationRepository.existsByEventTypeAndSourceTypeAndSourceId(
+            "PLAYER_SUSPENDED_RED", "MATCH_DISCIPLINE_RED_PLAYER_20", 44L
+        )).thenReturn(true);
+
+        service.notifyPlayerSuspended(match, player, team, "RED", 1, 99L);
+
+        verify(notificationRepository, never()).save(any());
+        verify(notificationEventService, never()).enqueueSiteNotificationEmail(any(), any(), any(), any(), any(), any());
     }
 
     private SiteNotificationTemplate template(String code, String title, String summary) {

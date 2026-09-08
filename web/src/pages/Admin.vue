@@ -66,7 +66,6 @@
 
         <AdminLeagueContent
           v-if="activeTab === 'league'"
-          :seasons-list="seasonsList"
           @refresh-seasons="handleLeagueSeasonRefresh"
         />
 

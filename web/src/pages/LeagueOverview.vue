@@ -81,36 +81,24 @@
     <article v-if="activeSection === 'documents'" class="card league-section" id="season-regulation">
       <div class="section-head league-section-head">
         <div>
-          <p class="eyebrow">Положение сезона</p>
+          <p class="eyebrow">Сезоны и соревнования</p>
           <h2 class="section-title">Официальные документы</h2>
         </div>
       </div>
 
-      <UiState v-if="!seasonDocuments.length" title="Документы пока не опубликованы" />
-      <div v-else class="regulation-layout">
-        <article v-if="currentSeasonDocument" class="regulation-file-card regulation-file-card-primary">
-          <p class="regulation-file-label">Актуальный сезон</p>
-          <h3>{{ currentSeasonDocument.seasonName }}</h3>
-          <p>Официальный PDF-файл с регламентом и положением сезона.</p>
-          <div class="regulation-meta-row">
-            <span class="muted-text">Статус: {{ seasonStatusLabel(currentSeasonDocument.seasonStatus) }}</span>
-            <span class="muted-text">Обновлен: {{ formatDateTime(currentSeasonDocument.regulationUpdatedAt) }}</span>
-          </div>
-          <button class="btn-primary" type="button" @click="downloadDocument(currentSeasonDocument)">Скачать PDF</button>
-        </article>
-
-        <article class="regulation-file-card">
-          <p class="regulation-file-label">Архив сезонов</p>
-          <ul class="regulation-archive-list">
-            <li v-for="item in archivedSeasonDocuments" :key="item.seasonId">
-              <div>
-                <strong>{{ item.seasonName }}</strong>
-                <p class="muted-text">{{ formatDateTime(item.regulationUpdatedAt) }}</p>
-              </div>
-              <button class="btn-ghost" type="button" @click="downloadDocument(item)">Скачать</button>
-            </li>
-          </ul>
-        </article>
+      <label v-if="documentSeasons.length" class="regulation-filter">Сезон
+        <select v-model="documentSeasonId"><option value="all">Все сезоны</option><option v-for="season in documentSeasons" :key="season.id" :value="String(season.id)">{{ season.name }}</option></select>
+      </label>
+      <UiState v-if="!regulations.length" title="Документы пока не опубликованы" />
+      <div v-if="regulations.length" class="regulation-groups">
+        <section v-for="season in visibleDocumentSeasons" :key="season.id" class="regulation-group">
+          <header><h3>{{ season.name }}</h3><span>{{ seasonStatusLabel(season.status) }}</span></header>
+          <article v-for="item in season.documents" :key="`${item.targetType}:${item.targetId}`" class="regulation-document">
+            <span class="regulation-pdf-mark">PDF</span>
+            <div><small>{{ item.targetType === 'SEASON' ? 'Весь сезон' : item.competitionType === 'CUP' ? 'Кубок' : 'Чемпионат' }}</small><h4>{{ item.competitionName || 'Общий регламент сезона' }}</h4><p>Обновлён {{ formatDateTime(item.updatedAt) }}</p></div>
+            <a class="btn-ghost" :href="apiBaseUrl + item.downloadUrl" target="_blank" rel="noopener" :aria-label="`Скачать PDF: ${item.competitionName || 'Общий регламент сезона'} · ${season.name}`">Скачать PDF</a>
+          </article>
+        </section>
       </div>
     </article>
   </section>
@@ -129,7 +117,7 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 const sectionLinks = [
   { id: 'leadership', label: 'Руководство' },
   { id: 'venues', label: 'Площадки' },
-  { id: 'documents', label: 'Регламент' },
+  { id: 'documents', label: 'Регламенты' },
 ]
 
 const loading = ref(false)
@@ -137,19 +125,29 @@ const pageError = ref('')
 const activeSection = ref('leadership')
 const officials = ref([])
 const venues = ref([])
-const seasonDocuments = ref([])
-
-const currentSeasonDocument = computed(() => seasonDocuments.value[0] || null)
-const archivedSeasonDocuments = computed(() => seasonDocuments.value.slice(1))
+const regulations = ref([])
+const documentSeasonId = ref('all')
+const documentSeasons = computed(() => {
+  const groups = new Map()
+  for (const item of regulations.value) {
+    if (!groups.has(item.seasonId)) groups.set(item.seasonId, { id: item.seasonId, name: item.seasonName, status: item.seasonStatus, documents: [] })
+    groups.get(item.seasonId).documents.push(item)
+  }
+  return [...groups.values()]
+})
+const visibleDocumentSeasons = computed(() => documentSeasons.value.filter((season) => documentSeasonId.value === 'all' || String(season.id) === documentSeasonId.value))
 
 async function loadLeagueData() {
   loading.value = true
   pageError.value = ''
   try {
-    const payload = await catalogApi.getLeagueOverview()
+    const [payload, documents] = await Promise.all([
+      catalogApi.getLeagueOverview(),
+      catalogApi.getLeagueRegulations(),
+    ])
     officials.value = Array.isArray(payload?.officials) ? payload.officials : []
     venues.value = Array.isArray(payload?.venues) ? payload.venues : []
-    seasonDocuments.value = Array.isArray(payload?.seasonDocuments) ? payload.seasonDocuments : []
+    regulations.value = Array.isArray(documents) ? documents : []
   } catch (error) {
     pageError.value = error.message || 'Не удалось загрузить данные о лиге.'
   } finally {
@@ -198,13 +196,23 @@ function formatDateTime(value) {
   }).format(date)
 }
 
-function downloadDocument(item) {
-  if (!item?.regulationDownloadUrl) return
-  window.open(`${apiBaseUrl}${item.regulationDownloadUrl}`, '_blank', 'noopener')
-}
 </script>
 
 <style scoped>
+.regulation-filter { display: grid; gap: 6px; max-width: 360px; margin-bottom: 18px; font-size: .7rem; color: var(--muted); }
+.regulation-filter select { min-width: 0; width: 100%; }
+.regulation-groups { display: grid; gap: 20px; }
+.regulation-group { border: 1px solid rgba(124, 163, 255, .16); border-radius: 10px; overflow: hidden; }
+.regulation-group > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: rgba(124, 163, 255, .05); }
+.regulation-group h3 { margin: 0; font-size: .85rem; }
+.regulation-group > header > span { color: var(--muted); font-size: .64rem; }
+.regulation-document { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 16px; border-top: 1px solid rgba(124, 163, 255, .12); }
+.regulation-pdf-mark { display: grid; place-items: center; height: 44px; border: 1px solid rgba(97, 232, 162, .2); border-radius: 7px; color: var(--brand); font-size: .6rem; }
+.regulation-document h4 { margin: 5px 0; font-size: .8rem; overflow-wrap: anywhere; }
+.regulation-document small, .regulation-document p { color: var(--muted); font-size: .63rem; margin: 0; }
+.regulation-document .btn-ghost { font-size: .7rem; min-height: 40px; }
+@media(max-width: 640px) { .regulation-document { grid-template-columns: 32px minmax(0, 1fr); gap: 10px; padding: 12px; } .regulation-document .btn-ghost { grid-column: 2; justify-self: start; min-height: 44px; } }
+
 .league-page {
   display: grid;
   gap: 14px;

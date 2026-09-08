@@ -1,7 +1,7 @@
 <template>
-  <section class="section-wrap team-profile-page">
+  <section class="section-wrap team-profile-page catalog-page">
     <div class="team-profile-backline">
-      <RouterLink class="btn-ghost team-profile-back" to="/teams">← К списку команд</RouterLink>
+      <RouterLink class="btn-ghost team-profile-back" :to="backLocation">← {{ backLabel }}</RouterLink>
     </div>
 
     <article v-if="loading" class="card team-profile-state">
@@ -16,7 +16,7 @@
     </article>
 
     <template v-else-if="teamProfile">
-      <article class="card team-profile-hero">
+      <article class="catalog-header team-profile-hero">
         <div class="team-profile-hero-main">
           <div class="team-profile-logo-shell" :class="{ 'is-empty': !teamProfile.logoDataUrl }">
             <img
@@ -30,7 +30,7 @@
 
           <div class="team-profile-copy">
             <div class="team-profile-copy-top">
-              <p class="eyebrow">Профиль команды</p>
+              <p class="catalog-kicker">Профиль команды</p>
               <span class="team-profile-status" :class="{ 'is-active': teamProfile.active }">
                 {{ teamProfile.active ? 'Активна' : 'Неактивна' }}
               </span>
@@ -45,7 +45,7 @@
         </div>
       </article>
 
-      <article class="card team-profile-controls">
+      <article class="catalog-toolbar team-profile-controls">
         <div class="team-profile-controls-actions team-profile-controls-actions-wide">
           <div class="team-profile-controls-primary">
             <button
@@ -56,7 +56,8 @@
             >
               Показать заявку
             </button>
-            <label class="team-profile-select-wrap">
+            <label class="catalog-search team-profile-select-wrap">
+              <span>Сезон</span>
               <select v-model="selectedSeasonKey">
                 <option value="all">Все сезоны</option>
                 <option v-for="season in teamProfile.seasons" :key="season.id" :value="String(season.id)">
@@ -72,8 +73,42 @@
         </div>
       </article>
 
-      <article class="card team-profile-section team-profile-matches">
-        <div class="section-head team-profile-section-head team-profile-match-head">
+      <div class="catalog-surface team-profile-stats-grid">
+        <article class="team-profile-stat-card">
+          <span class="team-profile-stat-label">Матчи</span>
+          <strong>{{ selectedSummary.matchesPlayed }}</strong>
+          <span class="muted">{{ selectedSeason ? 'В выбранном сезоне' : 'По всем сезонам' }}</span>
+        </article>
+        <article class="team-profile-stat-card">
+          <span class="team-profile-stat-label">Победы</span>
+          <strong>{{ selectedSummary.wins }}</strong>
+          <span class="muted">Ничьи: {{ selectedSummary.draws }} · Поражения: {{ selectedSummary.losses }}</span>
+        </article>
+        <article class="team-profile-stat-card">
+          <span class="team-profile-stat-label">Голы</span>
+          <strong>{{ selectedSummary.goalsFor }}</strong>
+          <span class="muted">Пропущено: {{ selectedSummary.goalsAgainst }}</span>
+        </article>
+        <article class="team-profile-stat-card">
+          <span class="team-profile-stat-label">Форма</span>
+          <div v-if="selectedForm.length" class="team-profile-form-strip">
+            <span
+              v-for="(result, index) in selectedForm"
+              :key="`form-${index}`"
+              class="team-profile-form-pill"
+              :class="resultClass(result)"
+              :title="result === 'W' ? 'Победа' : result === 'L' ? 'Поражение' : 'Ничья'"
+            >
+              {{ resultShortLabel(result) }}
+            </span>
+          </div>
+          <span v-else class="muted">Нет завершенных матчей</span>
+          <span v-if="selectedForm.length" class="muted">Последние {{ selectedForm.length }} · новые слева</span>
+        </article>
+      </div>
+
+      <article class="catalog-surface team-profile-section team-profile-matches">
+        <div class="catalog-list-head team-profile-section-head">
           <div class="team-profile-match-head-line">
             <h2 class="section-title team-profile-match-title">Последние матчи</h2>
           </div>
@@ -82,9 +117,9 @@
         <div v-if="paginatedMatches.length" class="team-profile-history-table">
           <div class="team-profile-history-head muted">
             <span>Когда</span>
-            <span>Матч</span>
+            <span>Соперник</span>
             <span>Счёт</span>
-            <span>Статус</span>
+            <span>Результат</span>
           </div>
           <RouterLink
             v-for="match in paginatedMatches"
@@ -97,9 +132,7 @@
               <span class="team-profile-history-tournament">{{ match.seasonName }}</span>
             </span>
             <span class="team-profile-history-matchup">
-              <strong>{{ teamProfile.shortName || teamProfile.name }}</strong>
-              <span class="muted">vs</span>
-              <span>{{ match.opponentName }}</span>
+              <strong>{{ match.opponentName }}</strong>
             </span>
             <span class="team-profile-history-score">{{ match.teamScore }}:{{ match.opponentScore }}</span>
             <span class="team-profile-history-statusline">
@@ -110,50 +143,19 @@
         </div>
         <p v-else class="empty-text">У команды пока нет завершенных матчей.</p>
 
-        <div v-if="totalPages > 1" class="team-profile-pagination">
+        <div v-if="totalPages > 1" class="catalog-pagination team-profile-pagination">
           <button class="btn-ghost" type="button" :disabled="currentPage === 1" @click="currentPage -= 1">Назад</button>
+          <span>Страница {{ currentPage }} из {{ totalPages }} · матчей {{ selectedMatches.length }}</span>
           <button class="btn-ghost" type="button" :disabled="currentPage === totalPages" @click="currentPage += 1">Вперёд</button>
         </div>
       </article>
 
-      <div class="team-profile-stats-grid">
-        <article class="card team-profile-stat-card">
-          <span class="team-profile-stat-label">Матчи</span>
-          <strong>{{ selectedSummary.matchesPlayed }}</strong>
-          <span class="muted">{{ selectedSeason ? 'В выбранном сезоне' : 'По всем сезонам' }}</span>
-        </article>
-        <article class="card team-profile-stat-card">
-          <span class="team-profile-stat-label">Победы</span>
-          <strong>{{ selectedSummary.wins }}</strong>
-          <span class="muted">Ничьи: {{ selectedSummary.draws }} · Поражения: {{ selectedSummary.losses }}</span>
-        </article>
-        <article class="card team-profile-stat-card">
-          <span class="team-profile-stat-label">Голы</span>
-          <strong>{{ selectedSummary.goalsFor }}</strong>
-          <span class="muted">Пропущено: {{ selectedSummary.goalsAgainst }}</span>
-        </article>
-        <article class="card team-profile-stat-card">
-          <span class="team-profile-stat-label">Форма</span>
-          <div v-if="selectedForm.length" class="team-profile-form-strip">
-            <span
-              v-for="(result, index) in selectedForm"
-              :key="`form-${index}`"
-              class="team-profile-form-pill"
-              :class="resultClass(result)"
-            >
-              {{ resultShortLabel(result) }}
-            </span>
-          </div>
-          <span v-else class="muted">Нет завершенных матчей</span>
-        </article>
-      </div>
-
       <div v-if="seasonRosterModalOpen" class="team-profile-modal-backdrop" @click.self="closeSeasonRosterModal">
-        <article class="card team-profile-modal">
+        <article class="team-profile-modal" role="dialog" aria-modal="true" aria-labelledby="team-roster-title">
           <div class="team-profile-modal-head">
             <div>
               <p class="eyebrow">Состав на сезон</p>
-              <h3 class="section-title">{{ selectedSeason?.name }}</h3>
+              <h3 id="team-roster-title" class="section-title">{{ selectedSeason?.name }}</h3>
             </div>
             <button class="btn-ghost" type="button" @click="closeSeasonRosterModal">Закрыть</button>
           </div>
@@ -203,6 +205,9 @@ const seasonRoster = ref([])
 const seasonRosterStatus = ref('WAITING_FILL')
 const seasonRepresentativeName = ref('')
 const activeTeamId = ref(null)
+const returnToHall = computed(() => route.query.from === 'hall-of-fame')
+const backLocation = computed(() => returnToHall.value ? { name: 'hall-of-fame' } : { name: 'teams' })
+const backLabel = computed(() => returnToHall.value ? 'Назад в Зал славы' : 'К списку команд')
 
 const selectedSeason = computed(() => {
   if (selectedSeasonKey.value === 'all') return null
@@ -230,10 +235,10 @@ const selectedSummary = computed(() => {
 })
 
 const selectedForm = computed(() => selectedMatches.value.slice(0, 6).map((match) => match.resultCode))
-const totalPages = computed(() => Math.max(1, Math.ceil(chronologyMatches.value.length / PAGE_SIZE)))
+const totalPages = computed(() => Math.max(1, Math.ceil(selectedMatches.value.length / PAGE_SIZE)))
 const paginatedMatches = computed(() => {
   const startIndex = (currentPage.value - 1) * PAGE_SIZE
-  return chronologyMatches.value.slice(startIndex, startIndex + PAGE_SIZE)
+  return selectedMatches.value.slice(startIndex, startIndex + PAGE_SIZE)
 })
 
 async function loadTeamProfile() {
@@ -399,557 +404,100 @@ watch(() => route.query.seasonId, () => {
   applySeasonSelectionFromNavigation()
 })
 watch(selectedSeasonKey, async () => {
+  currentPage.value = 1
   await loadSeasonRoster()
 })
 </script>
 
 <style scoped>
-.team-profile-page {
-  display: grid;
-  gap: 18px;
-}
-
-.team-profile-backline {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.team-profile-back {
-  min-height: 42px;
-}
-
-.team-profile-season-roster-card {
-  display: block;
-}
-
-.team-profile-season-roster-inline {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.team-profile-season-roster-label {
-  margin: 0;
-}
-
-.team-profile-season-roster-title {
-  margin: 0;
-  font-size: clamp(1.3rem, 2.2vw, 1.9rem);
-}
-
-.team-profile-season-roster-list {
-  display: grid;
-  gap: 10px;
-}
-
-.team-profile-season-roster-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.team-profile-season-roster-headline,
-.team-profile-season-roster-row {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.5fr) 100px minmax(160px, 1fr);
-  gap: 16px;
-  align-items: center;
-}
-
-.team-profile-season-roster-headline {
-  padding: 0 14px;
-  text-align: center;
-}
-
-.team-profile-season-roster-headline > :first-child,
-.team-profile-season-roster-row > :first-child {
-  text-align: left;
-}
-
-.team-profile-season-roster-row {
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.team-profile-state {
-  min-height: 180px;
-  display: grid;
-  place-items: center;
-}
-
-.team-profile-hero,
-.team-profile-controls,
-.team-profile-stat-card,
-.team-profile-matches,
-.team-profile-modal {
-  background:
-    linear-gradient(112deg, rgba(97, 232, 162, 0.06), rgba(97, 232, 162, 0) 30%),
-    linear-gradient(180deg, rgba(20, 31, 69, 0.98), rgba(13, 20, 44, 1));
-}
-
-.team-profile-hero {
-  display: grid;
-  gap: 16px;
-}
-
-.team-profile-hero-main {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 16px;
-  align-items: center;
-}
-
-.team-profile-logo-shell {
-  width: 104px;
-  height: 104px;
-  border-radius: 24px;
-  overflow: hidden;
-  border: 1px solid rgba(124, 163, 255, 0.24);
-  background: linear-gradient(180deg, rgba(23, 34, 71, 0.98), rgba(13, 21, 48, 1));
-  display: grid;
-  place-items: center;
-  color: rgba(151, 176, 255, 0.9);
-  font-size: 1.7rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.team-profile-logo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.team-profile-copy {
-  display: grid;
-  gap: 8px;
-}
-
-.team-profile-copy-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
-.team-profile-title {
-  margin: 0;
-  font-size: clamp(1.6rem, 3vw, 2.4rem);
-  line-height: 1.04;
-}
-
-.team-profile-subtitle {
-  margin: 0;
-  color: var(--muted);
-}
-
-.team-profile-status,
-.team-profile-role-badge,
-.team-profile-result-pill,
-.team-profile-form-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.team-profile-status,
-.team-profile-role-badge {
-  border: 1px solid rgba(124, 163, 255, 0.18);
-  background: rgba(124, 163, 255, 0.08);
-  color: rgba(229, 235, 255, 0.9);
-}
-
-.team-profile-status.is-active {
-  border-color: rgba(97, 232, 162, 0.24);
-  background: rgba(97, 232, 162, 0.12);
-  color: rgba(223, 255, 238, 0.95);
-}
-
-.team-profile-controls {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.team-profile-controls-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.team-profile-controls-primary {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.team-profile-controls-actions-wide {
-  width: 100%;
-  justify-content: space-between;
-}
-
-.team-profile-season-contact {
-  display: grid;
-  gap: 4px;
-  justify-items: end;
-  text-align: right;
-}
-
-.team-profile-season-contact-label {
-  font-size: 0.76rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.team-profile-season-contact strong {
-  font-size: 1rem;
-}
-
-.team-profile-roster-btn {
-  min-height: 44px;
-  padding: 0 18px;
-  border: 1px solid rgba(97, 232, 162, 0.24);
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(22, 34, 72, 0.98), rgba(14, 22, 48, 1));
-  color: rgba(236, 244, 255, 0.96);
-  font: inherit;
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 14px 28px rgba(4, 10, 28, 0.2);
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-}
-
-.team-profile-roster-btn:hover {
-  transform: translateY(-1px);
-  border-color: rgba(97, 232, 162, 0.42);
-  background:
-    linear-gradient(180deg, rgba(25, 40, 82, 0.98), rgba(16, 27, 58, 1));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 18px 32px rgba(4, 10, 28, 0.24);
-}
-
-.team-profile-roster-btn:active {
-  transform: translateY(0);
-}
-
-.team-profile-select-wrap {
-  display: grid;
-  gap: 0;
-}
-
-.team-profile-select-wrap select {
-  min-width: 260px;
-}
-
-.team-profile-section {
-  display: grid;
-  gap: 12px;
-}
-
-.team-profile-match-head {
-  align-items: center;
-  margin-bottom: -6px;
-}
-
-.team-profile-match-head-line {
-  display: flex;
-  align-items: baseline;
-  gap: 0;
-  flex-wrap: wrap;
-}
-
-.team-profile-match-title {
-  margin: 0;
-}
-
-.team-profile-history-table {
-  display: grid;
-  gap: 8px;
-}
-
-.team-profile-history-head,
-.team-profile-history-row {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.1fr) minmax(260px, 1.25fr) 88px 180px;
-  gap: 14px;
-  align-items: center;
-}
-
-.team-profile-history-head {
-  padding: 0 12px 8px;
-  font-size: 0.8rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.team-profile-history-row {
-  padding: 14px 12px;
-  border: 1px solid rgba(124, 163, 255, 0.15);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(17, 25, 55, 0.92), rgba(11, 18, 39, 0.98));
-  color: inherit;
-  text-decoration: none;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.team-profile-history-row:hover {
-  transform: translateY(-1px);
-  border-color: rgba(97, 232, 162, 0.28);
-  box-shadow: 0 16px 28px rgba(3, 8, 24, 0.22);
-}
-
-.team-profile-history-meta {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.team-profile-history-date {
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.team-profile-history-tournament {
-  color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.2;
-}
-
-.team-profile-history-matchup,
-.team-profile-history-statusline {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.team-profile-history-statusline {
-  display: grid;
-  grid-template-columns: 132px auto;
-  justify-items: start;
-  gap: 12px;
-}
-
-.team-profile-history-statusline .team-profile-result-pill {
-  min-width: 132px;
-  white-space: nowrap;
-}
-
-.team-profile-history-score {
-  font-size: 1.3rem;
-  font-weight: 800;
-}
-
-@media (max-width: 720px) {
-  .team-profile-season-contact {
-    justify-items: start;
-    text-align: left;
-  }
-}
-
-.team-profile-pagination {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.team-profile-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.team-profile-stat-card {
-  display: grid;
-  gap: 8px;
-  align-content: start;
-  min-height: 140px;
-}
-
-.team-profile-stat-label {
-  color: rgba(151, 176, 255, 0.84);
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.team-profile-stat-card strong {
-  font-size: clamp(1.8rem, 2.8vw, 2.5rem);
-  line-height: 1;
-}
-
-.team-profile-form-strip {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.team-profile-form-pill.is-win,
-.team-profile-result-pill.is-win {
-  background: rgba(97, 232, 162, 0.16);
-  color: rgba(223, 255, 238, 0.95);
-}
-
-.team-profile-form-pill.is-loss,
-.team-profile-result-pill.is-loss {
-  background: rgba(255, 96, 96, 0.18);
-  color: rgba(255, 228, 228, 0.95);
-}
-
-.team-profile-form-pill.is-draw,
-.team-profile-result-pill.is-draw {
-  background: rgba(151, 176, 255, 0.18);
-  color: rgba(239, 243, 255, 0.95);
-}
-
-.team-profile-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  padding: 32px 16px;
-  background: rgba(5, 9, 20, 0.72);
-  backdrop-filter: blur(10px);
-  display: grid;
-  place-items: center;
-  z-index: 40;
-}
-
-.team-profile-modal {
-  width: min(720px, 100%);
-  max-height: min(82vh, 760px);
-  overflow: auto;
-}
-
-.team-profile-modal-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: start;
-  margin-bottom: 16px;
-}
-
-.team-profile-modal-state {
-  min-height: 120px;
-  display: grid;
-  place-items: center;
-}
-
-.team-profile-modal-list {
-  display: grid;
-  gap: 10px;
-}
-
-.team-profile-modal-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 14px;
-  border: 1px solid rgba(124, 163, 255, 0.15);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(17, 25, 55, 0.92), rgba(11, 18, 39, 0.98));
-}
-
-.team-profile-modal-player {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.team-profile-modal-avatar {
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid rgba(124, 163, 255, 0.15);
-  background: linear-gradient(180deg, rgba(23, 34, 71, 0.98), rgba(13, 21, 48, 1));
-  display: grid;
-  place-items: center;
-  color: rgba(151, 176, 255, 0.9);
-  font-size: 0.9rem;
-  font-weight: 800;
-}
-
-.team-profile-modal-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-@media (max-width: 1100px) {
-  .team-profile-history-head,
-  .team-profile-history-row {
-    grid-template-columns: minmax(188px, 1fr) minmax(200px, 1.1fr) 72px 148px;
-  }
-}
-
+.team-profile-backline { display: flex; }
+.team-profile-back { min-height: 40px; padding: 8px 0; border: 0; background: transparent; color: #8da7df; font-size: .7rem; box-shadow: none; }
+.team-profile-hero { display: block; }
+.team-profile-hero-main { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 20px; align-items: center; }
+.team-profile-logo-shell { width: 72px; height: 72px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(124, 163, 255, .2); border-radius: 12px; background: rgba(124, 163, 255, .05); color: #8da7df; font-size: 1.25rem; font-weight: 700; }
+.team-profile-logo { width: 100%; height: 100%; object-fit: contain; }
+.team-profile-copy { min-width: 0; }
+.team-profile-copy-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.team-profile-copy-top .catalog-kicker { margin: 0; }
+.team-profile-title { overflow-wrap: anywhere; line-height: 1.25; }
+.team-profile-subtitle { margin: 8px 0 0; color: var(--muted); font-size: .72rem; }
+.team-profile-status { color: var(--muted); font-size: .59rem; }
+.team-profile-status.is-active { color: var(--brand); }
+.team-profile-status::before { content: ''; display: inline-block; width: 5px; height: 5px; margin-right: 5px; border-radius: 50%; background: currentColor; vertical-align: middle; }
+.team-profile-controls-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; width: 100%; min-width: 0; }
+.team-profile-controls-primary { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.team-profile-select-wrap { order: -1; width: 300px; flex: 0 1 300px; }
+.team-profile-season-contact { display: grid; gap: 5px; text-align: right; }
+.team-profile-season-contact-label { color: var(--muted); font-size: .62rem; }
+.team-profile-season-contact strong { font-size: .74rem; font-weight: 600; overflow-wrap: anywhere; }
+.team-profile-roster-btn { min-height: 40px; padding: 8px 14px; border: 1px solid rgba(97, 232, 162, .25); border-radius: 8px; background: rgba(97, 232, 162, .06); color: var(--brand); font-size: .7rem; cursor: pointer; }
+.team-profile-stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.team-profile-stat-card { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 18px 20px; border-right: 1px solid rgba(124, 163, 255, .13); }
+.team-profile-stat-card:last-child { border-right: 0; }
+.team-profile-stat-label { color: var(--muted); font-size: .64rem; }
+.team-profile-stat-card strong { font-size: 1.5rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.team-profile-stat-card > .muted { color: #8c9abb; font-size: .6rem; line-height: 1.5; }
+.team-profile-form-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+.team-profile-form-pill, .team-profile-result-pill { display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(124, 163, 255, .2); border-radius: 5px; font-size: .59rem; font-weight: 700; }
+.team-profile-form-pill { width: 23px; height: 24px; }
+.team-profile-result-pill { min-height: 25px; padding: 4px 8px; }
+.is-win { color: var(--brand); background: rgba(97, 232, 162, .06); border-color: rgba(97, 232, 162, .2); }
+.is-loss { color: #e58d98; background: rgba(229, 141, 152, .06); border-color: rgba(229, 141, 152, .2); }
+.is-draw { color: #9caedd; background: rgba(156, 174, 221, .06); border-color: rgba(156, 174, 221, .2); }
+.team-profile-section-head .section-title { margin: 0; font-size: .85rem; }
+.team-profile-history-head, .team-profile-history-row { display: grid; grid-template-columns: minmax(140px, .9fr) minmax(140px, 1.2fr) 70px 160px; align-items: center; gap: 18px; padding: 0 20px; }
+.team-profile-history-head { min-height: 38px; border-block: 1px solid rgba(124, 163, 255, .12); background: rgba(124, 163, 255, .035); color: var(--muted); font-size: .62rem; }
+.team-profile-history-row { min-height: 64px; border-bottom: 1px solid rgba(124, 163, 255, .1); }
+.team-profile-history-row:last-child { border-bottom: 0; }
+.team-profile-history-row:hover { background: rgba(97, 232, 162, .035); }
+.team-profile-history-meta { display: grid; gap: 5px; min-width: 0; }
+.team-profile-history-date { font-size: .7rem; }
+.team-profile-history-tournament { color: #8c9abb; font-size: .61rem; overflow-wrap: anywhere; }
+.team-profile-history-matchup { min-width: 0; font-size: .76rem; overflow-wrap: anywhere; }
+.team-profile-history-score { font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.team-profile-history-statusline { display: grid; grid-template-columns: 86px 1fr; align-items: center; gap: 12px; }
+.team-profile-history-statusline .team-profile-result-pill { width: 100%; white-space: nowrap; }
+.team-profile-history-statusline > .muted { color: var(--muted); font-size: .61rem; }
+.team-profile-pagination { border-top: 1px solid rgba(124, 163, 255, .12); padding: 12px 20px; }
+.team-profile-matches > .empty-text { padding: 0 20px 16px; font-size: .75rem; }
+.team-profile-modal-backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(3, 7, 20, .78); backdrop-filter: blur(5px); z-index: 200; }
+.team-profile-modal { width: min(720px, 100%); max-height: calc(100dvh - 40px); overflow: auto; padding: 22px; border: 1px solid rgba(124, 163, 255, .24); border-radius: 14px; background: #0d1730; }
+.team-profile-modal-head { display: flex; align-items: start; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+.team-profile-modal-head > div { min-width: 0; }
+.team-profile-modal-head .eyebrow { margin: 0 0 8px; color: var(--brand); font-size: .6rem; }
+.team-profile-modal-head .section-title { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
+.team-profile-modal-head button { min-height: 44px; font-size: .7rem; }
+.team-profile-season-roster-headline, .team-profile-season-roster-row { display: grid; grid-template-columns: minmax(0, 1.5fr) 100px minmax(0, 1fr); align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(124, 163, 255, .12); }
+.team-profile-season-roster-headline { color: var(--muted); font-size: .6rem; }
+.team-profile-season-roster-row { font-size: .7rem; overflow-wrap: anywhere; }
+.team-profile-season-roster-row .muted { color: var(--muted); font-size: .65rem; }
 @media (max-width: 900px) {
-  .team-profile-controls {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .team-profile-stats-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .team-profile-history-head {
-    display: none;
-  }
-
-  .team-profile-history-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .team-profile-season-roster-inline {
-    align-items: flex-start;
-    gap: 10px 14px;
-  }
+  .team-profile-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .team-profile-stat-card:nth-child(2) { border-right: 0; }
+  .team-profile-stat-card:nth-child(-n+2) { border-bottom: 1px solid rgba(124, 163, 255, .13); }
+  .team-profile-history-head { display: none; }
+  .team-profile-history-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 14px; }
+  .team-profile-history-meta { grid-column: 1 / -1; grid-row: 1; }
+  .team-profile-history-matchup { grid-column: 1; grid-row: 2; }
+  .team-profile-history-score { grid-column: 2; grid-row: 2; text-align: right; }
+  .team-profile-history-statusline { grid-column: 1 / -1; grid-row: 3; }
 }
-
-@media (max-width: 720px) {
-  .team-profile-hero-main {
-    grid-template-columns: 1fr;
-  }
-
-  .team-profile-logo-shell {
-    width: 88px;
-    height: 88px;
-  }
-
-  .team-profile-stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .team-profile-select-wrap,
-  .team-profile-select-wrap select {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .team-profile-modal-row,
-  .team-profile-modal-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
+@media (max-width: 540px) {
+  .team-profile-hero-main { grid-template-columns: 54px minmax(0, 1fr); gap: 12px; }
+  .team-profile-logo-shell { width: 54px; height: 60px; font-size: 1rem; }
+  .team-profile-controls-primary, .team-profile-select-wrap { width: 100%; }
+  .team-profile-select-wrap { flex-basis: 100%; }
+  .team-profile-season-contact { text-align: left; }
+  .team-profile-stat-card { padding: 14px; }
+  .team-profile-form-strip { gap: 3px; }
+  .team-profile-form-pill { width: 16px; height: 20px; font-size: .53rem; }
+  .team-profile-pagination { display: grid; grid-template-columns: 1fr 1fr; }
+  .team-profile-pagination > span { grid-column: 1 / -1; grid-row: 1; text-align: center; }
+  .team-profile-pagination > button { grid-row: 2; }
+  .team-profile-modal-backdrop { padding: 10px; }
+  .team-profile-modal { padding: 16px; max-height: calc(100dvh - 20px); }
+  .team-profile-season-roster-headline { display: none; }
+  .team-profile-season-roster-row { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .team-profile-season-roster-row strong { grid-column: 1 / -1; }
 }
 </style>

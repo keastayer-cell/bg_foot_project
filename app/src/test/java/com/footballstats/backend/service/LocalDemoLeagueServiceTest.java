@@ -4,6 +4,7 @@ import com.footballstats.backend.domain.Role;
 import com.footballstats.backend.domain.RoleCode;
 import com.footballstats.backend.repository.RoleRepository;
 import com.footballstats.backend.repository.SeasonPlayoffTieRepository;
+import com.footballstats.backend.repository.SeasonTransferRequestRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,9 @@ class LocalDemoLeagueServiceTest {
 
     @Autowired
     private SeasonPlayoffTieRepository playoffTieRepository;
+
+    @Autowired
+    private SeasonTransferRequestRepository transferRequestRepository;
 
     @BeforeEach
     void seedRoles() {
@@ -59,7 +63,10 @@ class LocalDemoLeagueServiceTest {
 
         var transfers = service.prepareTransfers(null);
         assertThat(transfers.stage()).isEqualTo("TRANSFERS");
-        assertThat(transfers.counts().transfers()).isEqualTo(1);
+        assertThat(transfers.counts().transfers()).isEqualTo(4);
+        assertThat(transferRequestRepository.findAllDetailedBySeasonId(transfers.seasonId()))
+            .extracting(request -> request.getStatus().name())
+            .containsExactlyInAnyOrder("PENDING", "APPROVED", "REJECTED", "REVOKED");
 
         var playoffs = service.preparePlayoffs(null);
         assertThat(playoffs.stage()).isEqualTo("PLAYOFF");
@@ -67,6 +74,11 @@ class LocalDemoLeagueServiceTest {
         assertThat(playoffs.counts().playoffMatches()).isEqualTo(8);
         assertThat(playoffs.counts().matches()).isEqualTo(98);
         assertThat(playoffs.counts().completedMatches()).isEqualTo(96);
+        assertThat(playoffs.allowedActions()).contains("TRANSFERS");
+
+        var refreshedTransfers = service.prepareTransfers(null);
+        assertThat(refreshedTransfers.stage()).isEqualTo("PLAYOFF");
+        assertThat(refreshedTransfers.counts().transfers()).isEqualTo(4);
         var ties = playoffTieRepository.findAllDetailedBySeasonId(playoffs.seasonId());
         assertThat(ties).filteredOn(tie -> "COMPLETED".equals(tie.getStatus())).hasSize(6);
         assertThat(ties)

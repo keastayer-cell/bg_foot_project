@@ -4,6 +4,7 @@
       <input
         class="searchable-select-input"
         :value="inputValue"
+        :aria-label="ariaLabel || undefined"
         :placeholder="resolvedPlaceholder"
         :disabled="disabled"
         autocomplete="off"
@@ -25,9 +26,9 @@
     <div v-if="isOpen" class="searchable-select-dropdown">
       <p class="searchable-select-hint">{{ searchPlaceholder }}</p>
       <p v-if="multiple && multipleActionHint" class="searchable-select-action-hint">{{ multipleActionHint }}</p>
-      <div v-if="filteredOptions.length" class="searchable-select-options">
+      <div v-if="visibleOptions.length" class="searchable-select-options">
         <button
-          v-for="option in filteredOptions"
+          v-for="option in visibleOptions"
           :key="option.value"
           class="searchable-select-option"
           :class="{ 'is-selected': isOptionSelected(option.value), 'is-disabled': option.disabled }"
@@ -41,6 +42,9 @@
         </button>
       </div>
       <p v-else class="searchable-select-empty">{{ emptyText }}</p>
+      <p v-if="hiddenOptionsCount" class="searchable-select-limit">
+        Показаны первые {{ visibleOptions.length }} из {{ filteredOptions.length }}. Уточните поиск.
+      </p>
     </div>
   </div>
 </template>
@@ -68,6 +72,14 @@ const props = defineProps({
   emptyText: {
     type: String,
     default: 'Ничего не найдено',
+  },
+  ariaLabel: {
+    type: String,
+    default: '',
+  },
+  maxVisibleOptions: {
+    type: Number,
+    default: 0,
   },
   disabled: {
     type: Boolean,
@@ -133,6 +145,13 @@ const filteredOptions = computed(() => {
       .some((value) => value.includes(normalizedQuery))
   })
 })
+
+const visibleOptions = computed(() => {
+  const limit = Number(props.maxVisibleOptions || 0)
+  return limit > 0 ? filteredOptions.value.slice(0, limit) : filteredOptions.value
+})
+
+const hiddenOptionsCount = computed(() => filteredOptions.value.length > visibleOptions.value.length)
 
 const inputValue = computed(() => {
   if (isOpen.value) {
@@ -313,6 +332,14 @@ onBeforeUnmount(() => {
   margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.searchable-select-limit {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(124, 163, 255, 0.12);
+  color: var(--muted);
+  font-size: 0.72rem;
 }
 
 .searchable-select-action-hint {

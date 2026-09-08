@@ -64,6 +64,7 @@ public class MatchProtocolService {
     private final ObjectMapper objectMapper;
     private final CompetitionService competitionService;
     private final CompetitionDisciplineService competitionDisciplineService;
+    private final DisciplineNotificationService disciplineNotificationService;
 
     public MatchProtocolService(
         TourMatchRepository tourMatchRepository,
@@ -81,7 +82,8 @@ public class MatchProtocolService {
         SeasonDisciplineService seasonDisciplineService,
         ObjectMapper objectMapper,
         CompetitionService competitionService,
-        CompetitionDisciplineService competitionDisciplineService
+        CompetitionDisciplineService competitionDisciplineService,
+        DisciplineNotificationService disciplineNotificationService
     ) {
         this.tourMatchRepository = tourMatchRepository;
         this.matchProtocolRepository = matchProtocolRepository;
@@ -99,6 +101,7 @@ public class MatchProtocolService {
         this.objectMapper = objectMapper;
         this.competitionService = competitionService;
         this.competitionDisciplineService = competitionDisciplineService;
+        this.disciplineNotificationService = disciplineNotificationService;
     }
 
     @Transactional(readOnly = true)
@@ -231,6 +234,10 @@ public class MatchProtocolService {
 
         if (previousStatus == MatchProtocolStatus.VERIFIED || protocol.getStatus() == MatchProtocolStatus.VERIFIED) {
             seasonStandingsService.recalculateSeasonStandings(match.getTour().getSeason().getId(), actorUserId);
+        }
+
+        if (previousStatus != MatchProtocolStatus.VERIFIED && protocol.getStatus() == MatchProtocolStatus.VERIFIED) {
+            disciplineNotificationService.notifySuspensionsCausedBy(match, actorUserId);
         }
 
         TourMatch refreshedMatch = getExistingDetailedMatch(matchId);

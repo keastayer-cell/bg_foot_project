@@ -11,6 +11,8 @@ import org.springframework.data.repository.query.Param;
 import java.time.OffsetDateTime;
 
 public interface SiteNotificationRepository extends JpaRepository<SiteNotification, Long> {
+    boolean existsByEventTypeAndSourceTypeAndSourceId(String eventType, String sourceType, Long sourceId);
+
     Page<SiteNotification> findAllByOrderByCreatedAtDescIdDesc(Pageable pageable);
 
     @Query("""

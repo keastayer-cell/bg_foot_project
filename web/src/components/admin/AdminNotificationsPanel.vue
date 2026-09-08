@@ -95,21 +95,35 @@
 
       <UiState v-if="loading" tone="loading" title="Загружаем оповещения" />
       <div v-else-if="history.items.length" class="notification-admin-history">
-        <article v-for="item in history.items" :key="item.id" class="notification-admin-history-item">
-          <div class="notification-history-main">
-            <span class="notification-history-meta"><b>{{ severityLabel(item.severity) }}</b><time>{{ formatDateTime(item.createdAt) }}</time></span>
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.summary || plainText(item.body) }}</p>
+        <details v-for="item in history.items" :key="item.id" class="notification-admin-history-item">
+          <summary class="notification-history-row">
+            <time>{{ formatDateTime(item.createdAt) }}</time>
+            <b class="notification-history-severity" :class="`is-${String(item.severity || 'INFO').toLowerCase()}`">{{ severityLabel(item.severity) }}</b>
+            <strong class="notification-history-title" :title="item.title">{{ item.title }}</strong>
+            <small class="notification-history-audience" :title="item.audienceValue">{{ item.audienceValue }}</small>
+            <span class="notification-history-stats">
+              <span><small>Получили</small><strong>{{ item.recipientCount }}</strong></span>
+              <span><small>Прочитали</small><strong>{{ item.readCount }}</strong></span>
+              <span><small>Ознакомились</small><strong>{{ item.acknowledgedCount }}</strong></span>
+            </span>
+            <span class="notification-history-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="notification-history-detail">
+            <h5>{{ item.title }}</h5>
             <small>{{ item.audienceValue }}</small>
+            <div class="notification-history-body" v-html="sanitizeHtml(item.body)" />
           </div>
-          <div class="notification-history-stats">
-            <span><small>Получили</small><strong>{{ item.recipientCount }}</strong></span>
-            <span><small>Прочитали</small><strong>{{ item.readCount }}</strong></span>
-            <span><small>Ознакомились</small><strong>{{ item.acknowledgedCount }}</strong></span>
-          </div>
-        </article>
+        </details>
       </div>
-      <div v-else class="admin-record-placeholder"><span>↳</span><span>Оповещения ещё не создавались.</span></div>
+      <nav v-if="history.totalElements" class="notification-history-pagination" aria-label="Страницы истории рассылок">
+        <span>{{ history.pageNumber * PAGE_SIZE + 1 }}–{{ Math.min((history.pageNumber + 1) * PAGE_SIZE, history.totalElements) }} из {{ history.totalElements }}</span>
+        <div>
+          <button type="button" :disabled="loading || history.pageNumber === 0" @click="loadHistory(history.pageNumber - 1)">← Назад</button>
+          <span aria-live="polite">{{ history.pageNumber + 1 }} / {{ Math.max(history.totalPages, 1) }}</span>
+          <button type="button" :disabled="loading || history.pageNumber + 1 >= history.totalPages" @click="loadHistory(history.pageNumber + 1)">Далее →</button>
+        </div>
+      </nav>
+      <div v-if="!loading && !error && !history.totalElements" class="admin-record-placeholder"><span>↳</span><span>Оповещения ещё не создавались.</span></div>
     </section>
   </article>
 </template>
@@ -129,7 +143,8 @@ const submitting = ref(false)
 const error = ref('')
 const success = ref('')
 const teams = ref([])
-const history = reactive({ items: [], totalElements: 0 })
+const PAGE_SIZE = 10
+const history = reactive({ items: [], totalElements: 0, pageNumber: 0, totalPages: 0 })
 const form = reactive({
   title: '', body: '', audienceType: 'ALL', roleCode: '', teamId: '', severity: 'INFO',
   actionUrl: '', expiresAt: '', requiresAcknowledgement: false,
@@ -179,13 +194,16 @@ async function loadTeams() {
   }
 }
 
-async function loadHistory() {
+async function loadHistory(pageNumber = 0) {
+  if (loading.value) return
   loading.value = true
   error.value = ''
   try {
-    const payload = await notificationsApi.adminList(0, 50)
+    const payload = await notificationsApi.adminList(pageNumber, PAGE_SIZE)
     history.items = Array.isArray(payload?.items) ? payload.items : []
     history.totalElements = Number(payload?.totalElements || 0)
+    history.pageNumber = Number(payload?.pageNumber ?? pageNumber)
+    history.totalPages = Number(payload?.totalPages ?? Math.ceil(history.totalElements / PAGE_SIZE))
   } catch (requestError) {
     error.value = requestError.message || 'Не удалось загрузить историю оповещений.'
   } finally {
@@ -237,12 +255,6 @@ function severityLabel(value) {
   if (value === 'IMPORTANT') return 'Важно'
   if (value === 'WARNING') return 'Внимание'
   return 'Информация'
-}
-
-function plainText(value) {
-  const element = document.createElement('div')
-  element.innerHTML = value || ''
-  return element.textContent || ''
 }
 
 function sanitizeHtml(value) {
@@ -298,21 +310,46 @@ function formatDateTime(value) {
 .notification-admin-preview-html { color: var(--muted); font-size: .73rem; line-height: 1.5; }
 .notification-admin-preview-html :deep(p) { margin: 0 0 8px; }
 .notification-admin-preview-html :deep(p:last-child) { margin-bottom: 0; }
-.notification-admin-history { display: grid; gap: 9px; }
-.notification-admin-history-item { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, .7fr); gap: 16px; padding: 15px; border: 1px solid rgba(124, 163, 255, .15); border-radius: 11px; background: rgba(7, 13, 32, .34); }
-.notification-history-main { display: grid; gap: 6px; min-width: 0; }
-.notification-history-meta { display: flex; justify-content: space-between; color: var(--muted); font-size: .63rem; }
-.notification-history-meta b { color: var(--brand); text-transform: uppercase; }
-.notification-history-main > strong { font-size: .78rem; }
-.notification-history-main p { margin: 0; overflow: hidden; color: var(--muted); font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
-.notification-history-main > small { color: #91aaf4; font-size: .64rem; }
-.notification-history-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; border: 1px solid rgba(124, 163, 255, .13); border-radius: 9px; }
-.notification-history-stats > span { display: grid; align-content: center; gap: 3px; padding: 9px; border-right: 1px solid rgba(124, 163, 255, .12); text-align: center; }
-.notification-history-stats > span:last-child { border-right: 0; }
+.notification-admin-history { display: grid; gap: 5px; }
+.notification-admin-history-item { min-width: 0; border: 1px solid rgba(124, 163, 255, .15); border-radius: 8px; background: rgba(7, 13, 32, .34); }
+.notification-history-row { display: grid; grid-template-columns: 115px 88px minmax(100px, 1fr) minmax(90px, .6fr) auto 14px; align-items: center; gap: 12px; min-height: 48px; padding: 8px 12px; cursor: pointer; list-style: none; }
+.notification-history-row::-webkit-details-marker { display: none; }
+.notification-history-row:hover { background: rgba(124, 163, 255, .055); }
+.notification-history-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 8px; }
+.notification-history-row time { color: var(--muted); font-size: .63rem; }
+.notification-history-severity { color: var(--brand); font-size: .6rem; text-transform: uppercase; }
+.notification-history-severity.is-warning { color: #ffb078; }
+.notification-history-title, .notification-history-audience { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notification-history-title { font-size: .75rem; }
+.notification-history-audience { color: #91aaf4; font-size: .64rem; }
+.notification-history-stats { display: flex; gap: 14px; }
+.notification-history-stats > span { display: grid; gap: 2px; text-align: center; }
 .notification-history-stats small { color: var(--muted); font-size: .59rem; }
-.notification-history-stats strong { font-size: .8rem; }
+.notification-history-stats strong { font-size: .75rem; }
+.notification-history-chevron { color: var(--brand); text-align: center; }
+.notification-admin-history-item[open] .notification-history-chevron { transform: rotate(180deg); }
+.notification-history-detail { padding: 16px; border-top: 1px solid rgba(124, 163, 255, .15); overflow-wrap: anywhere; }
+.notification-history-detail h5 { margin: 0 0 6px; font-size: .85rem; }
+.notification-history-detail > small { color: #91aaf4; }
+.notification-history-body { margin-top: 12px; font-size: .78rem; line-height: 1.6; }
+.notification-history-body :deep(p) { margin: 0 0 8px; }
+.notification-history-body :deep(a) { color: #91aaf4; }
+.notification-history-pagination, .notification-history-pagination > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.notification-history-pagination { margin-top: 12px; color: var(--muted); font-size: .7rem; flex-wrap: wrap; }
+.notification-history-pagination button { min-height: 36px; padding: 6px 10px; border: 1px solid rgba(124, 163, 255, .2); border-radius: 7px; background: rgba(124, 163, 255, .06); color: var(--brand); cursor: pointer; }
+.notification-history-pagination button:disabled { opacity: .4; cursor: default; }
+@media (max-width: 1100px) {
+  .notification-history-row { grid-template-columns: 105px minmax(0, 1fr) auto 14px; gap: 8px; }
+  .notification-history-severity, .notification-history-audience { display: none; }
+}
 @media (max-width: 760px) {
-  .notification-admin-fields, .notification-admin-history-item { grid-template-columns: 1fr; }
+  .notification-admin-fields { grid-template-columns: 1fr; }
   .notification-admin-wide { grid-column: 1; }
+  .notification-history-row { grid-template-columns: minmax(0, 1fr) 14px; gap: 5px 8px; }
+  .notification-history-row time { grid-column: 1; grid-row: 2; white-space: nowrap; }
+  .notification-history-title { grid-column: 1; grid-row: 1; }
+  .notification-history-stats { grid-column: 1; grid-row: 3; justify-content: space-between; gap: 6px; padding-top: 3px; }
+  .notification-history-stats small { font-size: .53rem; }
+  .notification-history-chevron { grid-column: 2; grid-row: 1 / 4; }
 }
 </style>

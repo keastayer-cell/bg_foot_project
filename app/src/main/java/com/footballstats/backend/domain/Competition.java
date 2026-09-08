@@ -39,6 +39,22 @@ public class Competition {
     @Column(name = "created_at", nullable = false) private OffsetDateTime createdAt = OffsetDateTime.now();
     @Column(name = "updated_at", nullable = false) private OffsetDateTime updatedAt = OffsetDateTime.now();
 
+    @Column(name = "regulation_media_id") private Long regulationMediaId;
+    @Column(name = "regulation_updated_at") private OffsetDateTime regulationUpdatedAt;
+    @Column(name = "honors_published", nullable = false) private boolean honorsPublished;
+    @Column(name = "honors_formation", length = 40) private String honorsFormation;
+    @Column(name = "honors_updated_at") private OffsetDateTime honorsUpdatedAt;
+    public Long getRegulationMediaId() { return regulationMediaId; }
+    public void setRegulationMediaId(Long value) { regulationMediaId = value; }
+    public OffsetDateTime getRegulationUpdatedAt() { return regulationUpdatedAt; }
+    public void setRegulationUpdatedAt(OffsetDateTime value) { regulationUpdatedAt = value; }
+    public boolean isHonorsPublished() { return honorsPublished; }
+    public void setHonorsPublished(boolean value) { honorsPublished = value; }
+    public String getHonorsFormation() { return honorsFormation; }
+    public void setHonorsFormation(String value) { honorsFormation = value; }
+    public OffsetDateTime getHonorsUpdatedAt() { return honorsUpdatedAt; }
+    public void setHonorsUpdatedAt(OffsetDateTime value) { honorsUpdatedAt = value; }
+
     public Long getId() { return id; }
     public Season getSeason() { return season; }
     public void setSeason(Season season) { this.season = season; }

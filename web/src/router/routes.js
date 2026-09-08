@@ -1,8 +1,10 @@
 export const routes = [
   { path: '/', name: 'tours', component: () => import('../pages/Tours.vue') },
   { path: '/league', name: 'league', component: () => import('../pages/LeagueOverview.vue') },
+  { path: '/hall-of-fame', name: 'hall-of-fame', component: () => import('../pages/HallOfFame.vue') },
   { path: '/transfers', name: 'transfers', component: () => import('../pages/Transfers.vue') },
   { path: '/players', name: 'players', component: () => import('../pages/Players.vue') },
+  { path: '/players/:playerId', name: 'player-profile', component: () => import('../pages/Players.vue') },
   { path: '/teams', name: 'teams', component: () => import('../pages/Teams.vue') },
   { path: '/teams/:slug', name: 'team-profile', component: () => import('../pages/TeamProfile.vue') },
   {

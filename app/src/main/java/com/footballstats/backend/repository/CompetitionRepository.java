@@ -10,6 +10,12 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CompetitionRepository extends JpaRepository<Competition, Long> {
+    @Query("SELECT c FROM Competition c JOIN FETCH c.season s WHERE c.active = TRUE ORDER BY s.createdAt DESC, s.id DESC, c.type ASC, c.id ASC")
+    List<Competition> findAllWithSeason();
+
+    @Query("SELECT c FROM Competition c JOIN FETCH c.season s WHERE c.active = TRUE AND c.honorsPublished = TRUE ORDER BY s.createdAt DESC, s.id DESC, c.id DESC")
+    List<Competition> findAllPublishedHonors();
+
     @Query("""
         SELECT c FROM Competition c
         JOIN FETCH c.season season

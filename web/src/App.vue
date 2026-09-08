@@ -20,6 +20,7 @@
         <nav class="topnav">
           <div class="topnav-primary">
             <router-link to="/league">О лиге</router-link>
+            <router-link to="/hall-of-fame">Зал славы</router-link>
             <router-link to="/">Туры</router-link>
             <router-link to="/transfers">Трансферы</router-link>
             <router-link to="/players">Игроки</router-link>

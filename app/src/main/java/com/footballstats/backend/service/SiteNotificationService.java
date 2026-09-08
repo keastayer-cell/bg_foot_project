@@ -13,6 +13,9 @@ import com.footballstats.backend.domain.SiteNotificationRecipient;
 import com.footballstats.backend.domain.SiteNotificationSeverity;
 import com.footballstats.backend.domain.SiteNotificationTemplate;
 import com.footballstats.backend.domain.Tour;
+import com.footballstats.backend.domain.TourMatch;
+import com.footballstats.backend.domain.Player;
+import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.UserTeamScope;
 import com.footballstats.backend.repository.AppUserRepository;
 import com.footballstats.backend.repository.SiteNotificationRecipientRepository;
@@ -240,6 +243,44 @@ public class SiteNotificationService {
     }
 
     @Transactional
+    public void notifyPlayerSuspended(
+        TourMatch match,
+        Player player,
+        Team team,
+        String cause,
+        int suspensionMatches,
+        Long actorUserId
+    ) {
+        if (match == null || player == null || team == null || suspensionMatches <= 0) return;
+        String normalizedCause = "RED".equals(cause) ? "RED" : "YELLOW";
+        String eventType = "PLAYER_SUSPENDED_" + normalizedCause;
+        String sourceType = "MATCH_DISCIPLINE_" + normalizedCause + "_PLAYER_" + player.getId();
+        if (notificationRepository.existsByEventTypeAndSourceTypeAndSourceId(eventType, sourceType, match.getId())) return;
+
+        List<AppUser> recipients = teamUsers(team.getId(), null);
+        if (recipients.isEmpty()) return;
+
+        String tournamentName = match.getTour().getCompetition() == null
+            ? match.getTour().getSeason().getName()
+            : match.getTour().getCompetition().getName();
+        String suspensionMatchesText = suspensionMatches == 1
+            ? "следующий матч"
+            : suspensionMatches + " " + matchWord(suspensionMatches);
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("playerName", player.getFullName());
+        variables.put("teamName", team.getName());
+        variables.put("tournamentName", tournamentName);
+        variables.put("suspensionMatchesText", suspensionMatchesText);
+        variables.put("matchId", match.getId());
+        variables.put("matchName", match.getHomeTeam().getName() + " — " + match.getAwayTeam().getName());
+
+        deliverFromTemplate(
+            eventType, variables, recipients, actorUserId, sourceType, match.getId(),
+            "Представители команды «" + team.getName() + "»"
+        );
+    }
+
+    @Transactional
     public void notifySeasonApplicationSubmitted(SeasonApplication application, List<AppUser> referees) {
         deliverFromTemplate(
             "SEASON_APPLICATION_SUBMITTED_TO_REFEREE", applicationVariables(application, null), referees,
@@ -290,14 +331,15 @@ public class SiteNotificationService {
         notification.setAudienceValue(audienceValue);
         notification.setCreatedByUserId(actorUserId);
         notification.setCreatedAt(OffsetDateTime.now());
-        deliver(notification, users);
+        SiteNotification saved = deliver(notification, users);
         if (template.isEmailEnabled()) {
+            Long emailSourceId = sourceType.startsWith("MATCH_DISCIPLINE_") ? saved.getId() : sourceId;
             for (AppUser user : users) {
                 if (user.getEmail() == null || user.getEmail().isBlank()) continue;
                 Map<String, Object> emailVariables = new LinkedHashMap<>();
                 variables.forEach(emailVariables::put);
                 notificationEventService.enqueueSiteNotificationEmail(
-                    eventType, user, emailVariables, notification.getActionUrl(), sourceId, actorUserId
+                    eventType, user, emailVariables, notification.getActionUrl(), emailSourceId, actorUserId
                 );
             }
         }
@@ -371,6 +413,15 @@ public class SiteNotificationService {
             .map(scope -> scope.getUser())
             .filter(user -> excludedUserId == null || !excludedUserId.equals(user.getId()))
             .toList();
+    }
+
+    private String matchWord(int value) {
+        int lastTwo = Math.abs(value) % 100;
+        int last = Math.abs(value) % 10;
+        if (lastTwo >= 11 && lastTwo <= 14) return "матчей";
+        if (last == 1) return "матч";
+        if (last >= 2 && last <= 4) return "матча";
+        return "матчей";
     }
 
     private UserNotificationData toUserData(SiteNotificationRecipient recipient) {

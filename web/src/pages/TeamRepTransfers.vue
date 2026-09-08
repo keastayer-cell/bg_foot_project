@@ -3,9 +3,9 @@
     <article v-if="!embedded" class="card transfer-control-card">
       <header class="transfer-page-header">
         <div>
-          <p class="admin-panel-kicker">Турнир / Трансферы</p>
-          <h2 class="section-title">Трансферы сезона</h2>
-          <p class="muted-text">Создание, согласование и история переходов игроков между командами.</p>
+          <p class="admin-panel-kicker">Кабинет команды</p>
+          <h2 class="section-title">Трансферное окно</h2>
+          <p class="muted-text">Заявки на переход и история решений по выбранному сезону.</p>
         </div>
         <div class="transfer-header-actions">
           <button v-if="hasRole('TEAM_REP')" class="btn-ghost" type="button" @click="router.push('/team-rep-dashboard')">К заявке сезона</button>
@@ -18,8 +18,7 @@
 
       <section class="transfer-context-card">
         <div class="transfer-step-heading">
-          <span class="admin-step-number">1</span>
-          <div><h3>Рабочий сезон</h3><p>Все заявки и доступные команды зависят от выбранного сезона.</p></div>
+          <div><h3>Сезон</h3><p>Выберите турнирный сезон для работы с переходами.</p></div>
         </div>
         <div class="transfer-context-layout">
           <label class="transfer-season-field">
@@ -47,15 +46,13 @@
 
     <article v-if="overview" class="card transfer-journal-card">
       <header class="transfer-step-heading transfer-journal-heading">
-        <span class="admin-step-number">2</span>
         <div><h3>Журнал трансферов</h3><p>Текущие заявки и завершённые переходы выбранного сезона.</p></div>
         <span class="admin-step-count">{{ overview.totalElements }}</span>
       </header>
 
-      <div class="transfer-journal-summary">
-        <div><small>Всего</small><strong>{{ overview.totalElements }}</strong></div>
-        <div><small>Ожидают решения</small><strong>{{ pendingTransfersCount }}</strong></div>
-        <div><small>Подтверждены на странице</small><strong>{{ approvedTransfersCount }}</strong></div>
+      <div class="transfer-journal-meta">
+        <span><b>{{ pendingTransfersCount }}</b> ожидают решения</span>
+        <span><b>{{ approvedTransfersCount }}</b> одобрены на странице</span>
       </div>
 
       <UiState v-if="overviewLoading" tone="loading" title="Загружаем трансферы" />
@@ -114,13 +111,13 @@
     <div v-if="transferRequestModalOpen" class="modal-backdrop" @click.self="closeTransferRequestModal">
       <article class="card auth-modal transfer-create-modal">
         <header class="transfer-create-header">
-          <div><p class="admin-panel-kicker">Новая операция</p><h3 class="section-title">Создать трансфер</h3><p v-if="overview" class="muted-text">{{ overview.seasonName }}{{ overview.teamName ? ` · ${overview.teamName}` : '' }}</p></div>
+          <div><p class="admin-panel-kicker">Новая заявка</p><h3 class="section-title">Создать трансфер</h3><p v-if="overview" class="muted-text">{{ overview.seasonName }}{{ overview.teamName ? ` · ${overview.teamName}` : '' }}</p></div>
           <button class="btn-ghost" type="button" @click="closeTransferRequestModal">Закрыть</button>
         </header>
 
         <div class="transfer-create-flow">
           <label v-if="overview?.privilegedAccess" class="transfer-create-step">
-            <span class="transfer-create-step-label"><b>01</b><span><strong>Команда назначения</strong><small>Куда переходит игрок</small></span></span>
+            <span class="transfer-create-step-label"><span><strong>Команда назначения</strong><small>Куда переходит игрок</small></span></span>
             <select v-model="targetTeamId" :disabled="!overview?.transferWindowOpen">
               <option value="">— выберите команду —</option>
               <option v-for="team in availableTargetTeams" :key="team.id" :value="String(team.id)">{{ team.name }}</option>
@@ -128,7 +125,7 @@
           </label>
 
           <label class="transfer-create-step">
-            <span class="transfer-create-step-label"><b>{{ overview?.privilegedAccess ? '02' : '01' }}</b><span><strong>Исходная команда</strong><small>Откуда забираем игрока</small></span></span>
+            <span class="transfer-create-step-label"><span><strong>Исходная команда</strong><small>Откуда забираем игрока</small></span></span>
             <select v-model="sourceTeamId" :disabled="!canPickSourceTeam">
               <option value="">{{ canPickSourceTeam ? '— выберите команду —' : 'Сначала выберите команду назначения' }}</option>
               <option v-for="team in availableSourceTeams" :key="team.id" :value="String(team.id)">{{ team.name }}</option>
@@ -136,7 +133,7 @@
           </label>
 
           <label class="transfer-create-step">
-            <span class="transfer-create-step-label"><b>{{ overview?.privilegedAccess ? '03' : '02' }}</b><span><strong>Игрок</strong><small>Кандидат из состава исходной команды</small></span></span>
+            <span class="transfer-create-step-label"><span><strong>Игрок</strong><small>Кандидат из состава исходной команды</small></span></span>
             <SearchableSelect
               :key="`transfer-player-${selectedSeasonId}-${sourceTeamId}-${candidateOptions.length}`"
               v-model="selectedPlayerId"
@@ -149,7 +146,7 @@
           </label>
 
           <label class="transfer-create-step transfer-create-comment">
-            <span class="transfer-create-step-label"><b>{{ overview?.privilegedAccess ? '04' : '03' }}</b><span><strong>Комментарий</strong><small>Необязательное пояснение к заявке</small></span></span>
+            <span class="transfer-create-step-label"><span><strong>Комментарий</strong><small>Необязательное пояснение к заявке</small></span></span>
             <textarea v-model.trim="requestComment" rows="3" placeholder="Добавьте пояснение при необходимости"></textarea>
           </label>
         </div>
@@ -1117,5 +1114,271 @@ function formatDateOnly(value) {
   .transfer-decision { flex: 1 1 120px; }
   .transfer-route-cell > span,
   .transfer-route-cell > strong { white-space: normal; }
+}
+
+/* Общая композиция страницы совпадает с публичными каталогами. */
+.team-rep-transfers-page {
+  gap: 14px;
+}
+
+.team-rep-transfers-page .transfer-control-card {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-color: rgba(124, 163, 255, .18);
+  border-radius: 14px;
+  background: linear-gradient(120deg, rgba(23, 35, 70, .8), rgba(10, 17, 39, .9));
+}
+
+.team-rep-transfers-page .transfer-page-header {
+  align-items: center;
+  padding: 22px 24px;
+  border-bottom-color: rgba(124, 163, 255, .16);
+}
+
+.team-rep-transfers-page .transfer-page-header .section-title {
+  font-size: 1.5rem;
+}
+
+.team-rep-transfers-page .transfer-page-header .muted-text {
+  max-width: 620px;
+  font-size: .76rem;
+  line-height: 1.5;
+}
+
+.team-rep-transfers-page .transfer-context-card {
+  gap: 14px;
+  padding: 16px 20px 18px;
+  border: 0;
+  border-radius: 0;
+  background: rgba(7, 13, 32, .32);
+}
+
+.team-rep-transfers-page .transfer-step-heading {
+  align-items: center;
+  padding: 0;
+  border: 0;
+}
+
+.team-rep-transfers-page .transfer-step-heading h3 {
+  font-size: .86rem;
+}
+
+.team-rep-transfers-page .transfer-step-heading p {
+  font-size: .7rem;
+}
+
+.team-rep-transfers-page .transfer-context-layout {
+  grid-template-columns: minmax(240px, .72fr) minmax(0, 1.28fr);
+  align-items: stretch;
+}
+
+.team-rep-transfers-page .transfer-season-field > span,
+.team-rep-transfers-page .transfer-context-metrics small {
+  font-size: .65rem;
+}
+
+.team-rep-transfers-page .transfer-season-field select {
+  height: 42px;
+  font-size: .76rem;
+}
+
+.team-rep-transfers-page .transfer-context-metrics {
+  border-radius: 9px;
+  background: rgba(9, 16, 36, .62);
+}
+
+.team-rep-transfers-page .transfer-context-metrics > div {
+  justify-content: center;
+  padding: 9px 13px;
+}
+
+.team-rep-transfers-page .transfer-context-metrics strong {
+  font-size: .76rem;
+}
+
+.team-rep-transfers-page .transfer-context-footer {
+  min-height: 42px;
+  padding-top: 12px;
+}
+
+.team-rep-transfers-page .transfer-context-footer p {
+  font-size: .7rem;
+}
+
+.team-rep-transfers-page .transfer-journal-card {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-color: rgba(124, 163, 255, .17);
+  border-radius: 12px;
+  background: rgba(9, 16, 36, .78);
+}
+
+.team-rep-transfers-page .transfer-journal-heading {
+  padding: 17px 20px 10px;
+}
+
+.transfer-journal-meta {
+  display: flex;
+  gap: 16px;
+  padding: 0 20px 16px;
+  color: var(--muted);
+  font-size: .68rem;
+}
+
+.transfer-journal-meta b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.team-rep-transfers-page .transfer-journal-columns,
+.team-rep-transfers-page .transfer-journal-row {
+  grid-template-columns: minmax(180px, 1.15fr) minmax(230px, 1.35fr) minmax(120px, .7fr) minmax(145px, .82fr) minmax(205px, auto);
+  gap: 16px;
+}
+
+.team-rep-transfers-page .transfer-journal-columns {
+  padding: 10px 20px;
+  border-top: 1px solid rgba(124, 163, 255, .12);
+  border-bottom: 1px solid rgba(124, 163, 255, .12);
+  background: rgba(124, 163, 255, .035);
+  font-size: .62rem;
+}
+
+.team-rep-transfers-page .transfer-journal-list {
+  gap: 0;
+}
+
+.team-rep-transfers-page .transfer-journal-row {
+  min-height: 68px;
+  padding: 12px 20px;
+  border: 0;
+  border-bottom: 1px solid rgba(124, 163, 255, .1);
+  border-radius: 0;
+  background: transparent;
+}
+
+.team-rep-transfers-page .transfer-journal-row:last-child {
+  border-bottom: 0;
+}
+
+.team-rep-transfers-page .transfer-player-cell strong,
+.team-rep-transfers-page .transfer-route-cell > span,
+.team-rep-transfers-page .transfer-route-cell > strong,
+.team-rep-transfers-page .transfer-date-cell strong {
+  font-size: .74rem;
+}
+
+.team-rep-transfers-page .transfer-player-cell > span,
+.team-rep-transfers-page .transfer-date-cell > span {
+  font-size: .65rem;
+}
+
+.team-rep-transfers-page .transfer-decision {
+  min-height: 34px;
+  border-radius: 7px;
+  font-size: .65rem;
+}
+
+.team-rep-transfers-page .pagination-bar {
+  margin: 0;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(124, 163, 255, .12);
+}
+
+.transfer-create-modal {
+  width: min(760px, calc(100vw - 32px));
+  max-width: 760px;
+  padding: 22px;
+}
+
+.transfer-create-flow {
+  gap: 16px 18px;
+}
+
+.transfer-create-step {
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.transfer-create-step-label strong {
+  font-size: .74rem;
+}
+
+.transfer-create-step-label small {
+  font-size: .65rem;
+}
+
+.transfer-create-summary {
+  margin-top: 18px;
+  padding: 14px 0 0;
+  border: 0;
+  border-top: 1px solid rgba(124, 163, 255, .14);
+  border-radius: 0;
+  background: transparent;
+}
+
+.transfer-create-summary.is-ready {
+  border-color: rgba(97, 232, 162, .3);
+  background: transparent;
+}
+
+@media (max-width: 1080px) {
+  .team-rep-transfers-page .transfer-journal-row {
+    padding: 15px 20px;
+  }
+}
+
+@media (max-width: 760px) {
+  .team-rep-transfers-page .transfer-page-header {
+    padding: 18px 14px;
+  }
+
+  .team-rep-transfers-page .transfer-context-card {
+    padding: 14px;
+  }
+
+  .team-rep-transfers-page .transfer-context-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .team-rep-transfers-page .transfer-context-metrics > div {
+    border-right: 1px solid rgba(124, 163, 255, .12);
+    border-bottom: 0;
+  }
+
+  .team-rep-transfers-page .transfer-context-metrics > div:last-child {
+    border-right: 0;
+  }
+
+  .team-rep-transfers-page .transfer-journal-heading,
+  .transfer-journal-meta {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  .team-rep-transfers-page .transfer-context-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .team-rep-transfers-page .transfer-context-metrics > div {
+    border-right: 0;
+    border-bottom: 1px solid rgba(124, 163, 255, .12);
+  }
+
+  .transfer-journal-meta {
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+
+  .team-rep-transfers-page .transfer-journal-row {
+    padding: 14px;
+  }
 }
 </style>

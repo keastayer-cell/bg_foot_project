@@ -1,6 +1,6 @@
 <template>
-  <section class="section-wrap players-page">
-    <h2 class="section-title">Игроки</h2>
+  <section class="section-wrap players-page catalog-page">
+    <PublicCatalogHeader title="Игроки" description="Футболисты лиги, статистика и история выступлений." :count="!loading && !errorText ? totalElements : null" count-label="игроков" />
 
     <div class="card" v-if="loading">
       <p class="muted">Загружаем список игроков...</p>
@@ -15,38 +15,44 @@
       @action="loadPlayers"
     />
 
-    <div class="card player-filters" v-else>
+    <div class="catalog-toolbar" v-else>
+      <label class="catalog-search"><span>Поиск игрока</span>
       <input
         v-model.trim="search"
         type="text"
         placeholder="Поиск по фамилии"
         aria-label="Поиск по фамилии"
       />
+      </label>
       <button class="btn-ghost" type="button" :disabled="!search.trim()" @click="resetSearch">
         Сбросить поиск
       </button>
     </div>
 
-    <div class="players-meta" v-if="!loading && !errorText && totalElements > 0">
-      <span class="muted">Всего игроков: {{ totalElements }}</span>
+    <div class="catalog-results-meta" v-if="!loading && !errorText && totalElements > 0">
+      <span class="muted">Список игроков</span>
       <span class="muted">Страница {{ pageNum + 1 }} из {{ totalPages }}</span>
     </div>
 
-    <div class="card" v-if="!loading && !errorText && players.length">
+    <div class="catalog-surface" v-if="!loading && !errorText && players.length">
+      <div class="players-table-head"><span>№</span><span>Игрок</span><span>Дата рождения · возраст</span><span /></div>
       <div class="players-list">
-        <article class="players-row" v-for="player in players" :key="player.id">
-          <button class="players-name-btn" type="button" @click="openPlayerModal(player)">
-            {{ player.name }}<span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
+        <article class="players-row" v-for="(player, index) in players" :key="player.id">
+          <span class="players-number">{{ String(pageNum * pageSize + index + 1).padStart(2, '0') }}</span>
+          <button class="players-name-btn" type="button" @click="openPlayerModal(player, $event.currentTarget)">
+            <span>{{ player.name }}</span><span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
           </button>
-          <span v-if="player.birthDate" class="players-birth-meta">{{ formatBirthDateWithAge(player.birthDate) }}</span>
+          <span class="players-birth-meta">{{ player.birthDate ? formatBirthDateWithAge(player.birthDate) : '—' }}</span>
+          <span class="catalog-row-link" aria-hidden="true">↗</span>
         </article>
       </div>
     </div>
 
-    <div class="pagination-row" v-if="!loading && !errorText && totalPages > 1">
+    <div class="catalog-pagination" v-if="!loading && !errorText && totalPages > 1">
       <button class="btn-ghost" type="button" :disabled="pageNum === 0" @click="goToPreviousPage">
         Назад
       </button>
+      <span>Страница {{ pageNum + 1 }} из {{ totalPages }}</span>
       <button class="btn-ghost" type="button" :disabled="isLastPage" @click="goToNextPage">
         Вперед
       </button>
@@ -65,88 +71,54 @@
       message="Игроки появятся здесь после регистрации в лиге."
     />
 
-    <div v-if="showPlayerModal" class="modal-backdrop" @click.self="closePlayerModal">
-      <article class="card player-modal">
-        <div class="player-modal-header" :class="{ 'is-compact': !playerDetails }">
-          <div class="player-modal-title-wrap">
-            <div class="player-modal-title-row">
-              <span class="player-modal-title-icon">👤</span>
-              <h3>{{ modalTitle }}</h3>
-              <span v-if="playerDetails?.isGoalkeeper" class="player-modal-role-badge">🧤 Вратарь</span>
-            </div>
-            <p v-if="playerDetails?.currentTeamName" class="muted player-team-copy">
-              Текущая команда: {{ playerDetails.currentTeamName }}
-            </p>
-            <div v-if="playerDetails" class="player-modal-facts-row">
-              <span class="player-modal-fact-chip" v-if="playerDetails.birthDate">🎂 {{ formatBirthDateWithAge(playerDetails.birthDate) }}</span>
-              <span class="player-modal-fact-chip">🏟 {{ playerDetails.currentTeamName || 'Без команды' }}</span>
-              <span class="player-modal-fact-chip">📍 {{ playerDetails.residence || 'Город не указан' }}</span>
-            </div>
+    <div v-if="showPlayerModal" class="profile-backdrop" @click.self="closePlayerModal" @keydown.esc.stop="closePlayerModal" @keydown.tab="trapProfileFocus">
+      <article ref="profileDialog" class="player-profile" role="dialog" aria-modal="true" aria-labelledby="player-profile-title" tabindex="-1">
+        <header class="profile-heading">
+          <div class="profile-heading-copy"><span class="profile-kicker">Профиль игрока</span><button v-if="returnToHall" class="profile-return" type="button" @click="closePlayerModal">← Назад в Зал славы</button></div>
+          <button ref="profileClose" class="profile-close" type="button" aria-label="Закрыть карточку игрока" @click="closePlayerModal">×</button>
+        </header>
+
+        <div class="profile-identity">
+          <div class="profile-photo">
+            <img v-if="playerDetails?.photoDataUrl" :src="playerDetails.photoDataUrl" :alt="modalTitle" />
+            <template v-else><strong aria-hidden="true">{{ playerInitials }}</strong><span>Фото не добавлено</span></template>
           </div>
-          <button class="btn-ghost" type="button" @click="closePlayerModal">✕</button>
-        </div>
-
-        <div v-if="modalLoading" class="player-modal-state">
-          <p class="muted">Загружаем карточку игрока...</p>
-        </div>
-
-        <div v-else-if="modalErrorText" class="player-modal-state">
-          <p class="error-text">{{ modalErrorText }}</p>
-          <div class="modal-actions">
-            <button class="btn-primary" type="button" @click="reloadPlayerModal">Повторить</button>
-            <button class="btn-ghost" type="button" @click="closePlayerModal">Закрыть</button>
+          <div class="profile-bio">
+            <h2 id="player-profile-title">{{ modalTitle }}</h2>
+            <span v-if="playerDetails?.isGoalkeeper" class="profile-position">Вратарь</span>
+            <dl v-if="playerDetails" class="profile-facts">
+              <div><dt>Команда</dt><dd>{{ playerDetails.currentTeamName || 'Без команды' }}</dd></div>
+              <div><dt>Дата рождения</dt><dd>{{ playerDetails.birthDate ? formatBirthDateWithAge(playerDetails.birthDate) : 'Не указана' }}</dd></div>
+              <div><dt>Город</dt><dd>{{ playerDetails.residence || 'Не указан' }}</dd></div>
+            </dl>
           </div>
         </div>
+
+        <UiState v-if="modalLoading" tone="loading" title="Загружаем карточку игрока" />
+        <UiState v-else-if="modalErrorText" tone="error" title="Не удалось загрузить игрока" :message="modalErrorText" action-label="Повторить" @action="reloadPlayerModal" />
 
         <template v-else-if="playerDetails">
-          <div class="player-modal-content">
-            <div class="player-avatar-wrap">
-              <img v-if="playerDetails.photoDataUrl" :src="playerDetails.photoDataUrl" :alt="playerDetails.fullName" class="player-avatar" />
-              <div v-else class="avatar-placeholder">
-                <span class="avatar-placeholder-icon">👤</span>
-                <span>Нет фото</span>
+          <section class="profile-section" aria-labelledby="profile-stats-title">
+            <h3 id="profile-stats-title">Статистика</h3>
+            <dl class="profile-stats">
+              <div><dt>Голы</dt><dd>{{ playerDetails.goals ?? 0 }}</dd></div>
+              <div><dt><i class="profile-card-mark is-yellow" aria-hidden="true" />Жёлтые карточки</dt><dd>{{ playerDetails.yellowCards ?? 0 }}</dd></div>
+              <div><dt><i class="profile-card-mark is-red" aria-hidden="true" />Красные карточки</dt><dd>{{ playerDetails.redCards ?? 0 }}</dd></div>
+            </dl>
+          </section>
+          <section class="profile-section profile-history">
+            <button class="profile-history-toggle" type="button" :aria-expanded="historyExpanded" aria-controls="profile-team-history" @click="historyExpanded = !historyExpanded">
+              <span>История команд <small>{{ playerHistory.length }}</small></span>
+              <span aria-hidden="true">{{ historyExpanded ? '−' : '+' }}</span>
+            </button>
+            <div v-if="historyExpanded" id="profile-team-history">
+              <div v-for="entry in playerHistory" :key="historyKey(entry)" class="profile-history-row">
+                <div><strong>{{ entry.teamName }}</strong><span class="profile-history-period">{{ formatDate(entry.validFrom) }} — {{ formatHistoryEndDate(entry.validTo, entry.active) }}</span></div>
+                <span class="profile-history-status" :class="{ 'is-active': entry.active }">{{ entry.active ? 'Текущая' : 'Архив' }}</span>
               </div>
+              <p v-if="!playerHistory.length" class="profile-empty">История выступлений пока не заполнена.</p>
             </div>
-          </div>
-
-          <div class="player-stats-grid">
-            <div class="stat-item">
-              <span class="stat-label">⚽ Голы</span>
-              <span class="stat-value">{{ playerDetails.goals }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">🟨 ЖК</span>
-              <span class="stat-value yellow">{{ playerDetails.yellowCards }}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">🟥 КК</span>
-              <span class="stat-value red">{{ playerDetails.redCards }}</span>
-            </div>
-          </div>
-
-          <div class="history-section">
-            <div class="section-head history-head">
-              <button class="btn-ghost history-toggle-btn" type="button" @click="historyExpanded = !historyExpanded">
-                {{ historyExpanded ? 'Скрыть команды игрока' : historyToggleLabel }}
-              </button>
-              <button class="btn-ghost" type="button" @click="closePlayerModal">Закрыть</button>
-            </div>
-
-            <div v-if="historyExpanded && playerHistory.length" class="teams-history">
-              <div class="team-season" v-for="entry in playerHistory" :key="historyKey(entry)">
-                <div class="history-line">
-                  <strong>{{ entry.teamName }}</strong>
-                  <span class="history-status" :class="{ active: entry.active }">{{ entry.active ? 'Текущая' : 'Архив' }}</span>
-                </div>
-                <div class="history-period">
-                  <span>{{ formatDate(entry.validFrom) }}</span>
-                  <span>—</span>
-                  <span>{{ formatHistoryEndDate(entry.validTo, entry.active) }}</span>
-                </div>
-              </div>
-            </div>
-            <p v-else-if="historyExpanded" class="empty-text">История переходов пока не заполнена.</p>
-          </div>
+          </section>
         </template>
       </article>
     </div>
@@ -154,14 +126,18 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import UiState from '../components/UiState.vue'
+import PublicCatalogHeader from '../components/PublicCatalogHeader.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 import { useDebounce } from '../composables/useDebounce'
 
 const { optionalAuthApiRequest, isAuthenticated, loadCurrentUser } = useAuth()
 const catalogApi = createCatalogApi(optionalAuthApiRequest)
+const route = useRoute()
+const router = useRouter()
 
 const search = ref('')
 const debouncedSearch = useDebounce(search, 1000)
@@ -184,13 +160,41 @@ const playerHistory = ref([])
 const historyExpanded = ref(false)
 
 const modalTitle = computed(() => playerDetails.value?.fullName || selectedPlayerName.value || 'Игрок')
-const historyToggleLabel = computed(() => {
-  const count = playerHistory.value.length
-  if (!count) {
-    return 'Показать команды игрока'
+const returnToHall = computed(() => route.query.from === 'hall-of-fame')
+const playerInitials = computed(() => modalTitle.value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase())
+const profileDialog = ref(null)
+const profileClose = ref(null)
+let profileTrigger = null
+let previousBodyOverflow = ''
+
+watch(showPlayerModal, async (open) => {
+  if (open) {
+    previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    await nextTick()
+    profileClose.value?.focus()
+  } else {
+    document.body.style.overflow = previousBodyOverflow
+    profileTrigger?.focus()
   }
-  return `Показать команды игрока (${count})`
 })
+
+onBeforeUnmount(() => {
+  if (showPlayerModal.value) document.body.style.overflow = previousBodyOverflow
+})
+
+function trapProfileFocus(event) {
+  const controls = [...profileDialog.value.querySelectorAll('button:not(:disabled), a[href], [tabindex="0"]')]
+  const first = controls[0]
+  const last = controls[controls.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last?.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first?.focus()
+  }
+}
 
 async function loadPlayers(nameQuery = '', requestedPage = 0) {
   loading.value = true
@@ -270,7 +274,8 @@ async function fetchPlayerModalData(playerId) {
   }
 }
 
-function openPlayerModal(player) {
+function openPlayerModal(player, trigger) {
+  profileTrigger = trigger || document.activeElement
   selectedPlayerId.value = player.id
   selectedPlayerName.value = player.name || ''
   showPlayerModal.value = true
@@ -289,6 +294,7 @@ function closePlayerModal() {
   historyExpanded.value = false
   modalErrorText.value = ''
   modalLoading.value = false
+  if (route.name === 'player-profile') router.push(returnToHall.value ? { name: 'hall-of-fame' } : { name: 'players' })
 }
 
 function reloadPlayerModal() {
@@ -363,422 +369,86 @@ onMounted(async () => {
   }
 
   await loadPlayers()
+  if (route.params.playerId) {
+    openPlayerModal({ id: Number(route.params.playerId), name: '' }, null)
+  }
 })
 </script>
 
 <style scoped>
-.players-page {
-  display: grid;
-  gap: 18px;
-}
-
-.player-filters {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.player-filters input {
-  min-width: min(420px, 100%);
-  flex: 1 1 320px;
-}
-
-.players-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.players-list {
-  display: grid;
-  gap: 8px;
-  align-content: start;
-}
-
-.players-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 8px;
-}
-
-.players-row:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.players-name-btn {
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
-}
-
-.players-name-btn:hover {
-  color: var(--brand);
-}
-
-.players-birth-meta {
-  color: var(--muted);
-  font-size: 0.98rem;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.goalkeeper-icon {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 6px;
-  font-size: 0.9em;
-  line-height: 1;
-}
-
-.pagination-row {
-  display: flex;
-  gap: 12px;
-}
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(8, 12, 20, 0.72);
-  display: grid;
-  place-items: center;
-  padding: 28px;
-  z-index: 40;
-}
-
-.player-modal {
-  width: min(920px, calc(100vw - 28px));
-  max-height: min(88vh, 920px);
-  overflow: auto;
-  display: grid;
-  gap: 20px;
-  padding: 22px;
-}
-
-.player-modal-header {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.player-modal-title-wrap {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.player-modal-title-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.player-modal-header h3 {
-  margin: 0;
-  min-width: 0;
-  font-size: clamp(1.55rem, 2vw, 2.1rem);
-  line-height: 1.05;
-  overflow-wrap: anywhere;
-}
-
-.player-modal-title-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: rgba(97, 232, 162, 0.12);
-  border: 1px solid rgba(97, 232, 162, 0.22);
-  font-size: 1.15rem;
-}
-
-.player-modal-role-badge,
-.player-modal-fact-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 11px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line);
-  color: var(--text);
-  font-size: 0.84rem;
-  line-height: 1.1;
-  max-width: 100%;
-}
-
-.player-modal-role-badge {
-  background: rgba(97, 232, 162, 0.14);
-  border-color: rgba(97, 232, 162, 0.28);
-}
-
-.player-modal-facts-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.player-team-copy {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.player-modal-state {
-  display: grid;
-  gap: 16px;
-}
-
-.player-modal-content {
-  display: flex;
-  justify-content: center;
-}
-
-.player-avatar-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.player-avatar {
-  width: 180px;
-  height: 220px;
-  border-radius: 18px;
-  object-fit: cover;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line);
-}
-
-.avatar-placeholder {
-  width: 180px;
-  height: 220px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  gap: 10px;
-  text-align: center;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px dashed var(--line);
-  color: var(--muted);
-}
-
-.avatar-placeholder-icon {
-  font-size: 2rem;
-  line-height: 1;
-}
-
-.player-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.stat-item {
-  padding: 14px 16px;
-  border-radius: 16px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.035);
-  display: grid;
-  gap: 8px;
-}
-
-.stat-label {
-  color: var(--muted);
-  font-size: 0.84rem;
-}
-
-.stat-value {
-  font-size: 1.85rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.stat-value.yellow {
-  color: #f5c44b;
-}
-
-.stat-value.red {
-  color: #ef6461;
-}
-
-.history-section {
-  display: grid;
-  gap: 14px;
-}
-
-.history-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 0;
-}
-
-.history-toggle-btn {
-  white-space: nowrap;
-}
-
-.teams-history {
-  display: grid;
-  gap: 10px;
-}
-
-.team-season {
-  padding: 14px 16px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.03);
-  display: grid;
-  gap: 8px;
-}
-
-.history-line,
-.history-period {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.history-status {
-  color: var(--muted);
-}
-
-.history-status.active {
-  color: var(--brand);
-}
-
-.history-period {
-  color: var(--muted);
-  font-size: 0.92rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-@media (max-width: 860px) {
-  .player-modal {
-    width: min(100vw - 20px, 760px);
-    padding: 18px;
-  }
-
-  .player-modal-header,
-  .history-head {
-    align-items: start;
-    flex-direction: column;
-  }
-
-  .player-avatar-wrap {
-    justify-content: center;
-  }
-
-  .player-stats-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
+.players-table-head, .players-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) 210px 16px; align-items: center; gap: 14px; padding: 0 20px; }
+.players-table-head { min-height: 38px; color: var(--muted); font-size: .62rem; border-bottom: 1px solid rgba(124, 163, 255, .15); background: rgba(124, 163, 255, .035); }
+.players-row { min-height: 58px; border-bottom: 1px solid rgba(124, 163, 255, .1); }
+.players-row:last-child { border-bottom: 0; }
+.players-row:hover { background: rgba(97, 232, 162, .035); }
+.players-number { color: #7890bd; font-size: .65rem; font-variant-numeric: tabular-nums; }
+.players-name-btn { min-height: 44px; min-width: 0; border: 0; background: transparent; color: var(--text); font-size: .8rem; font-weight: 700; padding: 8px 0; cursor: pointer; text-align: left; overflow-wrap: anywhere; }
+.players-name-btn:hover { color: var(--brand); }
+.profile-heading-copy { display: grid; gap: 5px; }
+.profile-return { width: max-content; padding: 0; border: 0; background: transparent; color: #8da7df; font: inherit; font-size: .65rem; cursor: pointer; }
+.profile-return:hover { color: var(--brand); }
+.players-birth-meta { color: var(--muted); font-size: .7rem; }
+.goalkeeper-icon { margin-left: 6px; font-size: .9em; }
 @media (max-width: 640px) {
-  .player-filters {
-    align-items: stretch;
-    flex-direction: column;
-  }
+  .players-table-head { display: none; }
+  .players-row { grid-template-columns: 24px minmax(0, 1fr) 14px; gap: 0 8px; padding: 8px 12px; }
+  .players-number { grid-column: 1; grid-row: 1 / 3; }
+  .players-name-btn { grid-column: 2; grid-row: 1; }
+  .players-birth-meta { grid-column: 2; grid-row: 2; padding-bottom: 4px; }
+  .players-row > .catalog-row-link { grid-column: 3; grid-row: 1 / 3; }
+}
 
-  .player-filters input {
-    min-width: 0;
-    flex: 0 0 auto;
-  }
-
-  .players-row {
-    align-items: start;
-    flex-direction: column;
-  }
-
-  .players-name-btn {
-    width: 100%;
-    min-height: 44px;
-    padding: 10px 0;
-    display: flex;
-    align-items: center;
-  }
-
-  .players-birth-meta {
-    text-align: left;
-    white-space: normal;
-  }
-
-  .player-filters > * {
-    width: 100%;
-  }
-
-  .pagination-row {
-    flex-direction: column;
-  }
-
-  .pagination-row > * {
-    width: 100%;
-  }
-
-  .modal-backdrop {
-    padding: 10px;
-  }
-
-  .player-modal {
-    width: calc(100vw - 20px);
-    max-height: 92vh;
-  }
-
-  .player-avatar,
-  .avatar-placeholder {
-    width: 150px;
-    height: 188px;
-  }
-
-  .player-modal-header,
-  .players-meta,
-  .modal-actions {
-    align-items: start;
-    flex-direction: column;
-  }
-
-  .player-modal-title-row,
-  .player-modal-facts-row {
-    align-items: start;
-    flex-direction: column;
-  }
-
-  .modal-actions {
-    width: 100%;
-  }
-
-  .modal-actions > * {
-    width: 100%;
-  }
-
-  .player-modal-header .btn-ghost {
-    width: 100%;
-  }
-
-  .history-line,
-  .history-period {
-    align-items: start;
-    flex-direction: column;
-    gap: 6px;
-  }
+.profile-backdrop { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: rgba(3, 7, 20, .78); backdrop-filter: blur(5px); }
+.player-profile { width: min(680px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; padding: 22px 26px 8px; border: 1px solid rgba(124, 163, 255, .24); border-radius: 16px; background: linear-gradient(135deg, #131f3d, #0b132b 55%); box-shadow: 0 28px 90px rgba(0, 0, 0, .5); }
+.profile-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.profile-kicker { color: var(--brand); font-size: .6rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.profile-close { display: grid; place-items: center; flex: 0 0 auto; width: 36px; height: 36px; padding: 0; border: 1px solid rgba(124, 163, 255, .2); border-radius: 8px; background: rgba(124, 163, 255, .05); color: var(--muted); font-size: 1.4rem; cursor: pointer; }
+.profile-close:hover { color: var(--text); border-color: var(--brand); }
+.profile-identity { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 24px; margin-bottom: 24px; }
+.profile-photo { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; width: 116px; height: 146px; overflow: hidden; border: 1px solid rgba(124, 163, 255, .17); border-radius: 10px; background: rgba(124, 163, 255, .045); }
+.profile-photo img { width: 100%; height: 100%; object-fit: cover; }
+.profile-photo strong { color: #8199c6; font-size: 2rem; font-weight: 600; letter-spacing: .04em; }
+.profile-photo > span { color: #8190b0; font-size: .54rem; }
+.profile-bio { min-width: 0; }
+.profile-bio h2 { margin: 0 0 10px; color: var(--text); font-size: 1.25rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.profile-position { display: inline-block; margin-bottom: 12px; color: var(--brand); font-size: .64rem; }
+.profile-facts { display: grid; gap: 8px; margin: 0; }
+.profile-facts > div { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 10px; font-size: .7rem; line-height: 1.45; }
+.profile-facts dt { color: #8c9abb; }
+.profile-facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.profile-section { border-top: 1px solid rgba(124, 163, 255, .16); padding: 18px 0; }
+.profile-section h3 { margin: 0 0 14px; font-size: .78rem; color: var(--text); }
+.profile-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.profile-stats > div { padding: 2px 16px; border-left: 1px solid rgba(124, 163, 255, .15); }
+.profile-stats > div:first-child { padding-left: 0; border-left: 0; }
+.profile-stats dt { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .63rem; line-height: 1.4; }
+.profile-stats dd { margin: 9px 0 0; color: var(--text); font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.profile-card-mark { width: 6px; height: 9px; flex-shrink: 0; border-radius: 1px; }
+.profile-card-mark.is-yellow { background: #dfb966; }
+.profile-card-mark.is-red { background: #e47d86; }
+.profile-history-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--text); font-size: .78rem; font-weight: 700; text-align: left; cursor: pointer; }
+.profile-history-toggle small { margin-left: 8px; padding: 2px 6px; border-radius: 4px; background: rgba(124, 163, 255, .1); color: #8da7df; font-size: .6rem; }
+.profile-history-toggle > span:last-child { color: var(--brand); font-size: 1rem; }
+.profile-history-row { display: flex; align-items: start; justify-content: space-between; gap: 14px; padding: 14px 0; border-top: 1px solid rgba(124, 163, 255, .1); }
+.profile-history-row > div { display: grid; gap: 5px; min-width: 0; }
+.profile-history-row strong { font-size: .72rem; font-weight: 600; overflow-wrap: anywhere; }
+.profile-history-period { color: var(--muted); font-size: .62rem; line-height: 1.5; }
+.profile-history-status { color: var(--muted); font-size: .59rem; }
+.profile-history-status.is-active { color: var(--brand); }
+.profile-empty { color: var(--muted); font-size: .7rem; }
+@media (max-width: 540px) {
+  .profile-backdrop { padding: 10px; }
+  .player-profile { max-height: calc(100dvh - 20px); padding: 14px 16px 4px; border-radius: 12px; }
+  .profile-heading { margin-bottom: 16px; }
+  .profile-close { width: 44px; height: 44px; }
+  .profile-identity { grid-template-columns: 64px minmax(0, 1fr); gap: 14px; }
+  .profile-photo { width: 64px; height: 82px; gap: 5px; }
+  .profile-photo strong { font-size: 1.3rem; }
+  .profile-photo > span { max-width: 55px; text-align: center; font-size: .48rem; }
+  .profile-bio h2 { font-size: 1rem; }
+  .profile-facts > div { grid-template-columns: 1fr; gap: 2px; font-size: .65rem; }
+  .profile-stats > div { padding: 2px 8px; }
+  .profile-stats dt { align-items: baseline; font-size: .59rem; }
+  .profile-stats dd { font-size: 1.25rem; }
 }
 </style>

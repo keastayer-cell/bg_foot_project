@@ -25,5 +25,9 @@ export function createCompetitionsApi(request) {
       method: 'POST', body: JSON.stringify({ teamId, playerIds }),
     }),
     removeRosterPlayer: (seasonId, competitionId, teamId, playerId) => request(`${base(seasonId)}/${encodeURIComponent(competitionId)}/roster/${encodeURIComponent(playerId)}?teamId=${encodeURIComponent(teamId)}`, { method: 'DELETE' }),
+    honors: (seasonId, competitionId) => request(`${base(seasonId)}/${encodeURIComponent(competitionId)}/honors`, { method: 'GET' }),
+    saveHonors: (seasonId, competitionId, payload) => request(`${base(seasonId)}/${encodeURIComponent(competitionId)}/honors`, {
+      method: 'PUT', body: JSON.stringify(payload),
+    }),
   }
 }

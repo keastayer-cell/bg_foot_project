@@ -14,6 +14,8 @@
       <span v-if="badgeCount" class="notification-bell-count">{{ badgeCount > 99 ? '99+' : badgeCount }}</span>
     </button>
 
+    <div v-if="open" class="notification-scrim" aria-hidden="true" @click="open = false" />
+
     <section v-if="open" class="notification-popover" aria-label="Уведомления">
       <header class="notification-popover-head">
         <button v-if="selectedItem" class="notification-back" type="button" @click="selectedItem = null">← Назад</button>
@@ -57,7 +59,7 @@
             </button>
             <span v-else-if="selectedItem.requiresAcknowledgement" class="notification-acknowledged">✓ Ознакомление подтверждено</span>
             <button v-if="selectedItem.actionUrl" class="notification-open-action" type="button" @click="openAction(selectedItem)">
-              Перейти в связанный раздел →
+              {{ notificationActionLabel(selectedItem) }} →
             </button>
             <span v-if="!selectedItem.requiresAcknowledgement && !selectedItem.actionUrl" class="notification-reader__status">Уведомление прочитано</span>
           </footer>
@@ -74,7 +76,7 @@
             v-for="item in items"
             :key="item.id"
             class="notification-item"
-            :class="[`is-${String(item.severity || 'INFO').toLowerCase()}`, { 'is-unread': isAuthenticated && !item.readAt }]"
+            :class="[`is-${String(item.severity || 'INFO').toLowerCase()}`, { 'is-unread': !item.readAt }]"
           >
             <button class="notification-item-main" type="button" @click="openNotification(item)">
               <span class="notification-item-meta">
@@ -97,7 +99,7 @@
             <span>{{ pageNumber + 1 }} / {{ Math.max(totalPages, 1) }}</span>
             <button type="button" :disabled="pageNumber + 1 >= totalPages || loading" @click="changePage(pageNumber + 1)">→</button>
           </div>
-          <button type="button" :disabled="loading" @click="loadNotifications">Обновить</button>
+          <button type="button" :disabled="loading" @click="reloadNotifications">Обновить</button>
         </footer>
       </template>
     </section>
@@ -111,6 +113,8 @@ import { createNotificationsApi } from '../api/notifications'
 import { useAuth } from '../store/auth'
 
 const PAGE_SIZE = 10
+const NOTIFICATION_REFRESH_INTERVAL_MS = 5 * 60 * 1000
+const PUBLIC_READ_STORAGE_KEY = 'football_stats_public_notifications_read_v1'
 const { authorizedApiRequest, optionalAuthApiRequest, isAuthenticated } = useAuth()
 const notificationsApi = createNotificationsApi(authorizedApiRequest)
 const publicNotificationsApi = createNotificationsApi(optionalAuthApiRequest)
@@ -126,7 +130,11 @@ const selectedItem = ref(null)
 const pageNumber = ref(0)
 const totalElements = ref(0)
 const totalPages = ref(0)
+const publicReadState = ref(loadPublicReadState())
 let pollTimer = null
+let badgeRequest = null
+let lastBadgeRefreshAt = 0
+let publicFirstPageCache = null
 
 const badgeCount = computed(() => isAuthenticated.value ? unreadCount.value : publicCount.value)
 const pageStart = computed(() => totalElements.value ? pageNumber.value * PAGE_SIZE + 1 : 0)
@@ -134,12 +142,12 @@ const pageEnd = computed(() => Math.min((pageNumber.value + 1) * PAGE_SIZE, tota
 const sanitizedSelectedBody = computed(() => sanitizeHtml(selectedItem.value?.body || ''))
 const bellLabel = computed(() => {
   if (isAuthenticated.value && unreadCount.value) return `Уведомления: непрочитанных ${unreadCount.value}`
-  if (!isAuthenticated.value && publicCount.value) return `Публичные объявления: ${publicCount.value}`
+  if (!isAuthenticated.value && publicCount.value) return `Публичные объявления: новых ${publicCount.value}`
   return 'Уведомления'
 })
 const counterLabel = computed(() => {
   if (isAuthenticated.value) return unreadCount.value ? `Новых: ${unreadCount.value}` : 'Нет новых'
-  return publicCount.value ? `Публичных: ${publicCount.value}` : 'Нет объявлений'
+  return publicCount.value ? `Новых: ${publicCount.value}` : 'Нет новых'
 })
 
 watch(isAuthenticated, () => {
@@ -152,24 +160,29 @@ watch(isAuthenticated, () => {
   totalPages.value = 0
   unreadCount.value = 0
   publicCount.value = 0
+  publicFirstPageCache = null
+  lastBadgeRefreshAt = 0
   startPolling()
 }, { immediate: true })
 
 onMounted(() => {
   document.addEventListener('click', closeOnOutsideClick)
-  window.addEventListener('focus', refreshBadgeCount)
+  window.addEventListener('focus', refreshBadgeCountIfStale)
 })
 
 onBeforeUnmount(() => {
   stopPolling()
   document.removeEventListener('click', closeOnOutsideClick)
-  window.removeEventListener('focus', refreshBadgeCount)
+  window.removeEventListener('focus', refreshBadgeCountIfStale)
 })
 
 async function toggle() {
   open.value = !open.value
   selectedItem.value = null
-  if (open.value) await loadNotifications()
+  if (open.value) {
+    if (!isAuthenticated.value && badgeRequest) await badgeRequest
+    await loadNotifications()
+  }
 }
 
 async function loadUnreadCount() {
@@ -184,42 +197,74 @@ async function loadUnreadCount() {
 
 async function loadPublicCount() {
   try {
-    const payload = await publicNotificationsApi.publicList(0, 1)
-    publicCount.value = Number(payload?.totalElements || 0)
+    const payload = await publicNotificationsApi.publicList(0, PAGE_SIZE)
+    publicFirstPageCache = payload
+    const publicItems = Array.isArray(payload?.items) ? payload.items : []
+    publicCount.value = publicItems.filter((item) => !publicReadAt(item)).length
   } catch {
     // Публичная фоновая проверка не должна мешать работе сайта.
   }
 }
 
 function refreshBadgeCount() {
-  return isAuthenticated.value ? loadUnreadCount() : loadPublicCount()
+  if (badgeRequest) return badgeRequest
+  badgeRequest = (isAuthenticated.value ? loadUnreadCount() : loadPublicCount())
+    .finally(() => {
+      lastBadgeRefreshAt = Date.now()
+      badgeRequest = null
+    })
+  return badgeRequest
 }
 
-async function loadNotifications() {
+function refreshBadgeCountIfStale() {
+  if (Date.now() - lastBadgeRefreshAt < NOTIFICATION_REFRESH_INTERVAL_MS) return
+  void refreshBadgeCount()
+}
+
+async function loadNotifications(force = false) {
   if (loading.value) return
+  if (!force && !isAuthenticated.value && pageNumber.value === 0 && publicFirstPageCache) {
+    applyNotificationsPayload(publicFirstPageCache)
+    return
+  }
   loading.value = true
   error.value = ''
   try {
     const payload = isAuthenticated.value
       ? await notificationsApi.list(pageNumber.value, PAGE_SIZE)
       : await publicNotificationsApi.publicList(pageNumber.value, PAGE_SIZE)
-    items.value = (Array.isArray(payload?.items) ? payload.items : []).map((item) => ({
-      ...item,
-      id: item.id ?? `public-${item.notificationId}`,
-      public: !isAuthenticated.value,
-      requiresAcknowledgement: Boolean(item.requiresAcknowledgement),
-      readAt: item.readAt ?? null,
-      acknowledgedAt: item.acknowledgedAt ?? null,
-    }))
-    totalElements.value = Number(payload?.totalElements || 0)
-    totalPages.value = Number(payload?.totalPages || 0)
-    if (isAuthenticated.value) unreadCount.value = Number(payload?.unreadCount || 0)
-    else publicCount.value = totalElements.value
+    if (!isAuthenticated.value && pageNumber.value === 0) {
+      publicFirstPageCache = payload
+      lastBadgeRefreshAt = Date.now()
+    }
+    applyNotificationsPayload(payload)
   } catch (requestError) {
     error.value = requestError.message || 'Не удалось загрузить уведомления.'
   } finally {
     loading.value = false
   }
+}
+
+function applyNotificationsPayload(payload) {
+  items.value = (Array.isArray(payload?.items) ? payload.items : []).map((item) => {
+    const publicItem = !isAuthenticated.value
+    return {
+      ...item,
+      id: item.id ?? `public-${item.notificationId}`,
+      public: publicItem,
+      requiresAcknowledgement: Boolean(item.requiresAcknowledgement),
+      readAt: publicItem ? publicReadAt(item) : (item.readAt ?? null),
+      acknowledgedAt: item.acknowledgedAt ?? null,
+    }
+  })
+  totalElements.value = Number(payload?.totalElements || 0)
+  totalPages.value = Number(payload?.totalPages || 0)
+  if (isAuthenticated.value) unreadCount.value = Number(payload?.unreadCount || 0)
+  else publicCount.value = items.value.filter((item) => !item.readAt).length
+}
+
+async function reloadNotifications() {
+  await loadNotifications(true)
 }
 
 async function changePage(nextPage) {
@@ -228,15 +273,28 @@ async function changePage(nextPage) {
 }
 
 async function openNotification(item) {
+  selectedItem.value = item
+
+  if (!isAuthenticated.value) {
+    if (!item.readAt) {
+      const readAt = new Date().toISOString()
+      rememberPublicRead(item, readAt)
+      const openedItem = { ...item, readAt }
+      replaceItem(openedItem)
+      selectedItem.value = openedItem
+      publicCount.value = Math.max(0, publicCount.value - 1)
+    }
+    return
+  }
+
   let openedItem = item
-  if (isAuthenticated.value && !item.readAt) {
+  if (!item.readAt) {
     try {
       openedItem = await notificationsApi.markRead(item.id)
       replaceItem(openedItem)
       unreadCount.value = Math.max(0, unreadCount.value - 1)
     } catch (requestError) {
       error.value = requestError.message || 'Не удалось отметить уведомление прочитанным.'
-      return
     }
   }
   selectedItem.value = openedItem
@@ -259,6 +317,10 @@ async function openAction(item) {
   await router.push(item.actionUrl)
 }
 
+function notificationActionLabel(item) {
+  return String(item?.actionUrl || '').startsWith('/matches/') ? 'Открыть матч' : 'Перейти в связанный раздел'
+}
+
 async function markAllRead() {
   try {
     await notificationsApi.markAllRead()
@@ -274,10 +336,43 @@ function replaceItem(updated) {
   items.value = items.value.map((item) => item.id === updated.id ? updated : item)
 }
 
+function publicNotificationKey(item) {
+  return String(item?.notificationId ?? item?.id ?? '')
+}
+
+function publicReadAt(item) {
+  const key = publicNotificationKey(item)
+  return key ? publicReadState.value[key] || null : null
+}
+
+function rememberPublicRead(item, readAt) {
+  const key = publicNotificationKey(item)
+  if (!key) return
+  const nextState = { ...publicReadState.value, [key]: readAt }
+  const entries = Object.entries(nextState)
+    .sort((left, right) => String(right[1]).localeCompare(String(left[1])))
+    .slice(0, 250)
+  publicReadState.value = Object.fromEntries(entries)
+  try {
+    window.localStorage.setItem(PUBLIC_READ_STORAGE_KEY, JSON.stringify(publicReadState.value))
+  } catch {
+    // Просмотр уведомления должен работать даже при недоступном localStorage.
+  }
+}
+
+function loadPublicReadState() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(PUBLIC_READ_STORAGE_KEY) || '{}')
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  } catch {
+    return {}
+  }
+}
+
 function startPolling() {
   stopPolling()
   void refreshBadgeCount()
-  pollTimer = window.setInterval(refreshBadgeCount, 30000)
+  pollTimer = window.setInterval(refreshBadgeCount, NOTIFICATION_REFRESH_INTERVAL_MS)
 }
 
 function stopPolling() {
@@ -286,7 +381,10 @@ function stopPolling() {
 }
 
 function closeOnOutsideClick(event) {
-  if (open.value && root.value && !root.value.contains(event.target)) open.value = false
+  if (!open.value || !root.value) return
+  const eventPath = typeof event.composedPath === 'function' ? event.composedPath() : []
+  const startedInside = eventPath.includes(root.value) || root.value.contains(event.target)
+  if (!startedInside) open.value = false
 }
 
 function severityLabel(severity) {
@@ -334,25 +432,28 @@ function formatDateTime(value, withYear = false) {
 </script>
 
 <style scoped>
-.notification-center { position: relative; flex: 0 0 auto; }
-.notification-bell { position: relative; display: grid; width: 40px; height: 40px; padding: 0; place-items: center; border: 1px solid rgba(124, 163, 255, .2); border-radius: 10px; background: rgba(124, 163, 255, .07); color: var(--muted); cursor: pointer; }
+.notification-center { position: relative; z-index: 120; flex: 0 0 auto; }
+.notification-bell { position: relative; z-index: 3; display: grid; width: 40px; height: 40px; padding: 0; place-items: center; border: 1px solid rgba(124, 163, 255, .2); border-radius: 10px; background: rgba(124, 163, 255, .07); color: var(--muted); cursor: pointer; }
 .notification-bell:hover, .notification-bell.is-open, .notification-bell.has-unread { border-color: rgba(97, 232, 162, .36); color: var(--brand); background: rgba(97, 232, 162, .08); }
 .notification-bell svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .notification-bell-count { position: absolute; top: -6px; right: -7px; display: grid; min-width: 19px; height: 19px; padding: 0 5px; place-items: center; border: 2px solid #0a1025; border-radius: 10px; background: #e84f6b; color: #fff; font-size: .58rem; font-weight: 900; }
-.notification-popover { position: absolute; z-index: 80; top: calc(100% + 8px); right: 0; width: min(560px, calc(100vw - 20px)); overflow: hidden; border: 1px solid rgba(124, 163, 255, .22); border-radius: 12px; background: #0b122b; box-shadow: 0 18px 44px rgba(0, 0, 0, .44); }
+.notification-scrim { position: fixed; z-index: 1; inset: 0; background: rgba(2, 6, 21, .38); backdrop-filter: blur(2px) saturate(.82); animation: notification-scrim-in .14s ease-out; }
+.notification-popover { position: absolute; z-index: 2; top: calc(100% + 10px); right: 0; width: min(560px, calc(100vw - 20px)); overflow: hidden; border: 1px solid rgba(97, 232, 162, .34); border-radius: 14px; background: linear-gradient(155deg, #121d3e 0%, #0b132d 46%, #080f25 100%); box-shadow: 0 30px 85px rgba(0, 0, 0, .68), 0 0 0 1px rgba(124, 163, 255, .12), 0 0 36px rgba(97, 232, 162, .09); animation: notification-popover-in .16s ease-out; }
+.notification-popover::before { position: absolute; z-index: 1; top: 0; right: 18px; left: 18px; height: 2px; border-radius: 0 0 3px 3px; background: linear-gradient(90deg, transparent, rgba(97, 232, 162, .92), transparent); content: ''; }
 .notification-popover-head, .notification-popover-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; }
-.notification-popover-head { min-height: 42px; border-bottom: 1px solid rgba(124, 163, 255, .14); }
+.notification-popover-head { min-height: 42px; border-bottom: 1px solid rgba(124, 163, 255, .2); background: rgba(20, 31, 66, .62); }
 .notification-popover-head > div { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .notification-popover-head small { color: var(--muted); font-size: 10px; white-space: nowrap; }
 .notification-popover-head h3 { margin: 0; font-size: 14px; }
 .notification-popover-head button, .notification-popover-footer button { padding: 0; border: 0; background: transparent; color: var(--brand); font-size: 10px; font-weight: 700; cursor: pointer; }
 .notification-popover-head button:disabled, .notification-popover-footer button:disabled { opacity: .35; cursor: default; }
 .notification-list { display: grid; max-height: min(430px, calc(100vh - 150px)); overflow-y: auto; }
-.notification-item { position: relative; border-bottom: 1px solid rgba(124, 163, 255, .11); background: rgba(255, 255, 255, .015); }
-.notification-item.is-unread { background: rgba(97, 232, 162, .055); box-shadow: inset 3px 0 0 var(--brand); }
+.notification-item { position: relative; border-bottom: 1px solid rgba(124, 163, 255, .14); background: rgba(17, 27, 58, .52); }
+.notification-item:nth-child(even) { background: rgba(11, 19, 43, .58); }
+.notification-item.is-unread { background: rgba(38, 82, 83, .24); box-shadow: inset 3px 0 0 var(--brand); }
 .notification-item.is-warning { box-shadow: inset 3px 0 0 #ff9a5f; }
 .notification-item-main { display: grid; grid-template-columns: 82px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 10px 12px; border: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
-.notification-item-main:hover { background: rgba(124, 163, 255, .045); }
+.notification-item-main:hover { background: rgba(124, 163, 255, .09); }
 .notification-item-meta { display: grid; align-content: center; gap: 3px; color: var(--muted); font-size: 10px; }
 .notification-item-meta b { color: var(--brand); text-transform: uppercase; }
 .notification-item.is-warning .notification-item-meta b { color: #ffb078; }
@@ -363,7 +464,7 @@ function formatDateTime(value, withYear = false) {
 .notification-view { color: #91aaf4; font-size: 10px; white-space: nowrap; }
 .notification-state { margin: 0; padding: 22px 14px; color: var(--muted); font-size: 11px; text-align: center; }
 .notification-state.is-error { color: #ff8da2; }
-.notification-popover-footer { border-top: 1px solid rgba(124, 163, 255, .12); color: var(--muted); font-size: 10px; }
+.notification-popover-footer { border-top: 1px solid rgba(124, 163, 255, .18); background: rgba(5, 10, 27, .46); color: var(--muted); font-size: 10px; }
 .notification-pagination { display: flex; align-items: center; gap: 9px; }
 .notification-pagination button { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid rgba(124, 163, 255, .18); border-radius: 6px; }
 .notification-reader { display: block; max-height: min(540px, calc(100vh - 150px)); overflow-y: auto; background: linear-gradient(180deg, rgba(36, 51, 98, .18), rgba(8, 14, 35, .05)); }
@@ -387,6 +488,8 @@ function formatDateTime(value, withYear = false) {
 .notification-acknowledge, .notification-open-action { padding: 7px 10px; border: 1px solid rgba(97, 232, 162, .32); border-radius: 7px; background: rgba(97, 232, 162, .1); color: var(--brand); font-size: 10px; font-weight: 800; cursor: pointer; }
 .notification-open-action { margin-left: auto; border-color: rgba(124, 163, 255, .25); background: rgba(124, 163, 255, .08); color: #a9baff; }
 .notification-acknowledged { color: var(--brand); font-size: 10px; }
+@keyframes notification-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes notification-popover-in { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (max-width: 680px) {
   .notification-popover { position: fixed; top: 62px; right: 10px; left: 10px; width: auto; }
   .notification-item-main { grid-template-columns: 68px minmax(0, 1fr); gap: 9px; }
@@ -398,5 +501,8 @@ function formatDateTime(value, withYear = false) {
   .notification-reader__content { padding: 16px 13px; }
   .notification-reader__body { padding: 13px; }
   .notification-reader__footer { align-items: stretch; padding: 10px 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notification-scrim, .notification-popover { animation: none; }
 }
 </style>

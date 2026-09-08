@@ -17,20 +17,23 @@ export function createAdminLeagueApi(request) {
   return {
     officials: resource('officials'),
     venues: resource('venues'),
-    saveRegulation(seasonId, documentDataUrl) {
-      return request(
-        `/api/admin/league/seasons/${encodeURIComponent(seasonId)}/regulation`,
-        {
+    regulations: {
+      list() {
+        return request('/api/admin/league/regulations', { method: 'GET' })
+      },
+      save(targetType, targetId, documentDataUrl) {
+        const resourceName = targetType === 'SEASON' ? 'seasons' : 'competitions'
+        return request(`/api/admin/league/${resourceName}/${encodeURIComponent(targetId)}/regulation`, {
           method: 'PUT',
           body: JSON.stringify({ documentDataUrl }),
-        },
-      )
-    },
-    removeRegulation(seasonId) {
-      return request(
-        `/api/admin/league/seasons/${encodeURIComponent(seasonId)}/regulation`,
-        { method: 'DELETE' },
-      )
+        })
+      },
+      remove(targetType, targetId) {
+        const resourceName = targetType === 'SEASON' ? 'seasons' : 'competitions'
+        return request(`/api/admin/league/${resourceName}/${encodeURIComponent(targetId)}/regulation`, {
+          method: 'DELETE',
+        })
+      },
     },
   }
 }

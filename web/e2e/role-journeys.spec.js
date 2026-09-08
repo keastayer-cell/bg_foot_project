@@ -148,7 +148,8 @@ function json(route, payload, status = 200) {
 async function mockProductBackend(page, role = null) {
   const user = role ? users[role] : null
 
-  await page.route('http://127.0.0.1:8080/api/**', async (route) => {
+  // Keep the mocked session available to pages opened by target="_blank".
+  await page.context().route('http://127.0.0.1:8080/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname
@@ -231,6 +232,73 @@ async function mockProductBackend(page, role = null) {
       })
     }
     if (path === '/api/team-rep/seasons/1/transfers') {
+      const requests = [
+        {
+          id: 401,
+          playerId: 31,
+          playerName: 'Иван Соколов',
+          playerGoalkeeper: false,
+          fromTeamId: 21,
+          fromTeamName: 'Бета',
+          toTeamId: 20,
+          toTeamName: 'Альфа',
+          status: 'PENDING',
+          requestComment: 'Усиление состава перед решающими турами.',
+          requestedAt: '2026-09-07T10:00:00+03:00',
+          requestedByName: 'Представитель Альфы',
+          canApprove: false,
+          canReject: false,
+          canRevoke: true,
+        },
+        {
+          id: 402,
+          playerId: 32,
+          playerName: 'Павел Орлов',
+          playerGoalkeeper: false,
+          fromTeamId: 21,
+          fromTeamName: 'Бета',
+          toTeamId: 20,
+          toTeamName: 'Альфа',
+          status: 'APPROVED',
+          requestedAt: '2026-09-04T10:00:00+03:00',
+          requestedByName: 'Представитель Альфы',
+          canApprove: false,
+          canReject: false,
+          canRevoke: false,
+        },
+        {
+          id: 403,
+          playerId: 33,
+          playerName: 'Максим Волков',
+          playerGoalkeeper: true,
+          fromTeamId: 21,
+          fromTeamName: 'Бета',
+          toTeamId: 20,
+          toTeamName: 'Альфа',
+          status: 'REJECTED',
+          requestedAt: '2026-09-02T10:00:00+03:00',
+          requestedByName: 'Представитель Альфы',
+          canApprove: false,
+          canReject: false,
+          canRevoke: false,
+        },
+        {
+          id: 404,
+          playerId: 34,
+          playerName: 'Артём Белов',
+          playerGoalkeeper: false,
+          fromTeamId: 21,
+          fromTeamName: 'Бета',
+          toTeamId: 20,
+          toTeamName: 'Альфа',
+          status: 'REVOKED',
+          requestedAt: '2026-08-30T10:00:00+03:00',
+          requestedByName: 'Представитель Альфы',
+          canApprove: false,
+          canReject: false,
+          canRevoke: false,
+        },
+      ]
       return json(route, {
         seasonId: 1,
         seasonName: activeSeason.name,
@@ -243,11 +311,11 @@ async function mockProductBackend(page, role = null) {
         maxRosterSize: 20,
         sourceTeams: [{ id: 21, name: 'Бета' }],
         targetTeams: [{ id: 20, name: 'Альфа' }, { id: 21, name: 'Бета' }],
-        requests: [],
+        requests,
         pageNumber: 0,
         pageSize: 20,
-        totalElements: 0,
-        totalPages: 0,
+        totalElements: requests.length,
+        totalPages: 1,
       })
     }
 
@@ -335,7 +403,12 @@ test('представитель команды: кабинет → сезонн
   await expect(page).toHaveURL(/\/team-rep-transfers$/)
   await page.getByLabel('Выберите сезон').selectOption('1')
   await expect(page.locator('.transfer-context-metrics').getByText('Открыто', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Трансферных заявок пока нет' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Журнал трансферов' })).toBeVisible()
+  await expect(page.getByText('Иван Соколов')).toBeVisible()
+  await expect(page.getByText('Трансфер одобрен')).toBeVisible()
+  await expect(page.getByText('Трансфер отклонен')).toBeVisible()
+  await expect(page.getByText('Трансфер отозван')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Отозвать' })).toBeVisible()
 })
 
 test('рефери: матч из тура → заполнение и сохранение протокола', async ({ page }) => {

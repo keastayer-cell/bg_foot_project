@@ -27,6 +27,12 @@ export function createCatalogApi(request) {
     getLeagueOverview() {
       return request('/api/league/overview', { method: 'GET' })
     },
+    getLeagueRegulations() {
+      return request('/api/league/regulations', { method: 'GET' })
+    },
+    getHallOfFame() {
+      return request('/api/hall-of-fame', { method: 'GET' })
+    },
     getActiveTeams() {
       return request('/api/teams?active_flag=1')
     },

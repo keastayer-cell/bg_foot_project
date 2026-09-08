@@ -1,48 +1,47 @@
 <template>
-  <section class="section-wrap home-page">
-    <article class="card home-hero">
-      <div class="home-hero-head">
-        <h1 class="section-title home-title">Трансферы</h1>
-        <label class="season-box season-box-wide">
-          <span>Сезон</span>
-          <select v-model="selectedSeasonId" :disabled="loadingSeasons || !seasons.length">
-            <option value="" v-if="!seasons.length">— сезоны не найдены —</option>
-            <option v-for="item in seasons" :key="item.id" :value="String(item.id)">{{ item.name }}</option>
-          </select>
-        </label>
-      </div>
+  <section class="section-wrap catalog-page">
+    <PublicCatalogHeader title="Трансферы" description="Переходы игроков между командами лиги." :count="!loadingSeasonData && !pageError ? totalElements : null" count-label="переходов" />
+    <div class="catalog-toolbar">
+      <label class="catalog-search transfer-season">
+        <span>Сезон</span>
+        <select v-model="selectedSeasonId" :disabled="loadingSeasons || !seasons.length">
+          <option value="" v-if="!seasons.length">— сезоны не найдены —</option>
+          <option v-for="item in seasons" :key="item.id" :value="String(item.id)">{{ item.name }}</option>
+        </select>
+      </label>
+      <span class="catalog-toolbar-note">Все статусы переходов</span>
+    </div>
 
-      <UiState
-        v-if="pageError"
-        tone="error"
-        title="Не удалось загрузить трансферы"
-        :message="pageError"
-        action-label="Повторить"
-        @action="loadSeasons"
-      />
-    </article>
+    <UiState
+      v-if="pageError"
+      tone="error"
+      title="Не удалось загрузить трансферы"
+      :message="pageError"
+      action-label="Повторить"
+      @action="loadSeasons"
+    />
 
-    <article class="card player-stats-card">
-      <div class="section-head player-stats-head">
+    <article class="catalog-surface transfer-surface">
+      <div class="catalog-list-head">
         <div>
-          <h2 class="section-title">Список трансферов сезона</h2>
+          <h2>Переходы за сезон</h2>
         </div>
         <span class="muted-text" v-if="loadingSeasonData">Загрузка...</span>
       </div>
 
       <div class="transfer-table-head" v-if="transfers.length">
-        <span>Куда переходит</span>
-        <span>ФИО</span>
-        <span>Клуб откуда</span>
-        <span>Дата перехода</span>
-        <span>Статус трансфера</span>
+        <span>Игрок</span>
+        <span>Откуда</span>
+        <span>Куда</span>
+        <span>Дата заявки</span>
+        <span>Статус</span>
       </div>
 
       <div class="season-transfer-list" v-if="transfers.length">
         <article class="season-transfer-item" v-for="transfer in transfers" :key="transfer.id">
-          <span class="transfer-cell transfer-team transfer-team-target">{{ transfer.toTeamName }}</span>
           <span class="transfer-cell transfer-player">{{ transfer.playerName }}<span v-if="transfer.playerGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></span>
-          <span class="transfer-cell transfer-team">{{ transfer.fromTeamName }}</span>
+          <span class="transfer-cell transfer-team" data-label="Откуда">{{ transfer.fromTeamName }}</span>
+          <span class="transfer-cell transfer-team transfer-team-target" data-label="Куда">{{ transfer.toTeamName }}</span>
           <span class="transfer-cell transfer-request-date">{{ formatDateOnly(transfer.requestedDate || transfer.requestedAt) }}</span>
           <span class="transfer-cell transfer-status-wrap">
             <span class="transfer-status-badge" :class="statusClass(transfer.status)">{{ formatTransferStatus(transfer.status) }}</span>
@@ -50,19 +49,19 @@
         </article>
       </div>
 
-      <div class="pagination-bar" v-if="totalPages > 1">
+      <div class="catalog-pagination" v-if="totalPages > 1">
         <button class="btn-ghost" type="button" @click="changePage(currentPage - 1)" :disabled="loadingSeasonData || currentPage <= 0">Назад</button>
         <span class="muted-text">Страница {{ currentPage + 1 }} из {{ totalPages }} · всего {{ totalElements }}</span>
         <button class="btn-ghost" type="button" @click="changePage(currentPage + 1)" :disabled="loadingSeasonData || currentPage + 1 >= totalPages">Вперёд</button>
       </div>
 
       <UiState
-        v-else-if="!loadingSeasonData && selectedSeasonId"
+        v-if="!loadingSeasonData && !pageError && !transfers.length && selectedSeasonId"
         title="Трансферов пока нет"
         message="Подтвержденные и ожидающие решения переходы этого сезона появятся здесь."
       />
       <UiState
-        v-else-if="!loadingSeasonData"
+        v-else-if="!loadingSeasonData && !pageError && !selectedSeasonId"
         title="Нет активного сезона"
         message="Список трансферов станет доступен после открытия сезона."
       />
@@ -73,6 +72,7 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import UiState from '../components/UiState.vue'
+import PublicCatalogHeader from '../components/PublicCatalogHeader.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 
@@ -156,10 +156,10 @@ async function changePage(pageNum) {
 }
 
 function formatTransferStatus(status) {
-  if (status === 'PENDING') return 'Трансфер запрошен'
-  if (status === 'APPROVED') return 'Трансфер одобрен'
-  if (status === 'REJECTED') return 'Трансфер отклонен'
-  if (status === 'REVOKED') return 'Трансфер отозван'
+  if (status === 'PENDING') return 'На рассмотрении'
+  if (status === 'APPROVED') return 'Одобрен'
+  if (status === 'REJECTED') return 'Отклонён'
+  if (status === 'REVOKED') return 'Отозван'
   return status || '—'
 }
 
@@ -188,198 +188,31 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.home-hero {
-  display: grid;
-  gap: 18px;
-}
-
-.home-hero-head {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-.home-title {
-  margin-bottom: 0;
-}
-
-.season-box-wide {
-  min-width: 260px;
-}
-
-.season-transfer-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.transfer-table-head,
-.season-transfer-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.2fr) minmax(0, 1.15fr) 140px 180px;
-  gap: 12px;
-  align-items: center;
-}
-
-.transfer-table-head {
-  margin-top: 18px;
-  padding: 0 14px 6px;
-  color: rgba(241, 244, 255, 0.88);
-  font-size: 0.98rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.season-transfer-item {
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.transfer-cell {
-  min-width: 0;
-}
-
-.transfer-team {
-  color: var(--text);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.transfer-player {
-  font-weight: 600;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.transfer-status-wrap {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-}
-
-.transfer-request-date {
-  color: rgba(231, 236, 255, 0.78);
-  font-size: 0.9rem;
-  white-space: nowrap;
-}
-
-.transfer-status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  font-size: 0.8rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.transfer-status-badge.is-pending {
-  background: rgba(218, 165, 32, 0.15);
-  border-color: rgba(218, 165, 32, 0.45);
-  color: #f3c969;
-}
-
-.transfer-status-badge.is-approved {
-  background: rgba(62, 166, 106, 0.15);
-  border-color: rgba(62, 166, 106, 0.45);
-  color: #7be0a0;
-}
-
-.transfer-status-badge.is-rejected {
-  background: rgba(196, 74, 74, 0.15);
-  border-color: rgba(196, 74, 74, 0.45);
-  color: #ff9c9c;
-}
-
-.transfer-status-badge.is-revoked {
-  background: rgba(135, 145, 170, 0.16);
-  border-color: rgba(135, 145, 170, 0.42);
-  color: rgba(231, 236, 255, 0.82);
-}
-
-.pagination-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-top: 14px;
-  flex-wrap: wrap;
-}
-
-.transfer-list-empty {
-  min-height: 8px;
-}
-
+.transfer-season { flex: 0 1 300px; }
+.transfer-table-head, .season-transfer-item { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 95px 130px; align-items: center; gap: 16px; padding: 0 20px; }
+.transfer-table-head { min-height: 38px; background: rgba(124, 163, 255, .035); color: var(--muted); font-size: .62rem; border-bottom: 1px solid rgba(124, 163, 255, .15); }
+.season-transfer-item { min-height: 62px; border-bottom: 1px solid rgba(124, 163, 255, .1); font-size: .75rem; }
+.season-transfer-item:last-child { border-bottom: 0; }
+.season-transfer-item:hover { background: rgba(97, 232, 162, .035); }
+.transfer-cell { min-width: 0; overflow-wrap: anywhere; }
+.transfer-player { font-weight: 700; }
+.transfer-team { color: var(--muted); }
+.transfer-team-target { color: var(--text); }
+.transfer-request-date { color: var(--muted); font-size: .65rem; font-variant-numeric: tabular-nums; }
+.transfer-status-badge { display: inline-flex; padding: 5px 8px; border: 1px solid rgba(124, 163, 255, .2); border-radius: 6px; font-size: .62rem; font-weight: 700; }
+.transfer-status-badge.is-pending { background: rgba(243, 201, 105, .07); border-color: rgba(243, 201, 105, .23); color: #f3c969; }
+.transfer-status-badge.is-approved { background: rgba(97, 232, 162, .07); border-color: rgba(97, 232, 162, .23); color: var(--brand); }
+.transfer-status-badge.is-rejected { background: rgba(255, 156, 156, .07); border-color: rgba(255, 156, 156, .23); color: #ff9c9c; }
+.transfer-status-badge.is-revoked { color: var(--muted); }
+.transfer-surface > .catalog-pagination { padding: 14px 20px; border-top: 1px solid rgba(124, 163, 255, .12); }
 @media (max-width: 860px) {
-  .season-box-wide {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .season-box-wide select {
-    width: 100%;
-  }
-
-  .home-hero-head {
-    align-items: start;
-  }
-
-  .transfer-table-head {
-    display: none;
-  }
-
-  .season-transfer-item {
-    grid-template-columns: 1fr;
-    gap: 8px;
-    padding: 12px;
-  }
-
-  .transfer-team,
-  .transfer-player,
-  .transfer-request-date {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-  }
-
-  .transfer-status-wrap {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 560px) {
-  .home-hero-head {
-    gap: 14px;
-  }
-
-  .home-hero-head > * {
-    width: 100%;
-  }
-
-  .pagination-bar > * {
-    width: 100%;
-  }
-}
-
-@media (max-width: 640px) {
-  .season-box-wide {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .season-box-wide select {
-    width: 100%;
-  }
+  .transfer-table-head { display: none; }
+  .season-transfer-item { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 14px; }
+  .transfer-player { grid-column: 1; grid-row: 1; }
+  .transfer-status-wrap { grid-column: 2; grid-row: 1; }
+  .transfer-team { grid-column: 1 / -1; display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 8px; }
+  .transfer-team::before { content: attr(data-label); color: #7890bd; font-size: .63rem; }
+  .transfer-request-date { grid-column: 1 / -1; }
+  .transfer-season { flex: 1 1 100%; }
 }
 </style>

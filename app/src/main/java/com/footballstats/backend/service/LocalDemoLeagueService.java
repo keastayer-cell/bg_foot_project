@@ -343,14 +343,22 @@ public class LocalDemoLeagueService {
     @Transactional
     public DemoLeagueStatus prepareTransfers(Long actorUserId) {
         DemoDataset dataset = requireDataset();
-        requireStage(dataset, "RESULTS");
+        if (stageIndex(dataset.getStage()) < stageIndex("RESULTS")) {
+            throw new ResponseStatusException(
+                CONFLICT,
+                "Сначала подготовьте результаты матчей демо-лиги."
+            );
+        }
         Season season = requireSeason(dataset);
         List<Team> teams = trackedTeams(dataset.getId());
         Map<Long, List<Player>> playersByTeam = loadSeasonPlayersByTeam(season.getId());
-        AppUser requestingUser = trackedUsers(dataset.getId()).stream()
-            .filter(user -> "demo.rep2@local.test".equals(user.getEmail()))
-            .findFirst()
-            .orElseThrow();
+        Map<String, AppUser> usersByEmail = trackedUsers(dataset.getId()).stream()
+            .collect(java.util.stream.Collectors.toMap(AppUser::getEmail, user -> user));
+        AppUser requestingUser = usersByEmail.get("demo.rep2@local.test");
+        AppUser processingUser = usersByEmail.get("demo.rep1@local.test");
+        if (requestingUser == null || processingUser == null) {
+            throw new IllegalStateException("Представители демо-команд не найдены.");
+        }
 
         season.setTransferWindowStartDate(LocalDate.now().minusDays(3));
         season.setTransferWindowEndDate(LocalDate.now().plusDays(30));
@@ -361,19 +369,94 @@ public class LocalDemoLeagueService {
 
         Team source = teams.get(0);
         Team target = teams.get(1);
-        Player candidate = playersByTeam.get(source.getId()).get(4);
+        List<Player> sourcePlayers = playersByTeam.get(source.getId());
+        if (sourcePlayers == null || sourcePlayers.size() < 8) {
+            throw new IllegalStateException("Недостаточно игроков для демо-трансферов.");
+        }
+
+        clearDemoTransferRequests(season.getId());
+        OffsetDateTime now = OffsetDateTime.now();
+        createDemoTransfer(
+            season, sourcePlayers.get(4), source, target, requestingUser.getId(), null,
+            SeasonTransferStatus.PENDING, "Усиление состава перед решающими турами.", null,
+            now.minusHours(2), null
+        );
+        createDemoTransfer(
+            season, sourcePlayers.get(5), source, target, requestingUser.getId(), processingUser.getId(),
+            SeasonTransferStatus.APPROVED, "Согласованный переход игрока.", "Переход подтверждён обеими командами.",
+            now.minusDays(2), now.minusDays(1).minusHours(20)
+        );
+        createDemoTransfer(
+            season, sourcePlayers.get(6), source, target, requestingUser.getId(), processingUser.getId(),
+            SeasonTransferStatus.REJECTED, "Запрос на аренду до конца сезона.", "Команда сохраняет игрока в текущем составе.",
+            now.minusDays(4), now.minusDays(3).minusHours(18)
+        );
+        createDemoTransfer(
+            season, sourcePlayers.get(7), source, target, requestingUser.getId(), requestingUser.getId(),
+            SeasonTransferStatus.REVOKED, "Предварительная заявка на переход.", "Заявка отозвана представителем команды.",
+            now.minusDays(6), now.minusDays(5).minusHours(16)
+        );
+
+        if ("RESULTS".equals(dataset.getStage())) {
+            updateStage(dataset, "TRANSFERS");
+        }
+        return buildStatus(dataset);
+    }
+
+    private void createDemoTransfer(
+        Season season,
+        Player player,
+        Team source,
+        Team target,
+        Long requestedByUserId,
+        Long processedByUserId,
+        SeasonTransferStatus status,
+        String requestComment,
+        String decisionComment,
+        OffsetDateTime requestedAt,
+        OffsetDateTime processedAt
+    ) {
         SeasonTransferRequest request = new SeasonTransferRequest();
         request.setSeason(season);
-        request.setPlayer(candidate);
+        request.setPlayer(player);
         request.setFromTeam(source);
         request.setToTeam(target);
-        request.setRequestedByUserId(requestingUser.getId());
-        request.setRequestComment("Демо-заявка: проверить согласование перехода между командами.");
-        request.setStatus(SeasonTransferStatus.PENDING);
+        request.setRequestedByUserId(requestedByUserId);
+        request.setProcessedByUserId(processedByUserId);
+        request.setRequestComment(requestComment);
+        request.setDecisionComment(decisionComment);
+        request.setRequestedAt(requestedAt);
+        request.setProcessedAt(processedAt);
+        request.setStatus(status);
         transferRequestRepository.save(request);
+    }
 
-        updateStage(dataset, "TRANSFERS");
-        return buildStatus(dataset);
+    private void clearDemoTransferRequests(Long seasonId) {
+        jdbcTemplate.update(
+            """
+                DELETE FROM work.w_site_notification_recipient
+                WHERE notification_id IN (
+                    SELECT notification.id
+                    FROM work.w_site_notification notification
+                    WHERE notification.source_type = 'SEASON_TRANSFER_REQUEST'
+                      AND notification.source_id IN (
+                          SELECT request.id FROM work.w_season_transfer_request request WHERE request.season_id = ?
+                      )
+                )
+                """,
+            seasonId
+        );
+        jdbcTemplate.update(
+            """
+                DELETE FROM work.w_site_notification
+                WHERE source_type = 'SEASON_TRANSFER_REQUEST'
+                  AND source_id IN (
+                      SELECT request.id FROM work.w_season_transfer_request request WHERE request.season_id = ?
+                  )
+                """,
+            seasonId
+        );
+        jdbcTemplate.update("DELETE FROM work.w_season_transfer_request WHERE season_id = ?", seasonId);
     }
 
     @Transactional
@@ -549,6 +632,8 @@ public class LocalDemoLeagueService {
             jdbcTemplate.update("DELETE FROM work.w_tour WHERE season_id = ?", seasonId);
             jdbcTemplate.update("UPDATE work.w_cup_tie SET home_source_tie_id = NULL, away_source_tie_id = NULL WHERE competition_id IN (SELECT id FROM work.w_competition WHERE season_id = ?)", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_cup_tie WHERE competition_id IN (SELECT id FROM work.w_competition WHERE season_id = ?)", seasonId);
+            jdbcTemplate.update("DELETE FROM work.w_competition_selection_slot WHERE competition_id IN (SELECT id FROM work.w_competition WHERE season_id = ?)", seasonId);
+            jdbcTemplate.update("DELETE FROM work.w_competition_award WHERE competition_id IN (SELECT id FROM work.w_competition WHERE season_id = ?)", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_competition_roster_player WHERE competition_id IN (SELECT id FROM work.w_competition WHERE season_id = ?)", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_competition_team WHERE competition_id IN (SELECT id FROM work.w_competition WHERE season_id = ?)", seasonId);
             jdbcTemplate.update("DELETE FROM work.w_competition WHERE season_id = ?", seasonId);
@@ -949,7 +1034,8 @@ public class LocalDemoLeagueService {
             case "BASE" -> List.of("SCHEDULE", "RESET");
             case "SCHEDULE" -> List.of("RESULTS", "RESET");
             case "RESULTS" -> List.of("TRANSFERS", "RESET");
-            case "TRANSFERS" -> List.of("PLAYOFF", "RESET");
+            case "TRANSFERS" -> List.of("TRANSFERS", "PLAYOFF", "RESET");
+            case "PLAYOFF" -> List.of("TRANSFERS", "RESET");
             default -> List.of("RESET");
         };
     }

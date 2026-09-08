@@ -60,7 +60,7 @@
 
       <section class="admin-surface demo-actions">
         <div>
-          <h4>Следующее действие</h4>
+          <h4>Доступные действия</h4>
           <p class="muted-text">{{ nextActionDescription }}</p>
         </div>
         <div class="actions-row">
@@ -98,7 +98,7 @@
             :disabled="loading"
             @click="$emit('action', 'TRANSFERS')"
           >
-            Подготовить трансфер
+            {{ status.counts?.transfers ? 'Обновить трансферы' : 'Подготовить трансферы' }}
           </button>
           <button
             v-if="can('PLAYOFF')"
@@ -171,7 +171,7 @@ const stages = [
   { code: 'BASE', title: 'Базовая лига', description: '10 команд, 150 игроков, 8 судей и аккаунты ролей.' },
   { code: 'SCHEDULE', title: 'Расписание', description: '18 туров и 90 матчей в два круга.' },
   { code: 'RESULTS', title: 'Живой сезон', description: '20 протоколов, составы, голы и турнирная таблица.' },
-  { code: 'TRANSFERS', title: 'Трансферное окно', description: 'Открытое окно и ожидающая согласования заявка.' },
+  { code: 'TRANSFERS', title: 'Трансферное окно', description: 'Открытое окно и четыре заявки с разными статусами.' },
   { code: 'PLAYOFF', title: 'Плей-офф', description: 'Сетка на 8 команд, сыгранные раунды, финал и матч за 3-е место.' },
 ]
 
@@ -184,6 +184,7 @@ const countCards = computed(() => {
     { label: 'Туров', value: counts.tours || 0 },
     { label: 'Матчей', value: counts.matches || 0 },
     { label: 'Сыграно', value: counts.completedMatches || 0 },
+    { label: 'Трансферов', value: counts.transfers || 0 },
     { label: 'Пар плей-офф', value: counts.playoffTies || 0 },
     { label: 'Матчей плей-офф', value: counts.playoffMatches || 0 },
   ]
@@ -193,7 +194,8 @@ const nextActionDescription = computed(() => {
   if (!props.status?.exists) return 'Создать участников, сезон, составы и учетные записи для проверки ролей.'
   if (can('SCHEDULE')) return 'Система разложит все пары команд по 18 турам и опубликует их.'
   if (can('RESULTS')) return 'Первые 20 матчей получат составы, события и проверенные протоколы.'
-  if (can('TRANSFERS')) return 'Будет создана заявка на переход игрока для проверки согласования двумя представителями.'
+  if (props.status?.stage === 'TRANSFERS') return 'Можно обновить тестовые трансферы или перейти к формированию плей-офф.'
+  if (can('TRANSFERS')) return 'Создать заново четыре трансфера: ожидающий, одобренный, отклонённый и отозванный.'
   if (can('PLAYOFF')) return 'Регулярная часть завершится, после чего появится сетка на 8 команд с матчем за третье место.'
   return 'Набор полностью подготовлен. Можно проходить пользовательские сценарии.'
 })

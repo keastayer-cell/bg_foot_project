@@ -3,7 +3,7 @@
     <header class="admin-panel-head">
       <p class="admin-panel-kicker">Турнир</p>
       <h3 class="section-title">Лига</h3>
-      <p class="muted-text">Руководство лиги, места проведения и PDF положения по каждому сезону.</p>
+      <p class="muted-text">Руководство лиги, места проведения и документы сезонов и соревнований.</p>
     </header>
 
     <UiState v-if="messageError" tone="error" title="Операция не выполнена" :message="messageError" />
@@ -23,7 +23,7 @@
           <strong>{{ module.label }}</strong>
           <small>{{ module.description }}</small>
         </span>
-        <span class="admin-league-module-count">{{ module.count }}</span>
+        <span v-if="module.count !== undefined" class="admin-league-module-count">{{ module.count }}</span>
       </button>
     </nav>
 
@@ -203,65 +203,20 @@
       </section>
     </div>
 
-    <section v-if="activeLeagueSection === 'documents'" class="admin-step-section admin-league-section admin-league-docs">
-      <div class="section-head admin-league-head">
-        <span class="admin-step-number">3</span>
-        <div>
-          <p class="eyebrow">Документы</p>
-          <h4 class="section-title">Положение сезона в PDF</h4>
-          <p class="muted-text">Храните актуальное положение отдельно для каждого сезона.</p>
-        </div>
-        <span class="admin-step-count">{{ uploadedRegulationsCount }}</span>
-      </div>
-
-      <div class="admin-form admin-league-doc-form">
-        <label>
-          Сезон
-          <select v-model="regulationSeasonId">
-            <option value="">— выберите —</option>
-            <option v-for="season in seasonsList" :key="season.id" :value="String(season.id)">{{ season.name }}</option>
-          </select>
-        </label>
-
-        <div v-if="selectedSeason" class="admin-league-doc-meta">
-          <p><strong>Статус:</strong> {{ seasonStatusLabel(selectedSeason.status) }}</p>
-          <p><strong>PDF загружен:</strong> {{ selectedSeason.regulationDocumentAvailable ? 'да' : 'нет' }}</p>
-          <p><strong>Обновлен:</strong> {{ selectedSeason.regulationUpdatedAt ? formatDateTime(selectedSeason.regulationUpdatedAt) : '—' }}</p>
-        </div>
-
-        <label class="admin-league-file-field">
-          PDF-файл положения
-          <input type="file" accept="application/pdf" @change="onRegulationFileSelected" />
-        </label>
-        <p v-if="regulationFileName" class="muted-text">Выбран файл: {{ regulationFileName }}</p>
-
-        <div class="admin-primary-actions admin-league-doc-actions">
-          <button class="btn-primary" type="button" :disabled="!regulationSeasonId || !regulationDataUrl" @click="saveSeasonRegulation">Сохранить PDF</button>
-          <button class="btn-ghost" type="button" :disabled="!selectedSeason?.regulationDownloadUrl" @click="downloadSeasonRegulation">Скачать текущий PDF</button>
-        </div>
-        <div v-if="selectedSeason?.regulationDocumentAvailable" class="admin-danger-zone admin-league-danger-zone">
-          <div><strong>Удаление документа</strong><p>Положение выбранного сезона станет недоступно для скачивания.</p></div>
-          <button class="btn-danger btn-sm" type="button" @click="removeSeasonRegulation">Удалить PDF</button>
-        </div>
-      </div>
-    </section>
+    <AdminRegulationsPanel v-if="activeLeagueSection === 'documents'" @changed="emit('refresh-seasons')" />
+    <AdminHonorsPanel v-if="activeLeagueSection === 'honors'" />
   </article>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import UiState from './UiState.vue'
+import AdminRegulationsPanel from './admin/AdminRegulationsPanel.vue'
+import AdminHonorsPanel from './admin/AdminHonorsPanel.vue'
 import AdminEntityModeSwitch from './admin/AdminEntityModeSwitch.vue'
 import { useAuth } from '../store/auth'
 import { createAdminLeagueApi } from '../api/adminLeague'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
-
-const props = defineProps({
-  seasonsList: {
-    type: Array,
-    default: () => [],
-  },
-})
 
 const officialModeOptions = [
   { value: 'create', label: 'Создать', description: 'Новая карточка' },
@@ -277,7 +232,6 @@ const emit = defineEmits(['refresh-seasons'])
 const { authorizedApiRequest } = useAuth()
 const { confirmAction } = useConfirmDialog()
 const leagueApi = createAdminLeagueApi(authorizedApiRequest)
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 
 const messageError = ref('')
 const messageOk = ref('')
@@ -309,18 +263,6 @@ const venueForm = reactive({
   sortOrder: '100',
 })
 
-const regulationSeasonId = ref('')
-const regulationDataUrl = ref('')
-const regulationFileName = ref('')
-
-const selectedSeason = computed(() => {
-  return props.seasonsList.find((season) => String(season.id) === String(regulationSeasonId.value)) || null
-})
-
-const uploadedRegulationsCount = computed(() => props.seasonsList.filter(
-  (season) => season.regulationDocumentAvailable
-).length)
-
 const leagueModules = computed(() => [
   {
     value: 'officials',
@@ -340,20 +282,15 @@ const leagueModules = computed(() => [
     value: 'documents',
     number: '03',
     label: 'Документы',
-    description: 'Положения сезонов',
-    count: uploadedRegulationsCount.value,
+    description: 'Сезоны, чемпионаты и кубки',
+  },
+  {
+    value: 'honors',
+    number: '04',
+    label: 'Зал славы',
+    description: 'Призёры, награды и сборные',
   },
 ])
-
-watch(
-  () => props.seasonsList,
-  (list) => {
-    if (!regulationSeasonId.value && Array.isArray(list) && list.length) {
-      regulationSeasonId.value = String(list[0].id)
-    }
-  },
-  { immediate: true }
-)
 
 onMounted(async () => {
   await Promise.all([loadOfficials(), loadVenues()])
@@ -483,52 +420,6 @@ async function deactivateVenue(venueId) {
   }
 }
 
-async function saveSeasonRegulation() {
-  resetMessages()
-  if (!regulationSeasonId.value || !regulationDataUrl.value) {
-    messageError.value = 'Сначала выберите сезон и PDF-файл.'
-    return
-  }
-
-  try {
-    await leagueApi.saveRegulation(regulationSeasonId.value, regulationDataUrl.value)
-    regulationDataUrl.value = ''
-    regulationFileName.value = ''
-    await emit('refresh-seasons')
-    messageOk.value = 'PDF положения сезона сохранен.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось сохранить PDF положения сезона.'
-  }
-}
-
-async function removeSeasonRegulation() {
-  resetMessages()
-  if (!regulationSeasonId.value) {
-    messageError.value = 'Сначала выберите сезон.'
-    return
-  }
-
-  const accepted = await confirmAction({
-    title: 'Удалить положение сезона?',
-    message: `PDF для сезона «${selectedSeason.value?.name || 'выбранный сезон'}» станет недоступен для скачивания.`,
-    confirmLabel: 'Удалить PDF',
-  })
-  if (!accepted) return
-
-  try {
-    await leagueApi.removeRegulation(regulationSeasonId.value)
-    await emit('refresh-seasons')
-    messageOk.value = 'PDF положения сезона удален.'
-  } catch (error) {
-    messageError.value = error.message || 'Не удалось удалить PDF положения сезона.'
-  }
-}
-
-function downloadSeasonRegulation() {
-  if (!selectedSeason.value?.regulationDownloadUrl) return
-  window.open(`${apiBaseUrl}${selectedSeason.value.regulationDownloadUrl}`, '_blank', 'noopener')
-}
-
 function switchOfficialMode(mode) {
   officialMode.value = mode
   officialEditId.value = ''
@@ -578,18 +469,6 @@ function onVenuePhotoSelected(event) {
   })
 }
 
-function onRegulationFileSelected(event) {
-  const file = event.target?.files?.[0]
-  if (!file) return
-
-  regulationFileName.value = file.name
-  const reader = new FileReader()
-  reader.onload = () => {
-    regulationDataUrl.value = String(reader.result || '')
-  }
-  reader.readAsDataURL(file)
-}
-
 function readFileAsDataUrl(event, assign) {
   const file = event.target?.files?.[0]
   if (!file) return
@@ -616,24 +495,6 @@ function resetVenueForm() {
   venueForm.sortOrder = '100'
 }
 
-function seasonStatusLabel(status) {
-  if (status === 'ACTIVE') return 'Активный'
-  if (status === 'CLOSED') return 'Закрыт'
-  return 'Черновик'
-}
-
-function formatDateTime(value) {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
-}
 </script>
 
 <style scoped>
@@ -644,7 +505,7 @@ function formatDateTime(value) {
 
 .admin-league-modules {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   padding: 6px;
   border: 1px solid rgba(124, 163, 255, .17);

@@ -33,7 +33,9 @@ const users = {
 
 async function mockBackend(page, role = 'USER') {
   const user = users[role]
-  await page.route('http://127.0.0.1:8080/api/**', async (route) => {
+  // Register the backend mock on the browser context so admin links opened in
+  // a new tab inherit the same authenticated API responses.
+  await page.context().route('http://127.0.0.1:8080/api/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
 
@@ -93,12 +95,85 @@ async function restoreSession(page, role) {
   })
 }
 
+async function mockPublicNotifications(page) {
+  const requests = []
+  await page.route('**/api/notifications/public?**', async (route) => {
+    const url = new URL(route.request().url())
+    requests.push({
+      pageNumber: url.searchParams.get('pagenum'),
+      pageSize: url.searchParams.get('pagesize'),
+    })
+    await route.fulfill({
+      json: {
+        items: [
+          {
+            id: 41,
+            eventType: 'SEASON_STARTED',
+            title: 'Сезон начался',
+            summary: 'Опубликовано расписание.',
+            body: '<p>Полный текст публичного уведомления.</p>',
+            severity: 'IMPORTANT',
+            createdAt: '2026-09-06T09:30:00Z',
+          },
+          {
+            id: 40,
+            eventType: 'TOUR_PUBLISHED',
+            title: 'Опубликован тур',
+            summary: 'Доступны новые матчи.',
+            body: '<p>Расписание тура доступно.</p>',
+            severity: 'INFO',
+            createdAt: '2026-09-05T09:30:00Z',
+          },
+        ],
+        pageNumber: 0,
+        pageSize: 10,
+        totalElements: 2,
+        totalPages: 1,
+      },
+    })
+  })
+  return requests
+}
+
 test('opens the public home page', async ({ page }) => {
   await mockBackend(page)
   await page.goto('/')
 
   await expect(page.getByText('Футбол Богородск', { exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Туры' })).toBeVisible()
+})
+
+test('keeps guest notification read state and allows reopening it', async ({ page }) => {
+  await mockBackend(page)
+  const publicRequests = await mockPublicNotifications(page)
+  await page.addInitScript(() => {
+    if (!window.sessionStorage.getItem('guest-notification-test-ready')) {
+      window.localStorage.removeItem('football_stats_public_notifications_read_v1')
+      window.sessionStorage.setItem('guest-notification-test-ready', '1')
+    }
+  })
+
+  await page.goto('/')
+  const bell = page.getByRole('button', { name: 'Публичные объявления: новых 2' })
+  await expect(bell).toBeVisible()
+  await bell.click()
+  await page.locator('.notification-item-main').first().click()
+  await expect(page.getByRole('heading', { name: 'Сезон начался' })).toBeVisible()
+  await page.getByRole('button', { name: 'Закрыть' }).click()
+
+  const bellWithOneNew = page.getByRole('button', { name: 'Публичные объявления: новых 1' })
+  await expect(bellWithOneNew).toBeVisible()
+  await bellWithOneNew.click()
+  await page.locator('.notification-item-main').first().click()
+  await expect(page.getByText('Полный текст публичного уведомления.')).toBeVisible()
+  expect(publicRequests).toEqual([{ pageNumber: '0', pageSize: '10' }])
+
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Публичные объявления: новых 1' })).toBeVisible()
+  expect(publicRequests).toEqual([
+    { pageNumber: '0', pageSize: '10' },
+    { pageNumber: '0', pageSize: '10' },
+  ])
 })
 
 test('logs in through the real authorization form', async ({ page }) => {
@@ -226,4 +301,53 @@ test('requires confirmation before banning a user', async ({ page }) => {
   await page.getByRole('button', { name: 'Заблокировать пользователя' }).click()
   await dialog.getByRole('button', { name: 'Заблокировать' }).click()
   await expect(page.getByText('Пользователь заблокирован.')).toBeVisible()
+})
+
+test('paginates admin notification history and reveals text on demand', async ({ page }, testInfo) => {
+  await restoreSession(page, 'SUPER_ADMIN')
+  const requests = []
+  await page.route('**/api/notifications/admin?**', async (route) => {
+    const url = new URL(route.request().url())
+    const pageNumber = Number(url.searchParams.get('pagenum'))
+    const pageSize = Number(url.searchParams.get('pagesize'))
+    requests.push({ pageNumber, pageSize })
+    const all = Array.from({ length: 11 }, (_, index) => ({
+      id: 11 - index, title: `Объявление ${11 - index}`, severity: 'INFO',
+      body: `<p>Полное содержание сообщения ${11 - index}</p>`,
+      audienceValue: 'Все посетители сайта', createdAt: '2026-09-06T09:30:00Z',
+      recipientCount: 15, readCount: 8, acknowledgedCount: 3,
+    }))
+    await route.fulfill({ json: {
+      items: all.slice(pageNumber * pageSize, (pageNumber + 1) * pageSize),
+      pageNumber, pageSize, totalElements: 11, totalPages: 2,
+    } })
+  })
+  await page.goto('/admin')
+  if ((page.viewportSize()?.width || 0) <= 860) {
+    await page.getByRole('combobox', { name: 'Раздел' }).selectOption('notifications')
+  } else {
+    await page.getByRole('button', { name: 'Оповещения', exact: true }).click()
+  }
+  await page.getByRole('button', { name: /История.*Охват/ }).click()
+  const rows = page.locator('.notification-admin-history-item')
+  await expect(rows).toHaveCount(10)
+  await expect(page.getByText('Полное содержание сообщения 11', { exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: '← Назад', exact: true })).toBeDisabled()
+  await rows.first().locator('summary').click()
+  await expect(page.getByText('Полное содержание сообщения 11', { exact: true })).toBeVisible()
+  await rows.first().locator('summary').click()
+  await expect(page.getByText('Полное содержание сообщения 11', { exact: true })).toBeHidden()
+  const width = await page.evaluate(() => ({ viewport: innerWidth, content: document.documentElement.scrollWidth }))
+  expect(width.content).toBeLessThanOrEqual(width.viewport)
+  await page.locator('.admin-notifications-panel').screenshot({ path: testInfo.outputPath('notification-history.png') })
+  await page.getByRole('button', { name: 'Далее →', exact: true }).click()
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first().locator('summary')).toContainText('Объявление 1')
+  await expect(page.getByText('11–11 из 11', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Далее →', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: '← Назад', exact: true }).click()
+  await expect(rows).toHaveCount(10)
+  expect(requests).toEqual([
+    { pageNumber: 0, pageSize: 10 }, { pageNumber: 1, pageSize: 10 }, { pageNumber: 0, pageSize: 10 },
+  ])
 })
