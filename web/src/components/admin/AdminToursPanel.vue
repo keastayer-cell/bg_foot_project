@@ -87,6 +87,8 @@
         :schedule-editing-id="scheduleEditingId"
         :schedule-form="scheduleForm"
         :schedule-saving="scheduleSaving"
+        :schedule-error="scheduleError"
+        @dismiss-schedule-error="scheduleError = ''"
         :tour="selectedTour"
         :venues="venues"
         @cancel-schedule="closeScheduleEditor"
@@ -176,6 +178,7 @@ const {
   scheduleEditingId,
   scheduleForm,
   scheduleSaving,
+  scheduleError,
   seasonId,
   seasonsList,
   selectedId,

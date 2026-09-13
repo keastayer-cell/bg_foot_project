@@ -1,15 +1,12 @@
 <template>
   <section class="section-wrap account-page">
-    <article class="card account-hero">
-      <div>
-        <span class="account-kicker">Личный кабинет</span>
-        <h1>{{ user?.name }}</h1>
-        <p class="muted-text">Профиль, права доступа и безопасность аккаунта.</p>
+    <article class="catalog-header account-hero">
+      <div class="account-identity">
+        <div class="account-avatar" aria-hidden="true">{{ initials }}</div>
+        <div><p class="catalog-kicker">Личный кабинет</p><h1>{{ user?.name || 'Профиль пользователя' }}</h1><p class="account-email">{{ user?.email }}</p></div>
       </div>
-      <div class="account-role-chips">
-        <span v-for="role in roleAnnotations" :key="role.code" class="account-role-chip">
-          {{ role.title }}
-        </span>
+      <div v-if="roleAnnotations.length" class="account-role-chips">
+        <span v-for="role in roleAnnotations" :key="role.code" class="account-role-chip">{{ role.userTitle }}</span>
       </div>
     </article>
 
@@ -17,8 +14,12 @@
     <p v-else-if="loadError" class="card error-text account-state">{{ loadError }}</p>
 
     <div v-else class="account-layout">
+      <nav class="account-navigation" aria-label="Разделы личного кабинета">
+        <button v-for="tab in tabs" :key="tab.key" type="button" :class="{ 'is-active': activeSection === tab.key }" :aria-current="activeSection === tab.key ? 'page' : undefined" :aria-controls="`account-${tab.key}`" @click="activeSection = tab.key"><span>{{ tab.label }}</span><small>{{ tab.description }}</small></button>
+      </nav>
+      <div class="account-content">
       <div class="account-main">
-        <article class="card account-panel">
+        <article v-show="activeSection === 'profile'" id="account-profile" class="card account-panel">
           <div class="account-panel-head">
             <div>
               <span class="account-kicker">Основные данные</span>
@@ -44,7 +45,7 @@
           </form>
         </article>
 
-        <article class="card account-panel">
+        <article v-show="activeSection === 'notifications'" id="account-notifications" class="card account-panel">
           <div class="account-panel-head">
             <div>
               <span class="account-kicker">Каналы связи</span>
@@ -59,14 +60,14 @@
             <div class="notification-setting-head">
               <span>Категория</span><span>Колокольчик</span><span>Email</span>
             </div>
-            <label v-for="setting in notificationSettings" :key="setting.category" class="notification-setting-row">
+            <div v-for="setting in notificationSettings" :key="setting.category" class="notification-setting-row">
               <span>
                 <strong>{{ notificationCategory(setting.category).title }}</strong>
                 <small>{{ notificationCategory(setting.category).description }}</small>
               </span>
               <input v-model="setting.bellEnabled" type="checkbox" :aria-label="`${notificationCategory(setting.category).title}: колокольчик`" />
               <input v-model="setting.emailEnabled" type="checkbox" :aria-label="`${notificationCategory(setting.category).title}: email`" />
-            </label>
+            </div>
           </div>
           <p v-if="notificationError" class="error-text">{{ notificationError }}</p>
           <p v-if="notificationOk" class="success-text">{{ notificationOk }}</p>
@@ -77,7 +78,7 @@
           </div>
         </article>
 
-        <article class="card account-panel">
+        <article v-show="activeSection === 'security'" id="account-security" class="card account-panel">
           <div class="account-panel-head">
             <div>
               <span class="account-kicker">Безопасность</span>
@@ -109,7 +110,7 @@
       </div>
 
       <aside class="account-side">
-        <article class="card account-panel">
+        <article v-show="activeSection === 'favorites'" id="account-favorites" class="card account-panel">
           <span class="account-kicker">Моя лига</span>
           <h2 class="section-title">Избранное</h2>
           <div v-if="favorites.length" class="account-favorites">
@@ -121,12 +122,12 @@
           <p v-else class="muted-text">Добавляйте команды и игроков из их профилей.</p>
         </article>
 
-        <article class="card account-panel">
+        <article v-show="activeSection === 'access'" id="account-access" class="card account-panel">
           <span class="account-kicker">Доступ</span>
           <h2 class="section-title">Роли и команды</h2>
           <div class="account-access-list">
             <div v-for="role in roleAnnotations" :key="role.code" class="account-access-item">
-              <strong>{{ role.title }}</strong>
+              <strong>{{ role.userTitle }}</strong>
               <p>{{ role.description }}</p>
             </div>
             <div v-if="!roleAnnotations.length" class="account-access-item">
@@ -145,7 +146,7 @@
           </div>
         </article>
 
-        <article class="card account-panel account-danger">
+        <article v-show="activeSection === 'security'" class="card account-panel account-danger">
           <h2 class="section-title">Активные сеансы</h2>
           <p class="muted-text">Завершит сеансы на всех устройствах, включая текущее.</p>
           <p v-if="sessionError" class="error-text">{{ sessionError }}</p>
@@ -154,6 +155,7 @@
           </button>
         </article>
       </aside>
+      </div>
     </div>
   </section>
 </template>
@@ -169,6 +171,15 @@ const {
   loadNotificationSettings, updateNotificationSettings, hasRole, hasTeamAccess,
   loadFavorites, removeFavorite,
 } = useAuth()
+const activeSection = ref('profile')
+const tabs = [
+  { key: 'profile', label: 'Мои данные', description: 'Имя и email' },
+  { key: 'access', label: 'Роли и команды', description: 'Права и рабочие разделы' },
+  { key: 'notifications', label: 'Уведомления', description: 'Колокольчик и почта' },
+  { key: 'favorites', label: 'Избранное', description: 'Команды и игроки' },
+  { key: 'security', label: 'Безопасность', description: 'Пароль и сеансы' },
+]
+const initials = computed(() => (user.value?.name || '').trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase())
 const loading = ref(true)
 const loadError = ref('')
 const profileSaving = ref(false)
@@ -305,3 +316,8 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.account-page{max-width:1280px;margin-inline:auto;gap:20px}.account-hero{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 28px}.account-identity{display:flex;align-items:center;gap:18px;min-width:0}.account-avatar{display:grid;place-items:center;width:64px;height:64px;flex-shrink:0;border:1px solid rgba(97,232,162,.25);border-radius:16px;background:rgba(97,232,162,.08);color:var(--brand);font-size:1.4rem;font-weight:800}.account-hero h1{margin:5px 0;font-size:clamp(1.3rem,2.5vw,1.9rem);line-height:1.2;overflow-wrap:anywhere}.account-email{margin:0;color:var(--muted);font-size:.85rem;overflow-wrap:anywhere}.account-role-chips{justify-content:flex-end}.account-role-chip{font-size:.75rem;padding:7px 11px}.account-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:20px;align-items:start}.account-navigation{display:grid;gap:6px;padding:8px;border:1px solid var(--line);border-radius:14px;background:rgba(10,16,37,.6)}.account-navigation button{display:grid;gap:5px;padding:14px;text-align:left;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted);cursor:pointer}.account-navigation button span{font-size:.88rem;font-weight:800}.account-navigation button small{font-size:.7rem;font-weight:400}.account-navigation button:hover{background:rgba(124,163,255,.06);color:var(--text)}.account-navigation button.is-active{border-color:rgba(97,232,162,.26);background:rgba(97,232,162,.09);color:var(--brand)}.account-content{display:grid;gap:18px;min-width:0}.account-main,.account-side{display:contents}.account-panel{padding:24px}.account-panel-head{margin-bottom:22px;padding-bottom:16px}.account-panel .section-title{font-size:1.2rem;margin:5px 0 0}.account-kicker{font-size:.65rem}.account-form{max-width:640px;gap:18px}.account-form label{font-size:.82rem;gap:8px}.account-form input{font-weight:400}.account-form .actions-row{justify-content:flex-start;margin-top:6px}.account-panel>.muted-text{font-size:.82rem;line-height:1.6;max-width:700px;margin:16px 0}.notification-setting-head,.notification-setting-row{grid-template-columns:minmax(0,1fr) 110px 80px;gap:12px}.notification-setting-row{padding:16px;border-radius:0;border:0;border-bottom:1px solid var(--line);background:transparent}.notification-setting-row strong{font-size:.85rem}.notification-setting-row small{font-size:.75rem;line-height:1.5;margin-top:4px}.notification-setting-row input{accent-color:var(--brand);width:18px;height:18px;justify-self:center}.notification-settings{border:1px solid var(--line);border-radius:10px;overflow:hidden;gap:0}.notification-setting-head{padding:12px 16px;background:rgba(124,163,255,.05);font-size:.65rem}.account-shortcuts{display:flex;flex-wrap:wrap;margin-top:20px}.account-team{padding:16px}.account-access-item strong{font-size:.9rem}.account-access-item p{line-height:1.6}.account-danger{border-color:rgba(255,99,113,.22)}.account-danger button{margin-top:8px}.account-favorites>div{padding:14px 16px}.account-favorites strong{font-size:.9rem}.account-favorites button{width:32px;height:32px}
+@media(max-width:760px){.account-layout{grid-template-columns:1fr}.account-navigation{grid-template-columns:repeat(2,minmax(0,1fr))}.account-navigation button{padding:11px}.account-navigation button small{display:none}.account-hero{padding:20px;align-items:flex-start;flex-direction:column;gap:14px}.account-role-chips{justify-content:flex-start}.account-panel{padding:20px}.notification-setting-head,.notification-setting-row{grid-template-columns:minmax(0,1fr) 85px 55px;gap:8px}.notification-setting-row{padding:12px}.notification-setting-head{padding:12px}.notification-setting-row small{font-size:.68rem}}
+</style>

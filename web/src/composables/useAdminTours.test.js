@@ -25,6 +25,41 @@ function createTours(request = vi.fn(async () => [])) {
 }
 
 describe('useAdminTours', () => {
+  it('blocks editing and saving a verified match', async () => {
+    const request = vi.fn()
+    const { result } = createTours(request)
+    result.matches.value = [{ id: 9, protocolStatus: 'VERIFIED' }]
+    result.openScheduleEditor(result.matches.value[0])
+    expect(result.scheduleEditingId.value).toBe('')
+    expect(result.scheduleError.value).toContain('подтверждённого')
+    await result.saveSchedule(9)
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('exposes backend errors to the schedule dialog without losing input', async () => {
+    const request = vi.fn().mockRejectedValue(new Error('Расписание подтверждённого матча менять нельзя.'))
+    const { result } = createTours(request)
+    result.selectedId.value = '4'
+    result.openScheduleEditor({ id: 9, kickoffAt: '2026-09-12T15:00:00Z', scheduleStatus: 'SCHEDULED' })
+    await result.saveSchedule(9)
+    expect(result.scheduleError.value).toContain('Расписание подтверждённого')
+    expect(result.scheduleEditingId.value).toBe('9')
+    expect(result.scheduleSaving.value).toBe(false)
+  })
+
+  it('waits for confirmation and does not delete after cancellation', async () => {
+    const request = vi.fn()
+    let resolveConfirmation
+    const result = useAdminTours({ request, seasons: ref([]), clearMessages: () => {}, errorMessage: ref(''), successMessage: ref(''), confirmAction: () => new Promise(resolve => { resolveConfirmation = resolve }) })
+    result.selectedId.value = '4'
+    result.matches.value = [{ id: 9, protocolStatus: 'SCHEDULED' }]
+    const deletion = result.deleteMatch(9)
+    expect(request).not.toHaveBeenCalled()
+    resolveConfirmation(false)
+    await deletion
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('counts meetings regardless of home and away order', () => {
     const matches = [
       { homeTeamId: 1, awayTeamId: 2 },

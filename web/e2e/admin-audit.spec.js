@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+test.use({ timezoneId: 'Europe/Moscow' })
 
 test('admin journal shows changes, filters and pagination', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('football_stats_persistent_session', '1'))
@@ -22,9 +23,15 @@ test('admin journal shows changes, filters and pagination', async ({ page }) => 
   await expect(page.locator('.audit-diff-wrap')).toContainText('FINISHED')
   await expect(page.locator('.audit-diff-wrap')).toContainText('VERIFIED')
   await expect(page.locator('.audit-entry').getByRole('link', { name: 'Открыть', exact: true })).toHaveAttribute('href', '/matches/10')
+  await page.getByLabel('С даты', { exact: true }).fill('2026-09-13')
+  await page.getByLabel('По дату', { exact: true }).fill('2026-09-13')
   await page.getByLabel('Автор', { exact: true }).fill('Антон')
   await page.getByRole('button', { name: 'Показать', exact: true }).click()
   await expect.poll(() => calls.some((call) => new URLSearchParams(call).get('author') === 'Антон')).toBe(true)
+  expect(new URLSearchParams(calls.at(-1)).get('from')).toBe('2026-09-12T21:00:00.000Z')
+  expect(new URLSearchParams(calls.at(-1)).get('to')).toBe('2026-09-13T20:59:59.999Z')
+  expect(new URLSearchParams(calls.at(-1)).has('entityId')).toBe(false)
+  await page.screenshot({ path: '/tmp/bg-audit-style.png', fullPage: true })
   await page.getByRole('button', { name: 'Вперёд', exact: true }).click()
   await expect(page.locator('.audit-pagination')).toContainText('2 / 2')
   expect(new URLSearchParams(calls.at(-1)).get('pagenum')).toBe('1')

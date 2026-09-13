@@ -30,6 +30,29 @@ describe('useAdminAccess', () => {
     expect(errorMessage.value).toBe('Введите email или выберите пользователя.')
   })
 
+  it('opening selected users preserves the list for another selection', async () => {
+    const users = [{ id: 1, userId: 1, email: 'one@test.ru', roles: ['TEAM_REP'] }, { id: 2, userId: 2, email: 'two@test.ru', roles: ['TEAM_REP'] }]
+    const request = vi.fn(async path => path.includes('/users?') ? { content: users } : { ...users.find(user => path.endsWith('/' + user.id)), teamScopes: [] })
+    const access = createAccess(request)
+    await access.loadRoleUsers()
+    access.rolesSelectedEmail.value = 'one@test.ru'
+    access.findUserForRoles()
+    access.rolesSelectedEmail.value = 'two@test.ru'
+    access.findUserForRoles()
+    expect(access.filteredUsersForSelect.value).toHaveLength(2)
+    expect(access.rolesFoundUser.value.email).toBe('two@test.ru')
+    expect(request.mock.calls.filter(([path]) => path.includes('/users?'))).toHaveLength(1)
+    await access.loadRepresentativeUsers()
+    access.repSelectedEmail.value = 'one@test.ru'
+    access.findRepresentative()
+    await vi.waitFor(() => expect(access.repFoundUser.value?.email).toBe('one@test.ru'))
+    access.repSelectedEmail.value = 'two@test.ru'
+    access.findRepresentative()
+    await vi.waitFor(() => expect(access.repFoundUser.value?.email).toBe('two@test.ru'))
+    expect(access.filteredRepresentativeUsersForSelect.value).toHaveLength(2)
+    expect(request.mock.calls.filter(([path]) => path.includes('/users?'))).toHaveLength(2)
+  })
+
   it('rejects assigning an existing role', async () => {
     const request = vi.fn().mockResolvedValue({
       content: [{ id: 1, email: 'admin@test.ru', roles: ['USER'] }],

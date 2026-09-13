@@ -5,7 +5,7 @@
         <div>
           <p class="admin-panel-kicker">Кабинет команды</p>
           <h2 class="section-title">Трансферное окно</h2>
-          <p class="muted-text">Заявки на переход и история решений по выбранному сезону.</p>
+          <p v-if="overview?.teamName" class="muted-text">{{ overview.teamName }}</p>
         </div>
         <div class="transfer-header-actions">
           <button v-if="hasRole('TEAM_REP')" class="btn-ghost" type="button" @click="router.push('/team-rep-dashboard')">К заявке сезона</button>
@@ -17,68 +17,41 @@
       <UiState v-if="pageSuccess" tone="success" title="Готово" :message="pageSuccess" />
 
       <section class="transfer-context-card">
-        <div class="transfer-step-heading">
-          <div><h3>Сезон</h3><p>Выберите турнирный сезон для работы с переходами.</p></div>
-        </div>
         <div class="transfer-context-layout">
-          <label class="transfer-season-field">
-            <span>Сезон</span>
-            <select v-model="selectedSeasonId">
-              <option value="">— выберите сезон —</option>
-              <option v-for="season in teamSeasons" :key="season.id" :value="String(season.id)">{{ season.name }}</option>
-            </select>
-          </label>
-
-          <div v-if="overview" class="transfer-context-metrics">
-            <div><small>Статус сезона</small><strong>{{ formatSeasonStatus(overview.seasonStatus) }}</strong></div>
-            <div :class="overview.transferWindowOpen ? 'is-open' : 'is-closed'">
-              <small>Трансферное окно</small><strong>{{ overview.transferWindowOpen ? 'Открыто' : 'Закрыто' }}</strong>
-            </div>
-            <div><small>{{ overview.maxRosterSize ? 'Заявка команды' : 'Всего заявок' }}</small><strong>{{ overview.maxRosterSize ? `${overview.selectedPlayersCount} / ${overview.maxRosterSize}` : overview.totalElements }}</strong></div>
-          </div>
-        </div>
-        <div v-if="overview" class="transfer-context-footer">
-          <p>{{ transferWindowDescription }}</p>
+          <label class="transfer-season-field"><span>Сезон</span><select v-model="selectedSeasonId" :disabled="seasonLoading || overviewLoading"><option value="">— выберите сезон —</option><option v-for="season in teamSeasons" :key="season.id" :value="String(season.id)">{{ season.name }}</option></select></label>
+          <div class="transfer-window-state" :class="{ 'is-open': overview?.transferWindowOpen }"><span class="transfer-window-dot" aria-hidden="true"></span><div><strong>{{ overview ? (overview.transferWindowOpen ? 'Окно открыто' : 'Окно закрыто') : 'Выберите сезон' }}</strong><span v-if="overview?.transferWindowStartDate && overview?.transferWindowEndDate">{{ formatDateOnly(overview.transferWindowStartDate) }} — {{ formatDateOnly(overview.transferWindowEndDate) }}</span><span v-else>{{ overview ? 'Период не задан' : 'Для просмотра периода окна' }}</span></div></div>
           <button class="btn-primary" type="button" @click="openTransferRequestModal" :disabled="!canOpenTransferRequestModal">Создать трансфер</button>
         </div>
+        <p v-if="overview && !canOpenTransferRequestModal" class="transfer-window-note">{{ overview.transferWindowOpen ? 'Лимит заявки достигнут — освободите место в составе.' : 'Новые заявки недоступны. История переходов доступна ниже.' }}</p>
       </section>
     </article>
 
     <article v-if="overview" class="card transfer-journal-card">
       <header class="transfer-step-heading transfer-journal-heading">
-        <div><h3>Журнал трансферов</h3><p>Текущие заявки и завершённые переходы выбранного сезона.</p></div>
+        <div><p class="admin-panel-kicker">Переходы игроков</p><h3>Заявки и история</h3></div>
         <span class="admin-step-count">{{ overview.totalElements }}</span>
       </header>
 
-      <div class="transfer-journal-meta">
-        <span><b>{{ pendingTransfersCount }}</b> ожидают решения</span>
-        <span><b>{{ approvedTransfersCount }}</b> одобрены на странице</span>
-      </div>
 
       <UiState v-if="overviewLoading" tone="loading" title="Загружаем трансферы" />
       <UiState v-else-if="!overview.requests.length" title="Трансферных заявок пока нет" message="Созданные заявки и история решений появятся здесь." />
 
-      <div v-else class="transfer-journal">
+      <div v-else class="transfer-journal" :class="{ 'is-readonly': !journalHasActions }">
         <div class="transfer-journal-columns" aria-hidden="true">
-          <span>Игрок</span><span>Переход</span><span>Заявка</span><span>Статус</span><span>Действия</span>
+          <span>Игрок / переход</span><span>Статус</span><span v-if="journalHasActions">Действия</span>
         </div>
         <div class="transfer-journal-list">
           <article v-for="request in overview.requests" :key="request.id" class="transfer-journal-row">
             <div class="transfer-player-cell">
               <small>Игрок</small>
               <strong>{{ request.playerName }} <span v-if="request.playerGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span></strong>
-              <span v-if="request.requestComment" :title="request.requestComment">{{ request.requestComment }}</span>
+
             </div>
             <div class="transfer-route-cell">
               <small>Переход</small>
               <span>{{ request.fromTeamName }}</span>
               <b aria-hidden="true">→</b>
               <strong>{{ request.toTeamName }}</strong>
-            </div>
-            <div class="transfer-date-cell">
-              <small>Заявка</small>
-              <strong>{{ formatDateOnly(request.requestedAt) }}</strong>
-              <span>{{ request.requestedByName || '—' }}</span>
             </div>
             <div class="transfer-status-cell">
               <small>Статус</small>
@@ -95,8 +68,9 @@
               <button v-if="request.canRevoke" class="transfer-decision transfer-decision-revoke" type="button" @click="processTransferAction(request.id, 'revoke')" :disabled="transferActionLoadingKey === `revoke:${request.id}` || overviewLoading">
                 {{ transferActionLoadingKey === `revoke:${request.id}` ? 'Сохраняем…' : 'Отозвать' }}
               </button>
-              <span v-if="!request.canApprove && !request.canReject && !request.canRevoke" class="transfer-no-actions">Действий нет</span>
+
             </div>
+            <details class="transfer-request-details"><summary>Подробности заявки · {{ formatDateOnly(request.requestedAt) }}</summary><dl><div><dt>Автор заявки</dt><dd>{{ request.requestedByName || '—' }}</dd></div><div v-if="request.requestComment"><dt>Комментарий</dt><dd>{{ request.requestComment }}</dd></div></dl></details>
           </article>
         </div>
 
@@ -203,6 +177,8 @@ const requestComment = ref('')
 const candidates = ref([])
 const transferRequestModalOpen = ref(false)
 
+const journalHasActions = computed(() => overview.value?.requests?.some(request => request.canApprove || request.canReject || request.canRevoke))
+
 const isPrivilegedTransferManager = computed(() => hasRole('SUPER_ADMIN') || hasRole('REFEREE'))
 const canManageTransfers = computed(() => isAuthenticated.value && (hasRole('TEAM_REP') || isPrivilegedTransferManager.value))
 
@@ -251,23 +227,7 @@ const canSubmitTransferRequest = computed(() => {
   return canPickSourceTeam.value && sourceTeamId.value && selectedPlayerId.value
 })
 
-const pendingTransfersCount = computed(() => overview.value?.requests?.filter(
-  (request) => request.status === 'PENDING'
-).length || 0)
 
-const approvedTransfersCount = computed(() => overview.value?.requests?.filter(
-  (request) => request.status === 'APPROVED'
-).length || 0)
-
-const transferWindowDescription = computed(() => {
-  if (!overview.value) return ''
-  const period = overview.value.transferWindowStartDate && overview.value.transferWindowEndDate
-    ? `Период: ${formatDateOnly(overview.value.transferWindowStartDate)} — ${formatDateOnly(overview.value.transferWindowEndDate)}.`
-    : 'Период трансферного окна не задан.'
-  return overview.value.transferWindowOpen
-    ? `${period} Новые заявки можно создавать.`
-    : `${period} Создание новых заявок сейчас недоступно.`
-})
 
 const selectedSourceTeam = computed(() => availableSourceTeams.value.find(
   (team) => String(team.id) === String(sourceTeamId.value)
@@ -503,13 +463,6 @@ async function processTransferAction(requestId, action) {
   } finally {
     transferActionLoadingKey.value = ''
   }
-}
-
-function formatSeasonStatus(status) {
-  if (status === 'ACTIVE') return 'Активный'
-  if (status === 'CLOSED') return 'Закрыт'
-  if (status === 'DRAFT') return 'Черновик'
-  return status || '—'
 }
 
 function formatTransferStatus(status) {
@@ -1381,4 +1334,23 @@ function formatDateOnly(value) {
     padding: 14px;
   }
 }
+</style>
+
+<style scoped>
+.team-rep-transfers-page{max-width:1280px;margin-inline:auto;display:grid;gap:20px}.team-rep-transfers-page .transfer-control-card{border-radius:16px}.team-rep-transfers-page .transfer-page-header{padding:24px 28px}.team-rep-transfers-page .transfer-page-header .section-title{font-size:1.65rem}.team-rep-transfers-page .transfer-page-header .muted-text{font-size:.9rem;margin-top:8px}.team-rep-transfers-page .transfer-context-card{padding:22px 28px}.team-rep-transfers-page .transfer-context-layout{display:grid;grid-template-columns:minmax(230px,1fr) minmax(210px,.7fr) auto;align-items:center;gap:24px}.team-rep-transfers-page .transfer-season-field>span{font-size:.7rem;color:var(--brand);text-transform:uppercase;letter-spacing:.06em}.team-rep-transfers-page .transfer-season-field select{font-size:.9rem;min-height:44px}.transfer-window-state{display:flex;align-items:center;gap:12px;padding:14px 18px;border:1px solid rgba(255,99,113,.2);border-radius:10px;background:rgba(255,99,113,.05)}.transfer-window-state>div{display:grid;gap:5px}.transfer-window-state strong{font-size:.95rem;color:#ff8792}.transfer-window-state span{font-size:.8rem;color:var(--muted)}.transfer-window-state .transfer-window-dot{width:8px;height:8px;flex-shrink:0;border-radius:50%;background:#ff8792}.transfer-window-state.is-open{border-color:rgba(97,232,162,.25);background:rgba(97,232,162,.06)}.transfer-window-state.is-open strong{color:var(--brand)}.transfer-window-state.is-open .transfer-window-dot{background:var(--brand)}.transfer-window-note{font-size:.8rem;color:var(--muted);margin:16px 0 0}.team-rep-transfers-page .transfer-journal-heading{padding:22px 28px}.team-rep-transfers-page .transfer-step-heading h3{font-size:1.2rem}.team-rep-transfers-page .transfer-journal-columns{grid-template-columns:minmax(0,1fr) 210px 230px;padding:12px 28px;font-size:.7rem}.team-rep-transfers-page .transfer-journal-list{padding:0}.team-rep-transfers-page .transfer-journal-row{display:grid;grid-template-columns:minmax(0,1fr) 210px 230px;gap:12px 24px;padding:22px 28px;background:transparent;align-items:center}.transfer-player-cell{grid-column:1;grid-row:1}.transfer-route-cell{grid-column:1;grid-row:2}.transfer-status-cell{grid-column:2;grid-row:1/3}.transfer-row-actions{grid-column:3;grid-row:1/3;justify-content:flex-end}.transfer-player-cell>small,.transfer-route-cell>small,.transfer-status-cell>small,.transfer-row-actions>small{display:none}.team-rep-transfers-page .transfer-player-cell strong{font-size:1.05rem;line-height:1.4}.team-rep-transfers-page .transfer-route-cell{display:flex;gap:12px;flex-wrap:wrap}.team-rep-transfers-page .transfer-route-cell>span,.team-rep-transfers-page .transfer-route-cell>strong{font-size:.95rem;white-space:normal;overflow:visible}.team-rep-transfers-page .transfer-status-cell .team-rep-season-chip{font-size:.8rem;padding:7px 11px;white-space:normal}.team-rep-transfers-page .transfer-decision{font-size:.82rem;padding:9px 13px}.transfer-request-details{grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px}.transfer-request-details summary{color:var(--muted);font-size:.8rem;cursor:pointer;width:fit-content}.transfer-request-details summary:hover{color:var(--brand)}.transfer-request-details dl{display:grid;gap:14px;margin:16px 0 0;padding:16px;background:rgba(124,163,255,.04);border-radius:8px}.transfer-request-details dl>div{display:grid;gap:6px}.transfer-request-details dt{color:var(--muted);font-size:.75rem}.transfer-request-details dd{margin:0;font-size:.9rem;line-height:1.5;overflow-wrap:anywhere}.transfer-create-modal .transfer-create-step-label small{display:none}.transfer-create-modal .transfer-create-step-label strong{font-size:.9rem}.transfer-create-modal .transfer-create-step{gap:10px}.transfer-create-modal .transfer-create-header .section-title{font-size:1.3rem}
+.team-rep-transfers-page .transfer-journal.is-readonly .transfer-journal-columns,.team-rep-transfers-page .transfer-journal.is-readonly .transfer-journal-row{grid-template-columns:minmax(0,1fr) 240px}.transfer-journal.is-readonly .transfer-row-actions{display:none}
+@media(max-width:1000px){.team-rep-transfers-page .transfer-journal-columns{grid-template-columns:minmax(0,1fr) 190px 180px}.team-rep-transfers-page .transfer-journal-row{grid-template-columns:minmax(0,1fr) 190px 180px}.team-rep-transfers-page .transfer-context-layout{grid-template-columns:1fr 1fr}.transfer-context-layout>.btn-primary{grid-column:1/-1;justify-self:start}}
+@media(max-width:640px){.team-rep-transfers-page .transfer-journal.is-readonly .transfer-journal-row{grid-template-columns:1fr}.team-rep-transfers-page .transfer-page-header,.team-rep-transfers-page .transfer-context-card,.team-rep-transfers-page .transfer-journal-heading{padding:20px}.team-rep-transfers-page .transfer-context-layout{grid-template-columns:1fr;gap:16px}.transfer-context-layout>.btn-primary{width:100%}.team-rep-transfers-page .transfer-journal-columns{display:none}.team-rep-transfers-page .transfer-journal-row{grid-template-columns:1fr;gap:14px;padding:20px}.transfer-player-cell,.transfer-route-cell,.transfer-status-cell,.transfer-row-actions{grid-column:1;grid-row:auto}.transfer-row-actions{justify-content:flex-start}.transfer-request-details{grid-column:1}.team-rep-transfers-page .transfer-player-cell strong{font-size:1rem}}
+</style>
+
+<style scoped>
+/* Controls occupy a common row; the season label has its own grid row. */
+.team-rep-transfers-page .transfer-context-layout{align-items:end;grid-template-columns:minmax(230px,1fr) minmax(230px,.7fr) auto;gap:24px}
+.team-rep-transfers-page .transfer-season-field{display:grid;gap:10px;margin:0}
+.team-rep-transfers-page .transfer-season-field select{height:56px;min-height:56px;margin:0}
+.team-rep-transfers-page .transfer-window-state{height:56px;min-height:56px;box-sizing:border-box;padding:8px 16px}
+.team-rep-transfers-page .transfer-window-state>div{gap:4px}
+.team-rep-transfers-page .transfer-context-layout>.btn-primary{grid-column:auto;justify-self:end;align-self:end;width:auto;height:56px;min-height:56px;margin:0;padding:0 20px;white-space:nowrap}
+@media(max-width:900px){.team-rep-transfers-page .transfer-context-layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}.team-rep-transfers-page .transfer-context-layout>.btn-primary{grid-column:1/-1;justify-self:start}}
+@media(max-width:640px){.team-rep-transfers-page .transfer-context-layout{grid-template-columns:1fr}.team-rep-transfers-page .transfer-context-layout>.btn-primary{grid-column:1;width:100%;justify-self:stretch}}
 </style>

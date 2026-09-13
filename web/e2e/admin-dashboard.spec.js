@@ -12,17 +12,25 @@ for (const legacy of [false, true]) test(`dashboard renders scoped tasks, legacy
       const season = url.searchParams.get('seasonId'), competition = url.searchParams.get('competitionId')
       calls.push([season, competition])
       json = [{ key: 'suspensions', label: 'Дисквалификации', count: Number(competition), path: `/discipline?season=${season}&competition=${competition}`, ...(legacy ? {} : { scope: 'COMPETITION' }) }]
+      if (!legacy) json.push(
+        ...['protocols','lineups','unpublished','rosters'].map(key => ({ key, label: key, count: 0, scope: 'COMPETITION', adminTab: 'tours' })),
+        { key: 'applications', label: 'Заявки', count: 0, scope: 'SEASON', path: '/season-applications-review?season=1' },
+        { key: 'transfers', label: 'Трансферы', count: 0, scope: 'SEASON', path: '/team-rep-transfers?season=1' },
+        { key: 'acknowledgements', label: 'Оповещения', count: 0, scope: 'LEAGUE', adminTab: 'notifications' }
+      )
     } else if (url.pathname.includes('notifications')) json = { items: [], count: 0 }
     await route.fulfill({ json })
   })
   await page.goto('/admin?season=1&competition=11')
   const panel = page.locator('.dashboard-panel')
   if (legacy) { await expect(panel).toContainText('Backend вернул сводку старого формата'); return }
-  await expect(panel.getByRole('link', { name: /Дисквалификации/ })).toHaveAttribute('href', '/discipline?season=1&competition=11')
+  await expect(panel.getByRole('link', { name: /дисквалификации/i })).toHaveAttribute('href', '/discipline?season=1&competition=11')
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await page.screenshot({ path: '/tmp/bg-dashboard-structured.png', fullPage: true })
   await panel.locator('.competition-context-picker select').nth(1).selectOption('10')
-  await expect(panel.getByRole('link', { name: /Дисквалификации/ })).toHaveAttribute('href', '/discipline?season=1&competition=10')
+  await expect(panel.getByRole('link', { name: /дисквалификации/i })).toHaveAttribute('href', '/discipline?season=1&competition=10')
   await panel.locator('.competition-context-picker select').nth(0).selectOption('2')
-  await expect(panel.getByRole('link', { name: /Дисквалификации/ })).toHaveAttribute('href', '/discipline?season=2&competition=20')
+  await expect(panel.getByRole('link', { name: /дисквалификации/i })).toHaveAttribute('href', '/discipline?season=2&competition=20')
   await panel.locator('.competition-context-picker select').nth(0).selectOption('3')
   await expect(panel).toContainText('Выберите соревнование')
   expect(calls).toEqual([['1','11'], ['1','10'], ['2','20']])

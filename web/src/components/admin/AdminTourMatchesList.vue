@@ -21,7 +21,7 @@
           <span v-if="match.scheduleChangeReason" class="muted-text">Причина: {{ match.scheduleChangeReason }}</span>
         </div>
         <div class="tour-match-actions">
-          <button class="btn-ghost btn-sm" type="button" @click="$emit('edit-schedule', match)">Расписание</button>
+          <button class="btn-ghost btn-sm" type="button" :disabled="match.protocolStatus === 'VERIFIED' || scheduleSaving" :title="match.protocolStatus === 'VERIFIED' ? 'Сначала суперадминистратор должен открыть протокол' : 'Изменить расписание'" @click="$emit('edit-schedule', match)">Расписание</button>
           <button
             class="btn-danger btn-sm"
             type="button"
@@ -30,7 +30,8 @@
             @click="$emit('delete', match.id)"
           >Удалить</button>
         </div>
-        <form v-if="String(scheduleEditingId) === String(match.id)" class="tour-schedule-editor" @submit.prevent="$emit('save-schedule', match.id)">
+        <p v-if="match.protocolStatus === 'VERIFIED'" class="tour-schedule-lock">Расписание закрыто для изменений. Открыть протокол может только суперадминистратор.</p>
+        <form v-if="match.protocolStatus !== 'VERIFIED' && String(scheduleEditingId) === String(match.id)" class="tour-schedule-editor" @submit.prevent="$emit('save-schedule', match.id)">
           <label>Статус
             <select v-model="scheduleForm.status">
               <option value="SCHEDULED">Запланирован</option>
@@ -57,12 +58,16 @@
         </form>
       </article>
     </div>
+    <dialog ref="errorDialog" class="tour-schedule-error-dialog" aria-labelledby="schedule-error-title" @close="$emit('dismiss-schedule-error')">
+      <h3 id="schedule-error-title">Расписание не сохранено</h3><p>{{ scheduleError }}</p><button class="btn-primary" type="button" @click="errorDialog.close()">Понятно</button>
+    </dialog>
     <p class="muted-text tour-publish-note">Публично на сайт попадут только опубликованные туры.</p>
   </div>
 </template>
 
 <script setup>
-defineProps({
+import { nextTick, ref, watch } from 'vue'
+const props = defineProps({
   canDelete: { type: Function, required: true },
   canPublish: { type: Boolean, default: false },
   deleteTitle: { type: Function, required: true },
@@ -71,6 +76,7 @@ defineProps({
   scheduleEditingId: { type: [String, Number], default: '' },
   scheduleForm: { type: Object, required: true },
   scheduleSaving: { type: Boolean, default: false },
+  scheduleError: { type: String, default: '' },
   scheduleStatusLabel: { type: Function, required: true },
   scoreLabel: { type: Function, required: true },
   statusBadgeClass: { type: Function, required: true },
@@ -79,7 +85,13 @@ defineProps({
   venues: { type: Array, default: () => [] },
 })
 
-defineEmits(['cancel-schedule', 'delete', 'edit-schedule', 'publish', 'save-schedule'])
+const errorDialog = ref(null)
+watch(() => props.scheduleError, async message => {
+  await nextTick()
+  if (message && !errorDialog.value?.open) errorDialog.value?.showModal()
+  else if (!message && errorDialog.value?.open) errorDialog.value?.close()
+})
+defineEmits(['dismiss-schedule-error', 'cancel-schedule', 'delete', 'edit-schedule', 'publish', 'save-schedule'])
 </script>
 
 <style scoped>
@@ -89,4 +101,18 @@ defineEmits(['cancel-schedule', 'delete', 'edit-schedule', 'publish', 'save-sche
 .tour-schedule-reason { grid-column: 1 / -1; }
 .tour-schedule-buttons { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 720px) { .tour-schedule-editor { grid-template-columns: 1fr; } .tour-schedule-reason, .tour-schedule-buttons { grid-column: auto; } }
+</style>
+
+<style scoped>
+.admin-list-items .tour-match-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start;padding:20px}.tour-match-copy{min-width:0}.tour-match-copy>strong{font-size:1rem;line-height:1.4}.tour-match-copy>.muted-text{font-size:.82rem}.tour-match-actions{justify-self:end;flex-wrap:wrap}.tour-schedule-editor{grid-column:1/-1;grid-template-columns:minmax(140px,.7fr) minmax(240px,1fr) minmax(170px,1fr);gap:16px;padding:20px;margin-top:4px;border:1px solid var(--line);border-radius:10px;background:rgba(7,13,31,.55);box-sizing:border-box;min-width:0}.tour-schedule-editor label{min-width:0;gap:8px;font-size:.8rem}.tour-schedule-editor input,.tour-schedule-editor select{width:100%;min-width:0;max-width:100%;height:44px;box-sizing:border-box;margin:0;font-size:.85rem}.tour-schedule-buttons{margin:0}.tour-schedule-buttons button{height:40px;margin:0;padding:0 16px}.tour-schedule-lock{grid-column:1/-1;margin:0;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:rgba(124,163,255,.04);color:var(--muted);font-size:.78rem;line-height:1.5}.tour-schedule-error-dialog{max-width:460px;width:calc(100% - 40px);padding:24px;border:1px solid var(--line);border-radius:14px;background:#10182e;color:var(--text);box-sizing:border-box;box-shadow:0 24px 80px rgba(0,0,0,.5)}.tour-schedule-error-dialog::backdrop{background:rgba(3,7,18,.75)}.tour-schedule-error-dialog h3{font-size:1.1rem;margin:0 0 14px}.tour-schedule-error-dialog p{font-size:.9rem;line-height:1.6;margin-bottom:20px}.tour-schedule-error-dialog button{float:right}
+@media(max-width:1000px){.tour-schedule-editor{grid-template-columns:1fr 1fr}.tour-schedule-editor label:nth-child(3){grid-column:1/-1}}
+@media(max-width:640px){.admin-list-items .tour-match-item{grid-template-columns:1fr;padding:16px}.tour-match-actions{justify-self:start}.tour-schedule-editor{grid-template-columns:1fr;padding:16px}.tour-schedule-editor label:nth-child(3),.tour-schedule-reason,.tour-schedule-buttons{grid-column:1}}
+</style>
+<style scoped>
+.tour-match-item{container-type:inline-size}.tour-schedule-editor{grid-template-columns:repeat(3,minmax(0,1fr))}
+@container(max-width:650px){.tour-schedule-editor{grid-template-columns:minmax(0,1fr)}.tour-schedule-editor label,.tour-schedule-reason,.tour-schedule-buttons{grid-column:1}}
+</style>
+<style scoped>
+.tour-match-actions button:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(1);box-shadow:none;transform:none;background:rgba(124,163,255,.06);border:1px solid var(--line);color:var(--muted)}
+.tour-match-actions button:disabled:hover{transform:none;box-shadow:none;background:rgba(124,163,255,.06);color:var(--muted)}
 </style>

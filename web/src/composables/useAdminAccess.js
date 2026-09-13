@@ -145,6 +145,13 @@ export function useAdminAccess({
 
   function findUserForRoles() {
     clearMessages()
+    clearTimeout(rolesSearchTimer)
+    const selected = rolesSelectedEmail.value.trim().toLowerCase()
+    if (selected && roleUserByEmail.value.has(selected) && (!rolesSearch.value || selected.includes(rolesSearch.value.toLowerCase()))) {
+      rolesFoundEmail.value = selected
+      replaceRoleTarget.value = ''
+      return
+    }
     const emailFilter = String(rolesSearch.value || rolesSelectedEmail.value || '').trim()
     if (!emailFilter) {
       errorMessage.value = 'Введите email или выберите пользователя.'
@@ -172,6 +179,12 @@ export function useAdminAccess({
 
   function findRepresentative() {
     clearMessages()
+    clearTimeout(repSearchTimer)
+    const selected = repSelectedEmail.value.trim().toLowerCase()
+    if (selected && repUserByEmail.value.has(selected) && (!repSearch.value || selected.includes(repSearch.value.toLowerCase()))) {
+      void refreshRepresentativeAccessByEmail(selected).catch(error => { errorMessage.value = error.message || 'Не удалось открыть представителя.' })
+      return
+    }
     const emailFilter = String(repSearch.value || repSelectedEmail.value || '').trim()
     if (!emailFilter) {
       errorMessage.value = 'Введите email или выберите представителя.'

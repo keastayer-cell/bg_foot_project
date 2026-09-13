@@ -87,6 +87,7 @@ export function useAdminTours({
   const venues = ref([])
   const scheduleEditingId = ref('')
   const scheduleSaving = ref(false)
+  const scheduleError = ref('')
   const scheduleForm = reactive({ status: 'SCHEDULED', kickoffAt: '', venueId: '', reason: '' })
   const cupDrawBusy = ref(false)
   const cupDrawOrder = ref([])
@@ -235,8 +236,13 @@ export function useAdminTours({
   }
 
   function openScheduleEditor(match) {
+    scheduleError.value = ''
+    if (match.protocolStatus === 'VERIFIED') {
+      scheduleError.value = 'Расписание подтверждённого матча менять нельзя. Сначала суперадминистратор должен открыть протокол.'
+      return
+    }
     scheduleEditingId.value = String(match.id)
-    scheduleForm.status = match.scheduleStatus || 'SCHEDULED'
+    scheduleForm.status = ['SCHEDULED', 'RESCHEDULED', 'CANCELLED'].includes(match.scheduleStatus) ? match.scheduleStatus : 'SCHEDULED'
     scheduleForm.kickoffAt = toLocalDateTimeInput(match.kickoffAt)
     scheduleForm.venueId = match.venueId ? String(match.venueId) : ''
     scheduleForm.reason = match.scheduleChangeReason || ''
@@ -252,12 +258,19 @@ export function useAdminTours({
 
   async function saveSchedule(matchId) {
     clearMessages()
+    scheduleError.value = ''
+    if (matches.value.find(match => String(match.id) === String(matchId))?.protocolStatus === 'VERIFIED') {
+      scheduleError.value = 'Расписание подтверждённого матча менять нельзя. Сначала суперадминистратор должен открыть протокол.'
+      return
+    }
     if (!selectedId.value || !scheduleForm.kickoffAt) {
       errorMessage.value = 'Укажите дату и время матча.'
+      scheduleError.value = errorMessage.value
       return
     }
     if (['RESCHEDULED', 'CANCELLED'].includes(scheduleForm.status) && scheduleForm.reason.trim().length < 5) {
       errorMessage.value = 'Для переноса или отмены укажите причину.'
+      scheduleError.value = errorMessage.value
       return
     }
     scheduleSaving.value = true
@@ -276,6 +289,7 @@ export function useAdminTours({
       successMessage.value = 'Расписание матча обновлено.'
     } catch (error) {
       errorMessage.value = error.message || 'Не удалось изменить расписание матча.'
+      scheduleError.value = errorMessage.value
     } finally {
       scheduleSaving.value = false
     }
@@ -672,7 +686,7 @@ export function useAdminTours({
       errorMessage.value = tourMatchDeleteTitle(match)
       return
     }
-    if (!confirmAction('Удалить матч из тура без возможности восстановления?')) return
+    if (!await confirmAction({ title: 'Удалить матч?', message: 'Матч будет удалён из тура без возможности восстановления.', confirmLabel: 'Удалить матч', tone: 'danger' })) return
 
     try {
       await request(`/api/tours/${selectedId.value}/matches/${matchId}`, { method: 'DELETE' })
@@ -725,6 +739,7 @@ export function useAdminTours({
     scheduleEditingId,
     scheduleForm,
     scheduleSaving,
+    scheduleError,
     seasonId,
     seasonMatches,
     selectedId,

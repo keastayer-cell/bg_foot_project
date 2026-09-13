@@ -4,26 +4,22 @@
       <div>
         <p class="admin-panel-kicker">Доступ</p>
         <h3 class="section-title">Роли и доступ</h3>
-        <p class="muted-text">Найдите пользователя, назначьте права или восстановите доступ к аккаунту.</p>
+        <p class="muted-text">Управление правами пользователей.</p>
       </div>
     </header>
 
     <form class="access-search" @submit.prevent="$emit('find')">
-      <div class="access-section-heading">
-        <span class="access-step">1</span>
-        <div><h4>Найдите пользователя</h4><p>Поиск выполняется по адресу электронной почты.</p></div>
-      </div>
       <div class="access-search-grid">
         <label class="access-field">
-          <span>Email</span>
-          <input v-model.trim="search" type="search" inputmode="email" autocomplete="off" placeholder="user@example.com" />
+          <span>Поиск по email</span>
+          <input v-model.trim="search" type="search" inputmode="email" autocomplete="off" placeholder="Введите email" />
         </label>
         <label class="access-field access-results-field">
-          <span>Результаты <small>{{ users.length }}</small></span>
+          <span>Пользователь <small>{{ users.length }}</small></span>
           <select v-model="selectedEmail">
             <option value="">— выберите пользователя —</option>
             <option v-for="user in users" :key="user.email" :value="user.email">
-              {{ user.email }}{{ user.name ? ` — ${user.name}` : '' }}
+              {{ user.name || user.email }}{{ user.name ? ` · ${user.email}` : '' }}
             </option>
           </select>
         </label>
@@ -47,8 +43,8 @@
       <div class="access-user-layout">
         <section class="access-section access-roles-section">
           <div class="access-section-heading access-section-heading-lined">
-            <span class="access-step">2</span>
-            <div><h4>Роли пользователя</h4><p>Роли определяют доступные пользователю разделы и действия.</p></div>
+
+            <div><h4>Роли пользователя</h4></div>
             <span class="access-section-count">{{ foundUser.roles.length }}</span>
           </div>
 
@@ -56,7 +52,7 @@
           <div v-else class="access-role-list">
             <div v-for="role in foundUser.roles" :key="role" class="access-role-row">
               <div class="access-role-info">
-                <span class="admin-role-badge">{{ role }}</span>
+
                 <span><strong>{{ roleInfo(role).label }}</strong><small>{{ roleInfo(role).description }}</small></span>
               </div>
 
@@ -69,7 +65,7 @@
                       :key="item.code"
                       :value="item.code"
                       :disabled="item.code === role || foundUser.roles.includes(item.code)"
-                    >{{ item.label }} · {{ item.code }}</option>
+                    >{{ item.label }}</option>
                   </select>
                 </label>
                 <button class="btn-primary btn-sm" type="button" :disabled="!canConfirmReplace(role)" @click="$emit('confirm-replace')">Сохранить</button>
@@ -83,14 +79,14 @@
           </div>
 
           <div class="access-add-role">
-            <div><strong>Назначить роль</strong><p>Пользователь сразу получит соответствующие права.</p></div>
-            <select v-model="assignCode" class="admin-role-select-inline">
+            <label for="access-assign-role">Добавить роль</label>
+            <select v-model="assignCode" id="access-assign-role" class="admin-role-select-inline" aria-label="Назначить роль">
               <option
                 v-for="item in rolesCatalog"
                 :key="item.code"
                 :value="item.code"
                 :disabled="foundUser.roles.includes(item.code)"
-              >{{ item.label }} · {{ item.code }}</option>
+              >{{ item.label }}</option>
             </select>
             <button class="btn-primary btn-sm" type="button" :disabled="!canAssignRole" @click="$emit('assign-role')">Добавить</button>
           </div>
@@ -98,11 +94,11 @@
 
         <aside class="access-section access-security-section">
           <div class="access-section-heading access-section-heading-lined">
-            <span class="access-step">3</span>
-            <div><h4>Безопасность</h4><p>Восстановление доступа к аккаунту.</p></div>
+
+            <div><h4>Безопасность</h4></div>
           </div>
           <div class="access-security-status"><span>Пароль</span><strong>{{ foundUser.mustChangePassword ? 'Ожидает смены' : 'Установлен' }}</strong></div>
-          <p class="access-security-note">Сброс завершит действие текущего пароля и создаст одноразовую ссылку для установки нового.</p>
+          <p class="access-security-note">Создаёт одноразовую ссылку для нового пароля. Текущий пароль перестанет действовать.</p>
           <button class="btn-danger access-reset-button" type="button" @click="$emit('reset-password')">Сбросить пароль</button>
 
           <article v-if="passwordResetResult" class="access-reset-result">
@@ -165,69 +161,7 @@ function canConfirmReplace(currentRole) {
 </script>
 
 <style scoped>
-.access-panel { gap: 20px; }
-.access-panel-heading { padding-bottom: 4px; }
-.access-search, .access-user-card, .access-placeholder { border: 1px solid rgba(124, 163, 255, .18); border-radius: 14px; background: rgba(10, 16, 37, .62); }
-.access-search { display: grid; gap: 16px; padding: 18px; }
-.access-section-heading { display: flex; align-items: flex-start; gap: 10px; }
-.access-section-heading h4, .access-section-heading p, .access-add-role p, .access-placeholder p { margin: 0; }
-.access-section-heading h4 { font-size: .95rem; }
-.access-section-heading p, .access-add-role p, .access-placeholder p { margin-top: 3px; color: var(--muted); font-size: .8rem; }
-.access-step { display: inline-grid; flex: 0 0 26px; height: 26px; place-items: center; border: 1px solid rgba(97, 232, 162, .35); border-radius: 7px; color: var(--brand); font-size: .76rem; font-weight: 800; }
-.access-search-grid { display: grid; grid-template-columns: minmax(240px, .8fr) minmax(320px, 1.2fr) auto; align-items: end; gap: 12px; }
-.access-field { display: grid; gap: 7px; }
-.access-field > span { color: #dbe4ff; font-size: .78rem; font-weight: 700; }
-.access-field small { margin-left: 4px; color: var(--muted); font-weight: 600; }
-.access-search-button { min-height: 46px; min-width: 104px; }
-.access-search-empty, .access-empty-state { margin: 0; padding: 12px 14px; border: 1px dashed rgba(124, 163, 255, .2); border-radius: 10px; color: var(--muted); font-size: .84rem; }
-.access-user-card { overflow: hidden; }
-.access-user-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 18px 20px; border-bottom: 1px solid rgba(124, 163, 255, .16); background: rgba(24, 36, 73, .42); }
-.access-user-avatar { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid rgba(124, 163, 255, .35); border-radius: 10px; background: rgba(124, 163, 255, .12); color: #e8edff; font-weight: 800; }
-.access-user-name, .access-user-email { margin: 0; }
-.access-user-name { font-weight: 800; }
-.access-user-email { margin-top: 3px; color: var(--muted); font-size: .82rem; }
-.access-status { padding: 6px 10px; border: 1px solid rgba(97, 232, 162, .3); border-radius: 7px; background: rgba(97, 232, 162, .08); color: #9bf0c4; font-size: .74rem; font-weight: 750; }
-.access-status.warning { border-color: rgba(255, 190, 92, .35); background: rgba(255, 190, 92, .09); color: #ffd28a; }
-.access-user-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(280px, .75fr); }
-.access-section { min-width: 0; padding: 20px; }
-.access-security-section { border-left: 1px solid rgba(124, 163, 255, .16); background: rgba(8, 13, 31, .42); }
-.access-section-heading-lined { padding-bottom: 16px; border-bottom: 1px solid rgba(124, 163, 255, .14); }
-.access-section-count { margin-left: auto; padding: 3px 8px; border-radius: 6px; background: rgba(124, 163, 255, .12); color: #cbd8ff; font-size: .76rem; font-weight: 800; }
-.access-role-list { display: grid; }
-.access-role-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; min-height: 74px; padding: 13px 0; border-bottom: 1px solid rgba(124, 163, 255, .12); }
-.access-role-info { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; }
-.access-role-info strong, .access-role-info small { display: block; }
-.access-role-info strong { font-size: .88rem; }
-.access-role-info small { margin-top: 3px; color: var(--muted); font-size: .76rem; }
-.access-role-actions, .access-role-edit { display: flex; align-items: center; gap: 8px; }
-.access-role-edit { padding: 9px; border: 1px solid rgba(124, 163, 255, .16); border-radius: 10px; background: rgba(124, 163, 255, .06); }
-.access-field-compact { min-width: 205px; }
-.access-field-compact > span { font-size: .68rem; }
-.access-text-danger { border: 0; background: transparent; color: #f3a0ad; font-size: .78rem; font-weight: 700; cursor: pointer; }
-.access-text-danger:hover { color: #ffbdc6; text-decoration: underline; }
-.access-add-role { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(200px, .8fr) auto; align-items: end; gap: 10px; margin-top: 18px; padding: 14px; border: 1px solid rgba(97, 232, 162, .2); border-radius: 10px; background: rgba(97, 232, 162, .05); }
-.access-add-role strong { font-size: .84rem; }
-.access-security-status { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; padding: 12px 0; border-bottom: 1px solid rgba(124, 163, 255, .12); color: var(--muted); font-size: .82rem; }
-.access-security-status strong { color: var(--text); }
-.access-security-note { margin: 16px 0; color: var(--muted); font-size: .8rem; line-height: 1.55; }
-.access-reset-button { width: 100%; }
-.access-reset-result { display: grid; gap: 9px; margin-top: 16px; padding: 12px; border: 1px solid rgba(255, 190, 92, .25); border-radius: 10px; background: rgba(255, 190, 92, .06); }
-.access-reset-result > strong { font-size: .82rem; }
-.access-reset-result small { color: var(--muted); line-height: 1.45; }
-.access-placeholder { display: flex; align-items: center; gap: 12px; padding: 18px; color: var(--muted); }
-.access-placeholder > span { font-size: 1.3rem; color: rgba(124, 163, 255, .65); }
-
-@media (max-width: 980px) {
-  .access-search-grid, .access-user-layout { grid-template-columns: 1fr; }
-  .access-security-section { border-top: 1px solid rgba(124, 163, 255, .16); border-left: 0; }
-}
-
-@media (max-width: 680px) {
-  .access-search, .access-section { padding: 15px; }
-  .access-user-header, .access-role-row, .access-add-role { grid-template-columns: 1fr; }
-  .access-user-avatar { display: none; }
-  .access-status { justify-self: start; }
-  .access-role-actions, .access-role-edit { align-items: stretch; flex-direction: column; }
-  .access-role-actions > *, .access-role-edit > *, .access-add-role > * { width: 100%; }
-}
+.access-panel{padding:0;gap:0;overflow:hidden}.access-panel-heading{padding:22px 24px;margin:0;border-bottom:1px solid var(--line)}.access-panel-heading .section-title{font-size:1.35rem;margin:7px 0}.access-panel-heading .muted-text{font-size:.85rem;margin:0;color:var(--muted)}.access-search{padding:22px 24px;background:rgba(7,13,31,.3);border-bottom:1px solid var(--line)}.access-search-grid{display:grid;grid-template-columns:minmax(180px,280px) minmax(240px,420px) auto;gap:14px;align-items:end;max-width:850px}.access-field{display:grid;gap:8px;min-width:0}.access-field>span{font-size:.78rem;color:var(--muted)}.access-field small{margin-left:6px}.access-field input,.access-field select,.access-add-role select{height:44px;min-height:44px;margin:0;font-size:.85rem;font-weight:400;min-width:0;width:100%}.access-search-button{height:44px;margin:0;padding:0 18px}.access-search-empty{margin:16px 0 0;font-size:.85rem;color:var(--muted)}.access-user-card{margin:24px;max-width:1100px;border:0;background:transparent}.access-user-header{display:flex;align-items:center;gap:14px;padding:18px 20px;background:rgba(124,163,255,.06);border:1px solid var(--line);border-radius:12px}.access-user-avatar{display:grid;place-items:center;width:44px;height:44px;flex-shrink:0;color:var(--brand);font-weight:800;border:1px solid rgba(97,232,162,.25);border-radius:10px;background:rgba(97,232,162,.08)}.access-user-identity{min-width:0;overflow-wrap:anywhere}.access-user-name{margin:0;font-size:1.05rem;font-weight:800}.access-user-email{margin:5px 0 0;font-size:.8rem;color:var(--muted)}.access-status{margin-left:auto;padding:6px 10px;font-size:.72rem;color:var(--brand);border:1px solid rgba(97,232,162,.22);border-radius:7px;white-space:nowrap}.access-status.warning{color:#ffd28a;border-color:rgba(255,190,92,.3)}.access-user-layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;align-items:start;gap:20px;margin-top:20px}.access-section{padding:20px;border:1px solid var(--line);border-radius:12px;background:rgba(7,13,31,.55);min-width:0}.access-section-heading{display:flex;align-items:center;gap:10px;margin-bottom:18px}.access-section-heading h4{margin:0;font-size:1rem}.access-section-count{margin-left:auto;padding:3px 7px;border-radius:5px;background:rgba(124,163,255,.1);font-size:.72rem;color:var(--muted)}.access-role-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,270px),1fr));gap:12px}.access-role-row{display:flex;flex-direction:column;align-items:stretch;gap:16px;padding:16px;border:1px solid rgba(97,232,162,.18);border-left:3px solid var(--brand);border-radius:9px;background:rgba(97,232,162,.035)}.access-role-info strong{display:block;font-size:.95rem}.access-role-info small{display:block;margin-top:7px;color:var(--muted);font-size:.78rem;line-height:1.5;max-width:380px}.access-role-actions{display:flex;align-items:center;gap:14px;margin-top:auto}.access-role-actions .btn-ghost{padding:7px 11px;font-size:.78rem}.access-text-danger{padding:7px 0;border:0;background:transparent;color:#ff8792;font-size:.78rem;cursor:pointer}.access-role-edit{display:flex;align-items:end;flex-wrap:wrap;gap:10px}.access-role-edit label{flex:1;min-width:160px}.access-role-edit button{padding:8px 11px;font-size:.78rem}.access-add-role{display:grid;grid-template-columns:minmax(0,320px) auto;gap:8px 12px;justify-content:start;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}.access-add-role>label{grid-column:1/-1;font-size:.78rem;color:var(--muted)}.access-add-role button{height:44px;margin:0;padding:0 16px;font-size:.82rem}.access-security-section{background:rgba(124,163,255,.035)}.access-security-status{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:.78rem;padding:12px;border-radius:7px;background:rgba(124,163,255,.05);color:var(--muted)}.access-security-status strong{color:var(--text)}.access-security-note{font-size:.8rem;line-height:1.6;color:var(--muted);margin:16px 0}.access-reset-button{padding:10px 14px;font-size:.8rem;width:100%}.access-reset-result{display:grid;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line);overflow-wrap:anywhere}.access-reset-result strong{font-size:.85rem}.access-reset-result p{margin:0;font-size:.78rem}.access-reset-result small{color:var(--muted);font-size:.72rem;line-height:1.5}.access-placeholder{padding:32px 24px;color:var(--muted);font-size:.85rem}.access-placeholder>span{display:none}.access-placeholder p{margin:8px 0 0}.access-empty-state{color:var(--muted);font-size:.85rem}
+@media(max-width:1100px){.access-user-layout{grid-template-columns:1fr}.access-security-section{max-width:460px}.access-search-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto}}
+@media(max-width:640px){.access-search-grid{grid-template-columns:1fr}.access-search-button{justify-self:start}.access-user-card{margin:20px}.access-user-header{flex-wrap:wrap;padding:16px}.access-status{margin-left:0}.access-panel-heading,.access-search{padding:20px}.access-section{padding:16px}.access-add-role{grid-template-columns:minmax(0,1fr) auto}.access-security-section{max-width:none}}
 </style>

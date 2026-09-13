@@ -3,17 +3,15 @@
     <header class="admin-panel-head">
       <p class="admin-panel-kicker">История изменений</p>
       <h3 class="section-title">Журнал действий</h3>
-      <p class="muted-text">Кто, когда и что изменил. Записи появляются после успешного сохранения.</p>
+      <p class="muted-text">Кто, когда и что изменил.</p>
     </header>
     <form class="audit-filters" @submit.prevent="pageNumber = 0; load()">
-      <label>С даты<input v-model="filters.from" type="datetime-local" /></label>
-      <label>По дату<input v-model="filters.to" type="datetime-local" /></label>
+      <label>С даты<input v-model="filters.from" type="date" /></label>
+      <label>По дату<input v-model="filters.to" type="date" /></label>
       <label>Автор<input v-model="filters.author" placeholder="Имя пользователя" /></label>
-      <label>Сущность<select v-model="filters.entityType"><option value="">Все</option><option v-for="(label, key) in entityLabels" :key="key" :value="key">{{ label }}</option></select></label>
-      <label>ID сущности<input v-model="filters.entityId" type="number" min="1" /></label>
+      <label>Раздел<select v-model="filters.entityType"><option value="">Все</option><option v-for="(label, key) in entityLabels" :key="key" :value="key">{{ label }}</option></select></label>
       <label>Действие<select v-model="filters.action"><option value="">Все</option><option v-for="(label, key) in actionLabels" :key="key" :value="key">{{ label }}</option></select></label>
-      <button class="btn-primary" :disabled="loading">Показать</button>
-      <button class="btn-ghost" type="button" :disabled="loading" @click="reset">Сбросить</button>
+      <div class="audit-filter-actions"><button class="btn-primary" :disabled="loading">Показать</button><button class="btn-ghost" type="button" :disabled="loading" @click="reset">Сбросить</button></div>
     </form>
     <UiState v-if="loading" tone="loading" title="Загружаем журнал" />
     <UiState v-else-if="error" tone="error" title="Не удалось загрузить журнал" :message="error" action-label="Повторить" @action="load" />
@@ -39,7 +37,7 @@ import UiState from '../UiState.vue'
 import { useAuth } from '../../store/auth'
 defineEmits(['select-tab'])
 const { authorizedApiRequest } = useAuth()
-const filters = reactive({ from: '', to: '', author: '', entityType: '', entityId: '', action: '' })
+const filters = reactive({ from: '', to: '', author: '', entityType: '', action: '' })
 const pageNumber = ref(0)
 const data = ref({ items: [], totalPages: 0, totalElements: 0 })
 const loading = ref(false)
@@ -73,10 +71,15 @@ function differences(changes) {
 function internalTab(type) { return { TEAM: 'teams', PLAYER: 'players', COMPETITION: 'competitions', SEASON: 'seasons', MATCH: 'tours', ROLE: 'roles', TEAM_ACCESS: 'representatives', REFEREE: 'referees', OFFICIAL: 'league', VENUE: 'league', TOUR: 'tours' }[type] }
 function formatDate(value) { return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) }
 function reset() { Object.keys(filters).forEach((key) => { filters[key] = '' }); pageNumber.value = 0; load() }
+function dateBoundary(value, endOfDay) {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0).toISOString()
+}
 async function load() {
+  if (filters.from && filters.to && filters.from > filters.to) { error.value = 'Дата начала должна быть не позже даты окончания.'; return }
   loading.value = true; error.value = ''
   const params = new URLSearchParams({ pagenum: String(pageNumber.value), pagesize: '25' })
-  Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, key === 'from' || key === 'to' ? new Date(value).toISOString() : value) })
+  Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, key === 'from' || key === 'to' ? dateBoundary(value, key === 'to') : value) })
   try { data.value = await authorizedApiRequest(`/api/admin/audit?${params}`, { method: 'GET' }) }
   catch (requestError) { error.value = requestError.message || 'Ошибка загрузки.' }
   finally { loading.value = false }
@@ -86,4 +89,10 @@ onMounted(load)
 
 <style scoped>
 .audit-panel{padding:0}.audit-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:20px;border-bottom:1px solid var(--line)}.audit-filters label{display:grid;gap:7px;color:var(--muted);font-size:.8rem}.audit-filters input,.audit-filters select{min-width:0;width:100%}.audit-list{display:grid;gap:12px;padding:20px}.audit-entry{border:1px solid var(--line);border-radius:12px;background:rgba(10,16,37,.5);overflow:hidden}.audit-entry-head{display:flex;align-items:center;gap:18px;padding:16px}.audit-entry-head>div:first-child{flex:1}.audit-entry-head p{margin:5px 0 0;color:var(--muted);font-size:.8rem}.audit-author{display:grid;gap:5px;font-size:.8rem}.audit-author time{color:var(--muted)}.audit-entry summary{padding:12px 16px;cursor:pointer;color:var(--brand);border-top:1px solid var(--line)}.audit-diff-wrap{overflow:auto}.audit-diff-wrap table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.8rem}.audit-diff-wrap th,.audit-diff-wrap td{padding:12px;text-align:left;border-top:1px solid var(--line);vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}.audit-diff-wrap th{color:var(--muted)}.audit-pagination{display:flex;justify-content:center;align-items:center;gap:14px;padding:16px}@media(max-width:760px){.audit-filters{grid-template-columns:1fr 1fr}.audit-entry-head{flex-wrap:wrap}.audit-entry-head>div:first-child{flex-basis:100%}}@media(max-width:480px){.audit-filters{grid-template-columns:1fr}}
+</style>
+
+<style scoped>
+.audit-panel .admin-panel-head{padding:24px;margin:0;border-bottom:1px solid var(--line)}.audit-panel .admin-panel-head .section-title{font-size:1.35rem;margin:8px 0}.audit-panel .admin-panel-head .muted-text{font-size:.85rem;margin:8px 0 0}.audit-panel .audit-filters{padding:24px;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 16px}.audit-filters label{gap:9px}.audit-filters input,.audit-filters select{height:46px;min-height:46px;font-size:.88rem;margin:0;font-weight:400}.audit-filter-actions{display:flex;align-items:end;gap:10px}.audit-filter-actions button{height:46px;padding:0 18px;min-width:100px;margin:0}.audit-list{padding:24px;gap:14px}.audit-entry{background:rgba(7,13,31,.45)}.audit-entry-head{display:grid;grid-template-columns:minmax(0,1fr) 190px auto;gap:20px;padding:20px}.audit-entry-head>div:first-child>strong{font-size:1rem;line-height:1.4}.audit-entry-head p{font-size:.78rem;margin-top:8px}.audit-author{font-size:.82rem;gap:7px}.audit-author strong{overflow-wrap:anywhere}.audit-entry-head>.btn-ghost{font-size:.8rem;padding:9px 13px;justify-self:end}.audit-entry summary{font-size:.8rem;padding:13px 20px;background:rgba(124,163,255,.03)}.audit-diff-wrap th,.audit-diff-wrap td{padding:14px 20px}.audit-diff-wrap thead{background:rgba(124,163,255,.04)}.audit-diff-wrap td:nth-child(3){background:rgba(97,232,162,.025)}.audit-panel>.ui-state{margin:24px}.audit-pagination{font-size:.82rem;border-top:1px solid var(--line)}
+@media(max-width:900px){.audit-panel .audit-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.audit-entry-head{grid-template-columns:minmax(0,1fr) auto}.audit-author{grid-column:1;grid-row:2}.audit-entry-head>.btn-ghost{grid-column:2;grid-row:1/3}}
+@media(max-width:540px){.audit-panel .audit-filters{grid-template-columns:1fr;padding:20px}.audit-panel .admin-panel-head,.audit-list{padding:20px}.audit-entry-head{grid-template-columns:1fr;padding:16px}.audit-entry-head>.btn-ghost{grid-column:1;grid-row:auto;justify-self:start}.audit-filter-actions{flex-wrap:wrap}.audit-pagination{flex-wrap:wrap}}
 </style>
