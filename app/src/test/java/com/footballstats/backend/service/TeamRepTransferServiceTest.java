@@ -43,6 +43,7 @@ class TeamRepTransferServiceTest {
     @Mock private AppUserRepository appUserRepository;
     @Mock private MediaAssetService mediaAssetService;
     @Mock private SiteNotificationService siteNotificationService;
+    @Mock private BusinessAuditService businessAuditService;
 
     private TeamRepTransferService service;
 
@@ -58,7 +59,8 @@ class TeamRepTransferServiceTest {
             seasonTransferRequestRepository,
             appUserRepository,
             mediaAssetService,
-            siteNotificationService
+            siteNotificationService,
+            businessAuditService
         );
     }
 

@@ -266,15 +266,15 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { createCompetitionsApi } from '../../api/competitions'
 import { RANKING_RULE_PRESETS, TIE_BREAKER_RULE_OPTIONS } from '../../composables/useAdminSeasonRules'
 import AdminSeasonRankingRules from './AdminSeasonRankingRules.vue'
 import UiState from '../UiState.vue'
 
-const props = defineProps({ request: { type: Function, required: true }, seasons: { type: Array, default: () => [] } })
+const props = defineProps({ request: { type: Function, required: true }, seasons: { type: Array, default: () => [] }, initialSeasonId: { type: String, default: '' }, initialCompetitionId: { type: String, default: '' } })
 const api = createCompetitionsApi(props.request)
-const seasonId = ref('')
+const seasonId = ref(props.initialSeasonId)
 const competitions = ref([])
 const seasonTeamOptions = ref([])
 const selectedId = ref('')
@@ -307,6 +307,12 @@ const availableRosterCandidates = computed(() => {
   return rosterCandidates.value.filter((player) => !selected.has(String(player.playerId)))
 })
 watch(seasonId, load)
+onMounted(async () => {
+  if (!props.initialSeasonId) return
+  await load()
+  const competition = competitions.value.find((item) => String(item.id) === props.initialCompetitionId)
+  if (competition) selectCompetition(competition)
+})
 watch(rosterTeamId, loadRosterCandidates)
 
 async function load() {

@@ -114,6 +114,7 @@ public class PlayerManagementService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="PLAYER",idParam="playerId",action="DEACTIVATED",actorParam="actorUserId")
     public void deactivate(Long playerId, Long actorUserId) {
         Player player = requirePlayer(playerId);
         player.setActive(false);

@@ -1,69 +1,50 @@
 import { computed, ref } from 'vue'
 import { requestJson, requestRaw } from '../api/http'
+import { createAccountApi } from '../api/account'
 
 const PERSISTENT_SESSION_KEY = 'football_stats_persistent_session'
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
-const TEAM_POOL = [
-  'Север',
-  'Юг',
-  'Восток',
-  'Центр',
-  'Спартак',
-  'Динамо',
-  'Локомотив',
-  'Олимп',
-  'Волга',
-  'Заря',
-  'Старт',
-  'Факел',
-]
 
 const token = ref('')
 const user = ref(null)
 let refreshPromise = null
 
-function hashString(value) {
-  const source = String(value || '')
-  let hash = 0
-
-  for (let index = 0; index < source.length; index += 1) {
-    hash = (hash * 31 + source.charCodeAt(index)) >>> 0
+function normalizeTeamScope(scope) {
+  const teamId = Number(scope?.teamId)
+  const teamName = String(scope?.teamName || '').trim()
+  if (!Number.isFinite(teamId) || teamId <= 0 || !teamName) {
+    return null
   }
-
-  return hash
+  return {
+    teamId,
+    teamName,
+    canEditRoster: Boolean(scope?.canEditRoster),
+    canEditApplication: Boolean(scope?.canEditApplication),
+    validFrom: scope?.validFrom || null,
+    validTo: scope?.validTo || null,
+  }
 }
 
-function normalizeTeamName(value) {
-  const raw = String(value || '').trim()
-  if (!raw) return ''
+export function normalizeUserAccess(rawUser = {}, accessProfile = null) {
+  const teamScopes = (Array.isArray(accessProfile?.teamScopes) ? accessProfile.teamScopes : [])
+    .map(normalizeTeamScope)
+    .filter(Boolean)
+  const primaryTeamScope = teamScopes[0] || null
 
-  const exact = TEAM_POOL.find((team) => team.toLowerCase() === raw.toLowerCase())
-  if (exact) return exact
-
-  return raw
-}
-
-function resolveTeamName(rawUser) {
-  const directTeam =
-    rawUser?.teamName ||
-    rawUser?.team ||
-    rawUser?.team_title ||
-    rawUser?.teamTitle ||
-    rawUser?.team_name ||
-    rawUser?.teamNameRu ||
-    rawUser?.team?.name ||
-    ''
-
-  const normalized = normalizeTeamName(directTeam)
-  if (normalized) return normalized
-
-  const numericTeamId = Number(rawUser?.teamId || rawUser?.team?.id || 0)
-  if (Number.isFinite(numericTeamId) && numericTeamId > 0) {
-    return TEAM_POOL[(numericTeamId - 1) % TEAM_POOL.length]
+  return {
+    ...rawUser,
+    roles: Array.isArray(accessProfile?.roles)
+      ? accessProfile.roles
+      : Array.isArray(rawUser?.roles) ? rawUser.roles : [],
+    roleAnnotations: Array.isArray(accessProfile?.roleAnnotations)
+      ? accessProfile.roleAnnotations
+      : [],
+    mustChangePassword: Boolean(accessProfile?.mustChangePassword ?? rawUser?.mustChangePassword),
+    teamScopes,
+    teamId: primaryTeamScope?.teamId || null,
+    teamName: primaryTeamScope?.teamName || '',
+    teamScope: primaryTeamScope,
   }
-
-  const seed = `${rawUser?.email || ''}:${rawUser?.name || ''}:${rawUser?.id || ''}`
-  return TEAM_POOL[hashString(seed) % TEAM_POOL.length]
 }
 
 function setPersistentSession(enabled) {
@@ -112,14 +93,24 @@ async function apiRequestRaw(path, options = {}) {
 
 function applyAuthResponse(payload) {
   token.value = payload.token
-  user.value = {
+  user.value = normalizeUserAccess({
     id: payload.userId,
     email: payload.email,
     name: payload.name,
     roles: payload.roles || [],
     mustChangePassword: Boolean(payload.mustChangePassword),
-    teamName: resolveTeamName(payload),
-  }
+  })
+}
+
+function applyAccountResponse(payload) {
+  user.value = normalizeUserAccess({
+    id: payload.userId,
+    email: payload.email,
+    name: payload.name,
+    roles: payload.roles || [],
+    mustChangePassword: Boolean(payload.mustChangePassword),
+  }, payload)
+  return user.value
 }
 
 async function register({ email, name, password }) {
@@ -167,12 +158,6 @@ async function loadCurrentUser() {
     },
   })
 
-  user.value = payload
-  if (!Array.isArray(user.value.roles)) {
-    user.value.roles = []
-  }
-  user.value.mustChangePassword = Boolean(user.value.mustChangePassword)
-
   const accessProfile = await apiRequest('/api/admin/access/me', {
     method: 'GET',
     headers: {
@@ -180,17 +165,7 @@ async function loadCurrentUser() {
     },
   }).catch(() => null)
 
-  const teamScope = accessProfile?.teamScopes?.[0]
-  if (teamScope?.teamName) {
-    user.value.teamName = teamScope.teamName
-    user.value.teamId = teamScope.teamId || null
-    user.value.teamScope = {
-      canEditRoster: Boolean(teamScope.canEditRoster),
-      canEditApplication: Boolean(teamScope.canEditApplication),
-    }
-  } else {
-    user.value.teamName = resolveTeamName(user.value)
-  }
+  user.value = normalizeUserAccess(payload, accessProfile)
   return user.value
 }
 
@@ -327,16 +302,51 @@ async function authorizedApiRequestRaw(path, options = {}) {
   return response
 }
 
+const accountApi = createAccountApi(authorizedApiRequest)
+
+async function loadAccount() {
+  return applyAccountResponse(await accountApi.get())
+}
+
+async function updateProfile({ email, name }) {
+  return applyAccountResponse(await accountApi.update({ email, name }))
+}
+
 async function changePassword({ currentPassword, newPassword }) {
-  const payload = await authorizedApiRequest('/api/auth/change-password', {
-    method: 'POST',
-    body: JSON.stringify({ currentPassword, newPassword }),
-  })
+  const payload = await accountApi.changePassword({ currentPassword, newPassword })
 
   applyAuthResponse(payload)
   setPersistentSession(true)
   await loadCurrentUser().catch(() => null)
   return user.value
+}
+
+async function logoutAllDevices() {
+  try {
+    await accountApi.logoutAll()
+  } finally {
+    clearLocalAuthState()
+  }
+}
+
+async function loadNotificationSettings() {
+  return accountApi.getNotificationSettings()
+}
+
+async function updateNotificationSettings(settings) {
+  return accountApi.updateNotificationSettings(settings)
+}
+
+async function loadFavorites() {
+  return accountApi.getFavorites()
+}
+
+async function addFavorite(type, targetId) {
+  return accountApi.addFavorite(type, targetId)
+}
+
+async function removeFavorite(type, targetId) {
+  return accountApi.removeFavorite(type, targetId)
 }
 
 // Запрос с опциональной авторизацией (для гостей)
@@ -407,6 +417,16 @@ function isTeamRepresentative() {
   return hasRole('TEAM_REP')
 }
 
+function hasTeamAccess(permission = '') {
+  if (!Number.isFinite(Number(user.value?.teamId)) || Number(user.value?.teamId) <= 0) {
+    return false
+  }
+  if (!permission) {
+    return true
+  }
+  return Boolean(user.value?.teamScope?.[permission])
+}
+
 export function useAuth() {
   return {
     token,
@@ -417,6 +437,14 @@ export function useAuth() {
     guestLogin,
     logout,
     changePassword,
+    loadAccount,
+    updateProfile,
+    logoutAllDevices,
+    loadNotificationSettings,
+    updateNotificationSettings,
+    loadFavorites,
+    addFavorite,
+    removeFavorite,
     loadCurrentUser,
     ensureSession,
     refreshSession,
@@ -425,6 +453,7 @@ export function useAuth() {
     optionalAuthApiRequest,
     optionalAuthApiRequestRaw,
     hasRole,
+    hasTeamAccess,
     isTeamRepresentative,
   }
 }

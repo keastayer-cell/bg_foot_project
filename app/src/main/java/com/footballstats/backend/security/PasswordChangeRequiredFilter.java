@@ -66,6 +66,7 @@ public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
         if ("GET".equalsIgnoreCase(method) && "/api/admin/access/me".equals(path)) {
             return true;
         }
-        return "POST".equalsIgnoreCase(method) && "/api/auth/change-password".equals(path);
+        return "POST".equalsIgnoreCase(method)
+            && ("/api/auth/change-password".equals(path) || "/api/account/password".equals(path));
     }
 }

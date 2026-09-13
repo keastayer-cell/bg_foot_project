@@ -13,6 +13,13 @@
       />
 
       <div class="admin-workspace-content">
+        <AdminDashboardPanel
+          v-if="activeTab === 'dashboard'"
+          @open-task="openDashboardTask"
+        />
+
+        <AdminAuditPanel v-if="activeTab === 'audit'" @select-tab="selectAdminTab" />
+
         <AdminSeasonsPanel
           v-if="activeTab === 'seasons'"
           :panel="seasonPanel"
@@ -22,6 +29,8 @@
           v-if="activeTab === 'competitions'"
           :request="authorizedApiRequest"
           :seasons="seasonsList"
+          :initial-season-id="dashboardCompetitionContext.seasonId"
+          :initial-competition-id="dashboardCompetitionContext.competitionId"
         />
 
 
@@ -168,6 +177,8 @@ import AdminTeamsPanel from '../components/admin/AdminTeamsPanel.vue'
 import AdminToursPanel from '../components/admin/AdminToursPanel.vue'
 import AdminLeagueContent from '../components/AdminLeagueContent.vue'
 import AdminNotificationsPanel from '../components/admin/AdminNotificationsPanel.vue'
+import AdminDashboardPanel from '../components/admin/AdminDashboardPanel.vue'
+import AdminAuditPanel from '../components/admin/AdminAuditPanel.vue'
 
 const USERS_KEY = 'football_stats_admin_users_registry'
 
@@ -374,6 +385,7 @@ const {
   matchAvailabilityMessage,
   matchLimitMessage: selectedTourMatchLimitMessage,
   matchProtocolStatusLabel,
+  matchScheduleStatusLabel,
   matches: tourMatchesList,
   moveCupDrawTeam,
   needsCupTieWinner,
@@ -381,10 +393,16 @@ const {
   onCupTieChange,
   onSeasonChange: onTourSeasonChange,
   onTourChange: onTourSelectChange,
+  openScheduleEditor,
+  closeScheduleEditor,
   protocolStatusBadgeClass,
   publish: publishSelectedTourNow,
   refresh: refreshToursTabData,
   saveCupTieWinner,
+  saveSchedule,
+  scheduleEditingId,
+  scheduleForm,
+  scheduleSaving,
   seasonId: tourSeasonId,
   selectedId: selectedTourId,
   selectedCompetition: selectedTourCompetition,
@@ -397,6 +415,7 @@ const {
   tourMatchDeleteTitle,
   tourMatchScoreLabel,
   tours: toursList,
+  venues: tourVenues,
 } = useAdminTours({
   request: authorizedApiRequest,
   seasons: seasonsList,
@@ -589,6 +608,21 @@ const seasonCompletionActionLabel = computed(() => {
     : 'Завершить сезон'
 })
 
+const dashboardCompetitionContext = ref({ seasonId: '', competitionId: '' })
+async function openDashboardTask({ tab, seasonId, competitionId }) {
+  if (tab === 'tours') {
+    tourSeasonId.value = seasonId
+    await onTourSeasonChange()
+    tourCompetitionId.value = competitionId
+  } else if (tab === 'teams') {
+    selectedTeamSeasonId.value = seasonId
+    await onAdminTeamSeasonChange()
+  } else if (tab === 'competitions') {
+    dashboardCompetitionContext.value = { seasonId, competitionId }
+  }
+  selectAdminTab(tab)
+}
+
 const seasonPanel = reactive({
   addSeasonRankingRule,
   addSeasonRefereeToForm,
@@ -700,6 +734,7 @@ const tourPanel = reactive({
   matchAvailabilityMessage,
   matchLimitMessage: selectedTourMatchLimitMessage,
   matchProtocolStatusLabel,
+  matchScheduleStatusLabel,
   matches: tourMatchesList,
   moveCupDrawTeam,
   needsCupTieWinner,
@@ -707,9 +742,15 @@ const tourPanel = reactive({
   onCupTieChange,
   onSeasonChange: onTourSeasonChange,
   onTourChange: onTourSelectChange,
+  openScheduleEditor,
+  closeScheduleEditor,
   protocolStatusBadgeClass,
   publish: publishSelectedTour,
   saveCupTieWinner,
+  saveSchedule,
+  scheduleEditingId,
+  scheduleForm,
+  scheduleSaving,
   seasonId: tourSeasonId,
   seasonsList,
   selectedId: selectedTourId,
@@ -723,6 +764,7 @@ const tourPanel = reactive({
   tourMatchDeleteTitle,
   tourMatchScoreLabel,
   tours: toursList,
+  venues: tourVenues,
 })
 
 

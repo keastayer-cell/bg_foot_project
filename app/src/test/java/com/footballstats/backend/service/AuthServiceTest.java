@@ -4,7 +4,10 @@ import com.footballstats.backend.domain.AppUser;
 import com.footballstats.backend.dto.auth.AuthResponse;
 import com.footballstats.backend.dto.auth.LoginRequest;
 import com.footballstats.backend.dto.auth.PasswordResetResponse;
+import com.footballstats.backend.dto.auth.UpdateAccountRequest;
+import com.footballstats.backend.dto.auth.UserAccessResponse;
 import com.footballstats.backend.repository.AppUserRepository;
+import com.footballstats.backend.security.AppUserPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -153,6 +157,58 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.getCurrentUser("Bearer " + oldToken))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("Сессия устарела");
+    }
+
+    @Test
+    void updateProfileNormalizesValuesAndReturnsCurrentAccess() {
+        AppUser user = user(14L, 0);
+        UserAccessResponse access = new UserAccessResponse(
+            14L, "new@example.com", "Новое имя", List.of("USER"), List.of(), List.of(), false
+        );
+        when(appUserRepository.findById(14L)).thenReturn(Optional.of(user));
+        when(appUserRepository.existsByEmailIgnoreCaseAndIdNot("new@example.com", 14L)).thenReturn(false);
+        when(appUserRepository.save(user)).thenReturn(user);
+        when(accessControlService.getUserAccess(14L)).thenReturn(access);
+
+        UserAccessResponse response = authService.updateProfile(
+            principal(14L),
+            new UpdateAccountRequest(" New@Example.com ", " Новое имя ")
+        );
+
+        assertThat(user.getEmail()).isEqualTo("new@example.com");
+        assertThat(user.getName()).isEqualTo("Новое имя");
+        assertThat(response).isSameAs(access);
+    }
+
+    @Test
+    void updateProfileRejectsEmailOwnedByAnotherUser() {
+        AppUser user = user(15L, 0);
+        when(appUserRepository.findById(15L)).thenReturn(Optional.of(user));
+        when(appUserRepository.existsByEmailIgnoreCaseAndIdNot("used@example.com", 15L)).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.updateProfile(
+            principal(15L),
+            new UpdateAccountRequest("used@example.com", "Имя")
+        ))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("уже существует");
+
+        verify(appUserRepository, never()).save(user);
+    }
+
+    @Test
+    void invalidateAllSessionsIncrementsTokenVersion() {
+        AppUser user = user(16L, 6);
+        when(appUserRepository.findById(16L)).thenReturn(Optional.of(user));
+
+        authService.invalidateAllSessions(principal(16L));
+
+        assertThat(user.getTokenVersion()).isEqualTo(7);
+        verify(appUserRepository).save(user);
+    }
+
+    private AppUserPrincipal principal(Long userId) {
+        return new AppUserPrincipal(userId, "user@example.com", "Test User", false, Collections.emptyList());
     }
 
     private AppUser user(Long id, int tokenVersion) {

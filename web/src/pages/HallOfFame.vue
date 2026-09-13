@@ -4,8 +4,12 @@
 
     <div v-if="entries.length" class="hall-filters">
       <div class="hall-filter-heading"><span>Архив турниров</span><strong>Выберите сезон и соревнование</strong></div>
-      <label><span>Сезон</span><select v-model="seasonId"><option v-for="season in seasonOptions" :key="season.id" :value="String(season.id)">{{ season.name }}</option></select></label>
-      <label><span>Турнир</span><select v-model="competitionId"><option v-for="competition in competitionOptions" :key="competition.id" :value="String(competition.id)">{{ competition.type === 'CUP' ? 'Кубок' : 'Чемпионат' }} · {{ competition.name }}</option></select></label>
+      <CompetitionContextPicker
+        v-model:season-id="seasonId"
+        v-model:competition-id="competitionId"
+        :seasons="seasonOptions"
+        :competitions="competitionOptions"
+      />
     </div>
 
     <UiState v-if="loading" tone="loading" title="Загружаем Зал славы" />
@@ -53,18 +57,22 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import PublicCatalogHeader from '../components/PublicCatalogHeader.vue'
+import CompetitionContextPicker from '../components/CompetitionContextPicker.vue'
 import UiState from '../components/UiState.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
+import { useCompetitionContext } from '../store/competitionContext'
 
 const { optionalAuthApiRequest } = useAuth()
 const api = createCatalogApi(optionalAuthApiRequest)
+const route = useRoute()
+const router = useRouter()
+const { seasonId, competitionId, selectAvailable, syncUrl } = useCompetitionContext(route, router)
 const entries = ref([])
 const loading = ref(false)
 const error = ref('')
-const seasonId = ref('')
-const competitionId = ref('')
 const podiumCodes = new Set(['CHAMPION', 'SILVER', 'BRONZE'])
 const seasonOptions = computed(() => [...new Map(entries.value.map((item) => [item.seasonId, { id: item.seasonId, name: item.seasonName }])).values()])
 const competitionOptions = computed(() => entries.value.filter((item) => String(item.seasonId) === seasonId.value).map((item) => ({ id: item.competitionId, name: item.competitionName, type: item.competitionType })))
@@ -73,8 +81,8 @@ const podium = (entry) => (entry.awards || []).filter((award) => podiumCodes.has
 const individualAwards = (entry) => (entry.awards || []).filter((award) => !podiumCodes.has(award.code))
 const awardIcon = (code) => ({ CHAMPION: '1', SILVER: '2', BRONZE: '3' })[code] || '•'
 const initials = (name) => String(name || '').trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase()
-const playerLink = (playerId) => ({ name: 'player-profile', params: { playerId }, query: { from: 'hall-of-fame' } })
-const teamLink = (teamId) => ({ name: 'team-profile', params: { slug: teamId }, query: { from: 'hall-of-fame' } })
+const playerLink = (playerId) => ({ name: 'player-profile', params: { playerId }, query: { from: 'hall-of-fame', season: seasonId.value, competition: competitionId.value } })
+const teamLink = (teamId) => ({ name: 'team-profile', params: { slug: teamId }, query: { from: 'hall-of-fame', season: seasonId.value, competition: competitionId.value } })
 function playerPitchName(name) {
   const cleanName = String(name || '').replace(/\s*\([^)]*\)\s*$/, '').trim()
   const parts = cleanName.split(/\s+/).filter(Boolean)
@@ -89,8 +97,15 @@ async function load() {
     const payload = await api.getHallOfFame()
     entries.value = Array.isArray(payload) ? payload : []
     if (entries.value.length) {
-      seasonId.value = String(entries.value[0].seasonId)
-      competitionId.value = String(entries.value[0].competitionId)
+      selectAvailable(
+        seasonOptions.value,
+        entries.value.map((item) => ({
+          id: item.competitionId,
+          seasonId: item.seasonId,
+          name: item.competitionName,
+          type: item.competitionType,
+        })),
+      )
     }
   }
   catch (err) { error.value = err.message || 'Не удалось получить опубликованные награды.' }
@@ -100,13 +115,15 @@ watch(seasonId, () => {
   if (!competitionOptions.value.some((item) => String(item.id) === competitionId.value)) {
     competitionId.value = competitionOptions.value.length ? String(competitionOptions.value[0].id) : ''
   }
+  syncUrl()
 })
+watch(competitionId, syncUrl)
 onMounted(load)
 </script>
 
 <style scoped>
 .hall-page { align-content: start; width: min(calc(100% - 32px), 1240px); margin-inline: auto; }
-.hall-filters { display: grid; grid-template-columns: minmax(210px,.72fr) repeat(2,minmax(240px,1fr)); align-items: end; gap: 14px; padding: 18px 20px; border: 1px solid rgba(97,232,162,.22); border-radius: 13px; background: linear-gradient(120deg, rgba(18,37,54,.94), rgba(12,20,43,.96)); box-shadow: 0 14px 34px rgba(2,7,20,.18); }
+.hall-filters { display: grid; grid-template-columns: minmax(210px,.72fr) minmax(0,2fr); align-items: end; gap: 14px; padding: 18px 20px; border: 1px solid rgba(97,232,162,.22); border-radius: 13px; background: linear-gradient(120deg, rgba(18,37,54,.94), rgba(12,20,43,.96)); box-shadow: 0 14px 34px rgba(2,7,20,.18); }
 .hall-filter-heading { display: grid; align-self: center; gap: 5px; }
 .hall-filter-heading span, .hall-filters label > span { color: var(--brand); font-size: .59rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .hall-filter-heading strong { font-size: .76rem; }

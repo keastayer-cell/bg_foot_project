@@ -6,6 +6,9 @@ import com.footballstats.backend.domain.MatchProtocolStatus;
 import com.footballstats.backend.domain.Team;
 import com.footballstats.backend.domain.Tour;
 import com.footballstats.backend.domain.TourMatch;
+import com.footballstats.backend.domain.MatchScheduleStatus;
+import com.footballstats.backend.domain.LeagueVenue;
+import com.footballstats.backend.repository.LeagueVenueRepository;
 import com.footballstats.backend.repository.MatchProtocolRepository;
 import com.footballstats.backend.repository.SeasonRepository;
 import com.footballstats.backend.repository.SeasonTeamRepository;
@@ -33,6 +36,7 @@ public class TourService {
     private final MatchProtocolRepository matchProtocolRepository;
     private final SeasonStandingsService seasonStandingsService;
     private final SiteNotificationService siteNotificationService;
+    private final LeagueVenueRepository leagueVenueRepository;
 
     public TourService(
         TourRepository tourRepository,
@@ -42,7 +46,8 @@ public class TourService {
         SeasonTeamRepository seasonTeamRepository,
         MatchProtocolRepository matchProtocolRepository,
         SeasonStandingsService seasonStandingsService,
-        SiteNotificationService siteNotificationService
+        SiteNotificationService siteNotificationService,
+        LeagueVenueRepository leagueVenueRepository
     ) {
         this.tourRepository = tourRepository;
         this.tourMatchRepository = tourMatchRepository;
@@ -52,6 +57,7 @@ public class TourService {
         this.matchProtocolRepository = matchProtocolRepository;
         this.seasonStandingsService = seasonStandingsService;
         this.siteNotificationService = siteNotificationService;
+        this.leagueVenueRepository = leagueVenueRepository;
     }
 
     @Transactional(readOnly = true)
@@ -89,6 +95,7 @@ public class TourService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="TOUR",idParam="tourId",action="TOUR_PUBLISHED",actorParam="actorUserId")
     public Tour publishTour(Long tourId, Long actorUserId) {
         Tour tour = getExistingTour(tourId);
         if (tour.isPublished()) {
@@ -177,6 +184,7 @@ public class TourService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="MATCH",idParam="matchId",action="DELETED",actorParam="actorUserId")
     public void deleteMatch(Long tourId, Long matchId, Long actorUserId) {
         Tour tour = getExistingTour(tourId);
         TourMatch match = tourMatchRepository.findByIdAndTour_Id(matchId, tourId)
@@ -203,6 +211,57 @@ public class TourService {
         }
 
         seasonStandingsService.recalculateSeasonStandings(seasonId, actorUserId);
+    }
+
+    @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="MATCH",idParam="matchId",action="SCHEDULE_UPDATED",actorParam="actorUserId")
+    public TourMatch updateMatchSchedule(Long tourId, Long matchId, MatchScheduleStatus status,
+        OffsetDateTime kickoffAt, Long venueId, String rawReason, Long actorUserId) {
+        if (status == null) {
+            throw new IllegalArgumentException("Укажите статус расписания.");
+        }
+        if (status == MatchScheduleStatus.COMPLETED || status == MatchScheduleStatus.TECHNICAL_RESULT) {
+            throw new IllegalArgumentException("Итоговый статус назначается подтверждением протокола.");
+        }
+        if (kickoffAt == null) {
+            throw new IllegalArgumentException("Укажите дату и время матча.");
+        }
+        TourMatch match = tourMatchRepository.findDetailedById(matchId)
+            .filter(item -> item.getTour().getId().equals(tourId))
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Матч тура не найден."));
+        if (match.getProtocol() != null && match.getProtocol().getStatus() == MatchProtocolStatus.VERIFIED) {
+            throw new IllegalArgumentException("Расписание подтверждённого матча менять нельзя. Сначала откройте протокол.");
+        }
+        OffsetDateTime previousKickoff = match.getKickoffAt();
+        MatchScheduleStatus previousStatus = match.getScheduleStatus();
+        Long previousVenueId = match.getVenue() == null ? null : match.getVenue().getId();
+        boolean kickoffChanged = !previousKickoff.equals(kickoffAt);
+        if (kickoffChanged && status == MatchScheduleStatus.SCHEDULED) {
+            throw new IllegalArgumentException("При изменении даты или времени выберите статус «Перенесён».");
+        }
+        String reason = rawReason == null ? "" : rawReason.trim();
+        if ((status == MatchScheduleStatus.RESCHEDULED || status == MatchScheduleStatus.CANCELLED) && reason.length() < 5) {
+            throw new IllegalArgumentException("Для переноса или отмены укажите причину.");
+        }
+        if (status == MatchScheduleStatus.RESCHEDULED && match.getOriginalKickoffAt() == null) {
+            match.setOriginalKickoffAt(previousKickoff);
+        }
+        if (status == MatchScheduleStatus.SCHEDULED) match.setOriginalKickoffAt(null);
+        LeagueVenue venue = venueId == null ? null : leagueVenueRepository.findById(venueId)
+            .orElseThrow(() -> new IllegalArgumentException("Площадка не найдена."));
+        match.setKickoffAt(kickoffAt);
+        match.setVenue(venue);
+        match.setScheduleStatus(status);
+        match.setScheduleChangeReason(reason.isBlank() ? null : reason);
+        match.setUpdatedByUserId(actorUserId);
+        match.setUpdatedAt(OffsetDateTime.now());
+        TourMatch saved = tourMatchRepository.save(match);
+        boolean venueChanged = !java.util.Objects.equals(previousVenueId, venueId);
+        if (saved.getTour().isPublished()
+            && (previousStatus != status || kickoffChanged || venueChanged)) {
+            siteNotificationService.notifyMatchScheduleChanged(saved, previousKickoff, actorUserId);
+        }
+        return saved;
     }
 
     private Season getExistingSeason(Long seasonId) {

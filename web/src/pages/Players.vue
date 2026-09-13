@@ -39,7 +39,7 @@
       <div class="players-list">
         <article class="players-row" v-for="(player, index) in players" :key="player.id">
           <span class="players-number">{{ String(pageNum * pageSize + index + 1).padStart(2, '0') }}</span>
-          <button class="players-name-btn" type="button" @click="openPlayerModal(player, $event.currentTarget)">
+          <button class="players-name-btn" type="button" @click="openPlayerPage(player)">
             <span>{{ player.name }}</span><span v-if="player.isGoalkeeper" class="goalkeeper-icon" aria-label="Вратарь" title="Вратарь">🧤</span>
           </button>
           <span class="players-birth-meta">{{ player.birthDate ? formatBirthDateWithAge(player.birthDate) : '—' }}</span>
@@ -85,6 +85,7 @@
           </div>
           <div class="profile-bio">
             <h2 id="player-profile-title">{{ modalTitle }}</h2>
+            <FavoriteButton v-if="playerDetails?.id" type="PLAYER" :target-id="playerDetails.id" />
             <span v-if="playerDetails?.isGoalkeeper" class="profile-position">Вратарь</span>
             <dl v-if="playerDetails" class="profile-facts">
               <div><dt>Команда</dt><dd>{{ playerDetails.currentTeamName || 'Без команды' }}</dd></div>
@@ -130,6 +131,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import UiState from '../components/UiState.vue'
 import PublicCatalogHeader from '../components/PublicCatalogHeader.vue'
+import FavoriteButton from '../components/FavoriteButton.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 import { useDebounce } from '../composables/useDebounce'
@@ -138,6 +140,10 @@ const { optionalAuthApiRequest, isAuthenticated, loadCurrentUser } = useAuth()
 const catalogApi = createCatalogApi(optionalAuthApiRequest)
 const route = useRoute()
 const router = useRouter()
+
+function openPlayerPage(player) {
+  router.push({ name: 'player-profile', params: { playerId: player.id }, query: route.query })
+}
 
 const search = ref('')
 const debouncedSearch = useDebounce(search, 1000)

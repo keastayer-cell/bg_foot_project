@@ -86,7 +86,10 @@ public class SeasonPlayerStatsService {
         }
 
         MatchProtocol protocol = event.getMatch().getProtocol();
-        if (!event.getMatch().getTour().isPublished() || protocol == null || protocol.getStatus() != MatchProtocolStatus.VERIFIED) {
+        if (!event.getMatch().getTour().isPublished()
+            || event.getMatch().getScheduleStatus() == com.footballstats.backend.domain.MatchScheduleStatus.CANCELLED
+            || protocol == null
+            || protocol.getStatus() != MatchProtocolStatus.VERIFIED) {
             return false;
         }
 

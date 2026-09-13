@@ -161,13 +161,14 @@
 
 <script setup>
 import { onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import UiState from '../components/UiState.vue'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useAuth } from '../store/auth'
 import { createSeasonApplicationsApi } from '../api/seasonApplications'
 
 const router = useRouter()
+const route = useRoute()
 const { confirmAction } = useConfirmDialog()
 const { authorizedApiRequest, hasRole } = useAuth()
 const seasonApplicationsApi = createSeasonApplicationsApi(authorizedApiRequest)
@@ -204,6 +205,8 @@ async function loadSeasons() {
   try {
     const payload = await seasonApplicationsApi.getSeasons()
     seasons.value = Array.isArray(payload) ? payload : []
+    const requested = String(route.query.season || '')
+    if (seasons.value.some((season) => String(season.id) === requested)) selectedSeasonId.value = requested
   } catch {
     seasons.value = []
   }

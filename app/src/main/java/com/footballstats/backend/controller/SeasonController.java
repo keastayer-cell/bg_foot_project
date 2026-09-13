@@ -185,8 +185,20 @@ public class SeasonController {
         return ResponseEntity.ok(seasonService.listSeasonTeams(seasonId).stream().map(this::toTeamResponse).toList());
     }
 
+    private void validateChampionshipSelection(Long seasonId, Long competitionId) {
+        if (competitionId == null) return;
+        var competition = competitionService.getCompetition(competitionId);
+        if (!competition.getSeason().getId().equals(seasonId)) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Соревнование не относится к выбранному сезону.");
+        }
+        if (competition.getType() != com.footballstats.backend.domain.CompetitionType.CHAMPIONSHIP) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Обзор регулярного чемпионата недоступен для кубка.");
+        }
+    }
+
     @GetMapping("/api/seasons/{seasonId}/overview")
-    public ResponseEntity<SeasonOverviewResponse> getSeasonOverview(@PathVariable Long seasonId) {
+    public ResponseEntity<SeasonOverviewResponse> getSeasonOverview(@PathVariable Long seasonId, @RequestParam(required = false) Long competitionId) {
+        validateChampionshipSelection(seasonId, competitionId);
         TourService.SeasonOverviewData overview = tourService.getPublishedSeasonOverview(seasonId);
         SeasonStandingsService.SeasonStandingsSnapshot standings = seasonStandingsService.getSeasonStandings(seasonId);
         List<TourOverviewResponse> tours = overview.tours().stream()
@@ -231,7 +243,8 @@ public class SeasonController {
     }
 
     @GetMapping("/api/seasons/{seasonId}/player-stats")
-    public ResponseEntity<List<SeasonPlayerStatsResponse>> getSeasonPlayerStats(@PathVariable Long seasonId) {
+    public ResponseEntity<List<SeasonPlayerStatsResponse>> getSeasonPlayerStats(@PathVariable Long seasonId, @RequestParam(required = false) Long competitionId) {
+        validateChampionshipSelection(seasonId, competitionId);
         return ResponseEntity.ok(seasonPlayerStatsService.getSeasonPlayerStats(seasonId).stream()
             .map(item -> new SeasonPlayerStatsResponse(
                 item.playerId(),

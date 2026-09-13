@@ -5,6 +5,7 @@ export const ADMIN_TAB_GROUPS = [
     id: 'competition',
     title: 'Турнир',
     items: [
+      { id: 'dashboard', label: 'Сводка' },
       { id: 'seasons', label: 'Сезоны' },
       { id: 'competitions', label: 'Соревнования' },
       { id: 'tours', label: 'Туры и матчи' },
@@ -28,6 +29,7 @@ export const ADMIN_TAB_GROUPS = [
     roles: ['SUPER_ADMIN'],
     items: [
       { id: 'roles', label: 'Роли и доступ' },
+      { id: 'audit', label: 'Журнал действий' },
       { id: 'representatives', label: 'Представители' },
       { id: 'ban', label: 'Блокировки' },
     ],
@@ -60,7 +62,7 @@ export function useAdminTabs({
   openExternal,
   demoToolsEnabled = import.meta.env.VITE_DEMO_TOOLS_ENABLED === 'true',
 }) {
-  const activeTab = ref('seasons')
+  const activeTab = ref('dashboard')
 
   const visibleTabGroups = computed(() => {
     if (!hasRole('SUPER_ADMIN') && !hasRole('REFEREE')) return []

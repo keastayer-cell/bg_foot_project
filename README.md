@@ -307,6 +307,7 @@ DB/JWT/SMTP credentials в GitHub не передаются. Они находя
 
 ## Документация
 
+- [План развития продукта](docs/План-развития-продукта.md)
 - [Полный roadmap](docs/Рефакторинг%2028.07.2026/refactoring-roadmap.md)
 - [Baseline этапа 1](docs/Рефакторинг%2028.07.2026/refactoring-stage-1-baseline.md)
 - [Отчёт этапа 2](docs/Рефакторинг%2028.07.2026/refactoring-stage-2-tests.md)

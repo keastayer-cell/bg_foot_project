@@ -142,6 +142,7 @@ public class MatchProtocolService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="PROTOCOL",idParam="matchId",action="PROTOCOL_UPDATED",actorParam="actorUserId")
     public MatchDetailsData upsertProtocol(
         Long matchId,
         MatchProtocolStatus status,
@@ -161,6 +162,9 @@ public class MatchProtocolService {
         boolean superAdmin
     ) {
         TourMatch match = getExistingDetailedMatch(matchId);
+        if (match.getScheduleStatus() == com.footballstats.backend.domain.MatchScheduleStatus.CANCELLED) {
+            throw new IllegalArgumentException("Нельзя заполнять протокол отменённого матча.");
+        }
         MatchProtocol protocol = getOrCreateProtocol(match, actorUserId);
         if (!superAdmin && protocol.getStatus() == MatchProtocolStatus.VERIFIED) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Подтвержденный протокол может изменять только супер администратор.");
@@ -174,6 +178,9 @@ public class MatchProtocolService {
         boolean homeTech = Boolean.TRUE.equals(homeTechnicalDefeat);
         boolean awayTech = Boolean.TRUE.equals(awayTechnicalDefeat);
         validateTechnicalDefeat(homeTech, awayTech);
+        if ((homeTech || awayTech) && normalizeNullable(notes) == null) {
+            throw new IllegalArgumentException("Для технического результата укажите основание в примечании протокола.");
+        }
 
         List<PlayerProtocolStatDraft> normalizedPlayerStats = allowSuperAdminScoreOnlyProtocol
             ? List.of()
@@ -228,6 +235,21 @@ public class MatchProtocolService {
         protocol.setUpdatedAt(OffsetDateTime.now());
         matchProtocolRepository.save(protocol);
 
+        if (protocol.getStatus() == MatchProtocolStatus.VERIFIED) {
+            match.setScheduleStatus(homeTech || awayTech
+                ? com.footballstats.backend.domain.MatchScheduleStatus.TECHNICAL_RESULT
+                : com.footballstats.backend.domain.MatchScheduleStatus.COMPLETED);
+            if (homeTech || awayTech) match.setScheduleChangeReason(normalizeNullable(notes));
+            match.setUpdatedByUserId(actorUserId);
+            match.setUpdatedAt(OffsetDateTime.now());
+            tourMatchRepository.save(match);
+        } else if (previousStatus == MatchProtocolStatus.VERIFIED) {
+            match.setScheduleStatus(match.getOriginalKickoffAt() == null
+                ? com.footballstats.backend.domain.MatchScheduleStatus.SCHEDULED
+                : com.footballstats.backend.domain.MatchScheduleStatus.RESCHEDULED);
+            tourMatchRepository.save(match);
+        }
+
         if (protocol.getStatus() == MatchProtocolStatus.VERIFIED && isCupMatch(match)) {
             competitionService.refreshCupAfterMatch(matchId);
         }
@@ -255,6 +277,7 @@ public class MatchProtocolService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="PROTOCOL",idParam="matchId",action="PROTOCOL_REOPENED",actorParam="actorUserId")
     public MatchDetailsData reopenVerifiedProtocol(Long matchId, Long actorUserId) {
         TourMatch match = getExistingDetailedMatch(matchId);
         MatchProtocol protocol = match.getProtocol();
@@ -267,6 +290,13 @@ public class MatchProtocolService {
         protocol.setUpdatedByUserId(actorUserId);
         protocol.setUpdatedAt(OffsetDateTime.now());
         matchProtocolRepository.save(protocol);
+
+        match.setScheduleStatus(match.getOriginalKickoffAt() == null
+            ? com.footballstats.backend.domain.MatchScheduleStatus.SCHEDULED
+            : com.footballstats.backend.domain.MatchScheduleStatus.RESCHEDULED);
+        match.setUpdatedByUserId(actorUserId);
+        match.setUpdatedAt(OffsetDateTime.now());
+        tourMatchRepository.save(match);
 
         matchProtocolExportSnapshotRepository.deleteByMatchId(matchId);
 
@@ -285,6 +315,9 @@ public class MatchProtocolService {
         boolean superAdmin
     ) {
         TourMatch match = getExistingDetailedMatch(matchId);
+        if (match.getScheduleStatus() == com.footballstats.backend.domain.MatchScheduleStatus.CANCELLED) {
+            throw new IllegalArgumentException("Нельзя подавать состав на отменённый матч.");
+        }
         Team lineupTeam = resolveLineupTeam(match, teamId);
 
         if (!superAdmin && !accessControlService.hasTeamPermission(actorUserId, lineupTeam.getId(), "ROSTER_EDIT")) {

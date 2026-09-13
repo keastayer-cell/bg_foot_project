@@ -63,7 +63,7 @@ export function useMatchLineups({
   const starterCountIsValid = computed(() => selectedStarterPlayerIds.value.length === requiredStarterCount.value)
 
   function canEditLineup(teamId) {
-    if (!user.value || match.value?.protocol?.status === 'VERIFIED') return false
+    if (!user.value || match.value?.protocol?.status === 'VERIFIED' || match.value?.scheduleStatus === 'CANCELLED') return false
     if (hasRole('SUPER_ADMIN')) return true
     if (!hasRole('TEAM_REP')) return false
     return String(user.value.teamId || '') === String(teamId)

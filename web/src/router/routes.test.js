@@ -47,6 +47,7 @@ describe('route definitions smoke test', () => {
   })
 
   it.each([
+    ['/profile', null],
     ['/admin', 'requiresAdminPanel'],
     ['/team-rep-dashboard', 'requiresTeamRep'],
     ['/team-rep-transfers', 'requiresTransferManager'],
@@ -55,6 +56,8 @@ describe('route definitions smoke test', () => {
     const route = routes.find((item) => item.path === path)
 
     expect(route?.meta?.requiresAuth).toBe(true)
-    expect(route?.meta?.[roleFlag]).toBe(true)
+    if (roleFlag) {
+      expect(route?.meta?.[roleFlag]).toBe(true)
+    }
   })
 })

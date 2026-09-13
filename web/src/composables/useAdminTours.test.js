@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   canDeleteTourMatch,
   countHeadToHeadMeetings,
+  matchScheduleStatusLabel,
   useAdminTours,
 } from './useAdminTours'
 
@@ -31,6 +32,13 @@ describe('useAdminTours', () => {
       { homeTeamId: 1, awayTeamId: 3 },
     ]
     expect(countHeadToHeadMeetings(matches, 1, 2)).toBe(2)
+  })
+
+  it('shows schedule states independently from the protocol', () => {
+    expect(matchScheduleStatusLabel('SCHEDULED')).toBe('Запланирован')
+    expect(matchScheduleStatusLabel('RESCHEDULED')).toBe('Перенесён')
+    expect(matchScheduleStatusLabel('CANCELLED')).toBe('Отменён')
+    expect(matchScheduleStatusLabel('TECHNICAL_RESULT')).toBe('Технический результат')
   })
 
   it('removes teams that reached the season meeting limit', () => {
@@ -212,5 +220,32 @@ describe('useAdminTours', () => {
 
     expect(errorMessage.value).toContain('Нельзя удалить матч')
     expect(request).not.toHaveBeenCalled()
+  })
+
+  it('saves a rescheduled match with a mandatory reason', async () => {
+    const request = vi.fn(async () => [])
+    const { result, successMessage } = createTours(request)
+    result.seasonId.value = '3'
+    result.selectedId.value = '4'
+    result.tours.value = [{ id: 4, stageType: 'REGULAR' }]
+    result.openScheduleEditor({ id: 9, scheduleStatus: 'SCHEDULED', kickoffAt: '2026-09-12T15:00:00Z' })
+    result.scheduleForm.status = 'RESCHEDULED'
+    result.scheduleForm.kickoffAt = '2026-09-13T18:30'
+    result.scheduleForm.venueId = '2'
+    result.scheduleForm.reason = 'Перенос по просьбе команд'
+
+    await result.saveSchedule(9)
+
+    expect(request).toHaveBeenCalledWith('/api/tours/4/matches/9/schedule', {
+      method: 'PUT',
+      body: JSON.stringify({
+        status: 'RESCHEDULED',
+        kickoffAt: new Date('2026-09-13T18:30').toISOString(),
+        venueId: 2,
+        reason: 'Перенос по просьбе команд',
+      }),
+    })
+    expect(successMessage.value).toBe('Расписание матча обновлено.')
+    expect(result.scheduleEditingId.value).toBe('')
   })
 })

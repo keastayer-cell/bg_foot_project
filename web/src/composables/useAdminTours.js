@@ -57,6 +57,16 @@ export function protocolStatusBadgeClass(status) {
   }
 }
 
+export function matchScheduleStatusLabel(status) {
+  switch (String(status || 'SCHEDULED')) {
+    case 'RESCHEDULED': return 'Перенесён'
+    case 'CANCELLED': return 'Отменён'
+    case 'COMPLETED': return 'Завершён'
+    case 'TECHNICAL_RESULT': return 'Технический результат'
+    default: return 'Запланирован'
+  }
+}
+
 export function useAdminTours({
   request,
   seasons,
@@ -74,6 +84,10 @@ export function useAdminTours({
   const matches = ref([])
   const seasonMatches = ref([])
   const competitions = ref([])
+  const venues = ref([])
+  const scheduleEditingId = ref('')
+  const scheduleSaving = ref(false)
+  const scheduleForm = reactive({ status: 'SCHEDULED', kickoffAt: '', venueId: '', reason: '' })
   const cupDrawBusy = ref(false)
   const cupDrawOrder = ref([])
   const selectedCupTieId = ref('')
@@ -213,6 +227,69 @@ export function useAdminTours({
     matchForm.kickoffAt = ''
   }
 
+  function toLocalDateTimeInput(value) {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    const offset = date.getTimezoneOffset() * 60_000
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+  }
+
+  function openScheduleEditor(match) {
+    scheduleEditingId.value = String(match.id)
+    scheduleForm.status = match.scheduleStatus || 'SCHEDULED'
+    scheduleForm.kickoffAt = toLocalDateTimeInput(match.kickoffAt)
+    scheduleForm.venueId = match.venueId ? String(match.venueId) : ''
+    scheduleForm.reason = match.scheduleChangeReason || ''
+  }
+
+  function closeScheduleEditor() {
+    scheduleEditingId.value = ''
+    scheduleForm.status = 'SCHEDULED'
+    scheduleForm.kickoffAt = ''
+    scheduleForm.venueId = ''
+    scheduleForm.reason = ''
+  }
+
+  async function saveSchedule(matchId) {
+    clearMessages()
+    if (!selectedId.value || !scheduleForm.kickoffAt) {
+      errorMessage.value = 'Укажите дату и время матча.'
+      return
+    }
+    if (['RESCHEDULED', 'CANCELLED'].includes(scheduleForm.status) && scheduleForm.reason.trim().length < 5) {
+      errorMessage.value = 'Для переноса или отмены укажите причину.'
+      return
+    }
+    scheduleSaving.value = true
+    try {
+      await request(`/api/tours/${selectedId.value}/matches/${matchId}/schedule`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: scheduleForm.status,
+          kickoffAt: new Date(scheduleForm.kickoffAt).toISOString(),
+          venueId: scheduleForm.venueId ? Number(scheduleForm.venueId) : null,
+          reason: scheduleForm.reason.trim() || null,
+        }),
+      })
+      await Promise.all([loadSeasonMatches(), onTourChange()])
+      closeScheduleEditor()
+      successMessage.value = 'Расписание матча обновлено.'
+    } catch (error) {
+      errorMessage.value = error.message || 'Не удалось изменить расписание матча.'
+    } finally {
+      scheduleSaving.value = false
+    }
+  }
+
+  async function loadVenues() {
+    try {
+      const payload = await request('/api/admin/league/venues?active_flag=1', { method: 'GET' })
+      venues.value = Array.isArray(payload) ? payload : []
+    } catch {
+      venues.value = []
+    }
+  }
+
   watch(availableAwayTeams, (availableTeams) => {
     if (!matchForm.awayTeamId) return
     const remainsAvailable = availableTeams.some(
@@ -248,7 +325,7 @@ export function useAdminTours({
       cupDrawOrder.value = []
       return
     }
-    await Promise.all([loadTours(), loadTeams(), loadCompetitions()])
+    await Promise.all([loadTours(), loadTeams(), loadCompetitions(), loadVenues()])
   }
 
   async function loadCompetitions() {
@@ -446,6 +523,7 @@ export function useAdminTours({
   async function onTourChange() {
     clearMessages()
     resetMatchForm()
+    closeScheduleEditor()
     if (!selectedId.value) {
       matches.value = []
       return
@@ -464,7 +542,7 @@ export function useAdminTours({
 
   async function refresh() {
     if (!seasonId.value) return
-    await Promise.all([loadTours(), loadTeams(), loadCompetitions()])
+    await Promise.all([loadTours(), loadTeams(), loadCompetitions(), loadVenues()])
     if (selectedId.value) await onTourChange()
   }
 
@@ -629,6 +707,7 @@ export function useAdminTours({
     matchAvailabilityMessage,
     matchLimitMessage,
     matchProtocolStatusLabel,
+    matchScheduleStatusLabel,
     matches,
     moveCupDrawTeam,
     needsCupTieWinner,
@@ -636,10 +715,16 @@ export function useAdminTours({
     onCompetitionChange,
     onCupTieChange,
     onTourChange,
+    openScheduleEditor,
+    closeScheduleEditor,
     protocolStatusBadgeClass,
     publish,
     refresh,
     saveCupTieWinner,
+    saveSchedule,
+    scheduleEditingId,
+    scheduleForm,
+    scheduleSaving,
     seasonId,
     seasonMatches,
     selectedId,
@@ -653,5 +738,6 @@ export function useAdminTours({
     tourMatchDeleteTitle,
     tourMatchScoreLabel,
     tours,
+    venues,
   }
 }

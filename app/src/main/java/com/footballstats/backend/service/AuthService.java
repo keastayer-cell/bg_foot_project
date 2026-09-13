@@ -9,6 +9,8 @@ import com.footballstats.backend.dto.auth.LoginRequest;
 import com.footballstats.backend.dto.auth.PasswordResetResponse;
 import com.footballstats.backend.dto.auth.RegisterRequest;
 import com.footballstats.backend.dto.auth.UserResponse;
+import com.footballstats.backend.dto.auth.UserAccessResponse;
+import com.footballstats.backend.dto.auth.UpdateAccountRequest;
 import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.repository.AppUserRepository;
 import io.jsonwebtoken.Claims;
@@ -124,6 +126,26 @@ public class AuthService {
         AppUser saved = appUserRepository.save(user);
 
         return buildAuthResponse(saved);
+    }
+
+    @Transactional
+    public UserAccessResponse updateProfile(AppUserPrincipal principal, UpdateAccountRequest request) {
+        AppUser user = requireRegisteredUser(principal);
+        String email = normalizeEmail(request.email());
+        if (appUserRepository.existsByEmailIgnoreCaseAndIdNot(email, user.getId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Пользователь с таким email уже существует.");
+        }
+        user.setEmail(email);
+        user.setName(request.name().trim());
+        appUserRepository.save(user);
+        return accessControlService.getUserAccess(user.getId());
+    }
+
+    @Transactional
+    public void invalidateAllSessions(AppUserPrincipal principal) {
+        AppUser user = requireRegisteredUser(principal);
+        user.setTokenVersion(nextTokenVersion(user));
+        appUserRepository.save(user);
     }
 
     public PasswordResetResponse resetUserPasswordByAdmin(Long actorUserId, Long targetUserId) {
@@ -279,6 +301,14 @@ public class AuthService {
 
     private String normalizeEmail(String email) {
         return email == null ? "" : email.trim().toLowerCase();
+    }
+
+    private AppUser requireRegisteredUser(AppUserPrincipal principal) {
+        if (principal == null || principal.getUserId() == null || principal.getUserId() <= 0) {
+            throw new IllegalArgumentException("Действие для гостя недоступно.");
+        }
+        return appUserRepository.findById(principal.getUserId())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Пользователь больше не найден. Войдите снова."));
     }
 
     private Integer nextTokenVersion(AppUser user) {

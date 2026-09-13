@@ -111,6 +111,7 @@ public class TeamService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="TEAM",idParam="teamId",action="DEACTIVATED",actorParam="actorUserId")
     public Team deactivateTeam(Long teamId, Long actorUserId) {
         Team team = getExistingTeam(teamId);
         if (!team.isActive()) {

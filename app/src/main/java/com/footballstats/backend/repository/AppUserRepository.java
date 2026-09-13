@@ -13,6 +13,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     boolean existsByEmailIgnoreCase(String email);
 
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
+
     Optional<AppUser> findByEmailIgnoreCase(String email);
 
     Optional<AppUser> findByPasswordResetTokenHash(String passwordResetTokenHash);

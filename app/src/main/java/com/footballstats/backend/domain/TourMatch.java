@@ -9,6 +9,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 
 import java.time.OffsetDateTime;
@@ -38,6 +40,20 @@ public class TourMatch {
 
     @Column(name = "kickoff_at", nullable = false)
     private OffsetDateTime kickoffAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "venue_id")
+    private LeagueVenue venue;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "schedule_status", nullable = false, length = 24)
+    private MatchScheduleStatus scheduleStatus = MatchScheduleStatus.SCHEDULED;
+
+    @Column(name = "original_kickoff_at")
+    private OffsetDateTime originalKickoffAt;
+
+    @Column(name = "schedule_change_reason", length = 500)
+    private String scheduleChangeReason;
 
     @Column(name = "created_by_user_id")
     private Long createdByUserId;
@@ -97,6 +113,15 @@ public class TourMatch {
     public void setKickoffAt(OffsetDateTime kickoffAt) {
         this.kickoffAt = kickoffAt;
     }
+
+    public LeagueVenue getVenue() { return venue; }
+    public void setVenue(LeagueVenue venue) { this.venue = venue; }
+    public MatchScheduleStatus getScheduleStatus() { return scheduleStatus; }
+    public void setScheduleStatus(MatchScheduleStatus value) { scheduleStatus = value; }
+    public OffsetDateTime getOriginalKickoffAt() { return originalKickoffAt; }
+    public void setOriginalKickoffAt(OffsetDateTime value) { originalKickoffAt = value; }
+    public String getScheduleChangeReason() { return scheduleChangeReason; }
+    public void setScheduleChangeReason(String value) { scheduleChangeReason = value; }
 
     public Long getCreatedByUserId() {
         return createdByUserId;

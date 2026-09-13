@@ -3,6 +3,7 @@ package com.footballstats.backend.controller;
 import com.footballstats.backend.domain.MatchProtocolStatus;
 import com.footballstats.backend.domain.Tour;
 import com.footballstats.backend.domain.TourMatch;
+import com.footballstats.backend.domain.MatchScheduleStatus;
 import com.footballstats.backend.security.AppUserPrincipal;
 import com.footballstats.backend.service.TourService;
 import jakarta.validation.Valid;
@@ -102,6 +103,14 @@ public class TourController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{tourId}/matches/{matchId}/schedule")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
+    public ResponseEntity<TourMatchResponse> updateSchedule(@PathVariable Long tourId, @PathVariable Long matchId,
+        @Valid @RequestBody MatchScheduleRequest request, Authentication authentication) {
+        return ResponseEntity.ok(toMatchResponse(tourService.updateMatchSchedule(tourId, matchId, request.status(),
+            request.kickoffAt(), request.venueId(), request.reason(), currentUserId(authentication))));
+    }
+
     @PutMapping("/{tourId}/publish")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','REFEREE')")
     public ResponseEntity<TourResponse> publishTour(@PathVariable Long tourId, Authentication authentication) {
@@ -149,7 +158,12 @@ public class TourController {
             match.isActive(),
             protocolStatus,
             homeScore,
-            awayScore
+            awayScore,
+            match.getScheduleStatus(),
+            match.getOriginalKickoffAt(),
+            match.getScheduleChangeReason(),
+            match.getVenue() == null ? null : match.getVenue().getId(),
+            match.getVenue() == null ? null : match.getVenue().getName()
         );
     }
 
@@ -178,7 +192,12 @@ public class TourController {
         boolean active,
         MatchProtocolStatus protocolStatus,
         Integer homeScore,
-        Integer awayScore
+        Integer awayScore,
+        MatchScheduleStatus scheduleStatus,
+        OffsetDateTime originalKickoffAt,
+        String scheduleChangeReason,
+        Long venueId,
+        String venueName
     ) {}
 
     public record TourCreateRequest(
@@ -191,4 +210,7 @@ public class TourController {
         @NotNull(message = "awayTeamId обязателен.") Long awayTeamId,
         @NotNull(message = "kickoffAt обязателен.") OffsetDateTime kickoffAt
     ) {}
+
+    public record MatchScheduleRequest(@NotNull MatchScheduleStatus status, @NotNull OffsetDateTime kickoffAt,
+        Long venueId, String reason) {}
 }

@@ -1,0 +1,1 @@
+<template><section class="section-wrap"><article class="card account-state"><p class="eyebrow">Ошибка 404</p><h1>Страница не найдена</h1><p class="muted-text">Адрес устарел или в ссылке есть ошибка.</p><RouterLink class="btn-primary" to="/">Вернуться на главную</RouterLink></article></section></template>

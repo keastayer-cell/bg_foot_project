@@ -93,6 +93,9 @@ public class SeasonStandingsService {
         List<MatchResult> matchResults = new ArrayList<>();
         List<TourMatch> matches = tourMatchRepository.findAllActiveDetailedByPublishedSeasonId(seasonId);
         for (TourMatch match : matches) {
+            if (match.getScheduleStatus() == com.footballstats.backend.domain.MatchScheduleStatus.CANCELLED) {
+                continue;
+            }
             if (match.getTour() != null
                 && !SeasonStructureService.REGULAR_STAGE.equalsIgnoreCase(match.getTour().getStageType())) {
                 continue;

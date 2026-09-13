@@ -46,6 +46,7 @@ describe('useAdminTabs', () => {
     expect(tabIds).not.toContain('roles')
     expect(tabIds).not.toContain('representatives')
     expect(tabIds).not.toContain('ban')
+    expect(tabIds).not.toContain('audit')
   })
 
   it('does not expose admin groups without an accepted role', () => {
@@ -67,7 +68,7 @@ describe('useAdminTabs', () => {
     selectAdminTab(tabId)
 
     expect(openExternal).toHaveBeenCalledWith(path)
-    expect(activeTab.value).toBe('seasons')
+    expect(activeTab.value).toBe('dashboard')
   })
 
   it('marks dedicated workflows as external navigation items', () => {

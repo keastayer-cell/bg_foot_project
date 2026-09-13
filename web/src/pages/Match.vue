@@ -18,7 +18,10 @@
             {{ downloadingProtocolPdf ? 'Подготовка PDF...' : 'Скачать протокол PDF' }}
           </button>
         </div>
-        <span class="match-status-badge">{{ matchStatusLabel(match.protocol?.status) }}</span>
+        <div class="match-statuses">
+          <span class="match-status-badge">{{ scheduleStatusLabel(match.scheduleStatus) }}</span>
+          <span class="match-status-badge">{{ matchStatusLabel(match.protocol?.status) }}</span>
+        </div>
       </div>
 
       <p v-if="protocolDownloadError" class="error-text">{{ protocolDownloadError }}</p>
@@ -31,6 +34,9 @@
 
         <div class="match-score-card">
           <p class="match-date">{{ formatDateTime(match.kickoffAt) }}</p>
+          <p v-if="match.venue" class="muted-text">{{ match.venue.name }}<template v-if="match.venue.address"> · {{ match.venue.address }}</template></p>
+          <p v-if="match.scheduleStatus === 'RESCHEDULED' && match.originalKickoffAt" class="match-schedule-note">Перенесён с {{ formatDateTime(match.originalKickoffAt) }}</p>
+          <p v-if="match.scheduleChangeReason" class="match-schedule-note">Причина: {{ match.scheduleChangeReason }}</p>
           <div class="match-score">{{ matchScoreLabel(match.protocol) }}</div>
           <p v-if="protocolResultLabel(match.protocol)" class="match-result-note">{{ protocolResultLabel(match.protocol) }}</p>
           <p class="muted-text">{{ match.seasonName }} · {{ match.tourName }}</p>
@@ -428,6 +434,7 @@ const {
   suspendedAvailablePlayers,
   formatDateTime,
   matchStatusLabel,
+  scheduleStatusLabel,
   matchScoreLabel,
   protocolResultLabel,
   lineupSubmittedLabel,

@@ -104,6 +104,7 @@ public class AccessControlService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="ROLE",idParam="targetUserId",action="ROLE_GRANTED",actorParam="actorUserId")
     public void assignRole(Long actorUserId, Long targetUserId, RoleCode roleCode) {
         boolean assigned = ensureRole(targetUserId, roleCode, actorUserId);
         if (assigned && roleCode == RoleCode.REFEREE) {
@@ -114,6 +115,7 @@ public class AccessControlService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="ROLE",idParam="targetUserId",action="ROLE_REVOKED",actorParam="actorUserId")
     public void revokeRole(Long targetUserId, RoleCode roleCode) {
         UserRole userRole = userRoleRepository.findByUser_IdAndRole_CodeAndActiveTrue(targetUserId, roleCode)
             .orElseThrow(() -> new IllegalArgumentException("У пользователя нет активной роли " + roleCode + "."));
@@ -122,6 +124,7 @@ public class AccessControlService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="TEAM_ACCESS",idParam="targetUserId",action="TEAM_ACCESS_GRANTED",actorParam="actorUserId")
     public void assignTeamScope(Long actorUserId, Long targetUserId, AssignTeamScopeRequest request) {
         if (userTeamScopeRepository.findByUser_IdAndTeam_IdAndActiveTrue(targetUserId, request.getTeamId()).isPresent()) {
             throw new IllegalArgumentException("Доступ к этой команде уже выдан.");
@@ -146,6 +149,7 @@ public class AccessControlService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="TEAM_ACCESS",idParam="targetUserId",action="TEAM_ACCESS_REVOKED",actorParam="actorUserId")
     public void revokeTeamScope(Long targetUserId, Long teamId) {
         UserTeamScope scope = userTeamScopeRepository.findByUser_IdAndTeam_IdAndActiveTrue(targetUserId, teamId)
             .orElseThrow(() -> new IllegalArgumentException("Активный доступ к команде не найден."));

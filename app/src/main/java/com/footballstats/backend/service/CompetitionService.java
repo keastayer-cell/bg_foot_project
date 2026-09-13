@@ -122,6 +122,7 @@ public class CompetitionService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="COMPETITION",idParam="competitionId",action="COMPETITION_UPDATED",actorParam="actorUserId")
     public CompetitionData renameChampionship(Long seasonId, Long competitionId, String rawName, Long actorUserId) {
         Competition competition = competitionRepository.findDetailedById(competitionId)
             .filter(item -> item.isActive() && item.getSeason().getId().equals(seasonId) && item.getType() == CompetitionType.CHAMPIONSHIP)
@@ -158,6 +159,7 @@ public class CompetitionService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="COMPETITION",idParam="competitionId",action="COMPETITION_UPDATED",actorParam="actorUserId")
     public CompetitionData updateCup(Long seasonId, Long competitionId, CompetitionSettings settings, Long actorUserId) {
         Competition competition = getCup(seasonId, competitionId);
         if ("CONFIRMED".equals(competition.getDrawStatus())) {
@@ -173,6 +175,7 @@ public class CompetitionService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="COMPETITION",idParam="competitionId",action="DEACTIVATED",actorParam="actorUserId")
     public CompetitionData deactivate(Long seasonId, Long competitionId, Long actorUserId) {
         Competition competition = getCup(seasonId, competitionId);
         competition.setActive(false);

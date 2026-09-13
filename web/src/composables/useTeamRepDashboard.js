@@ -84,13 +84,25 @@ export function useTeamRepDashboard() {
   let suspendSeasonSelectionWatch = false
 
   const isSuperAdminEditor = computed(() => hasRole('SUPER_ADMIN'))
-  const canOpenDashboard = computed(() => isAuthenticated.value && (hasRole('TEAM_REP') || hasRole('SUPER_ADMIN')))
-  const canOpenTransfers = computed(() => hasRole('TEAM_REP'))
-  const canManagePlayers = computed(() => hasRole('TEAM_REP'))
+  const hasAssignedTeam = computed(() => Number(user.value?.teamId) > 0)
+  const canOpenDashboard = computed(() => (
+    isAuthenticated.value
+    && (hasRole('SUPER_ADMIN') || (hasRole('TEAM_REP') && hasAssignedTeam.value))
+  ))
+  const canOpenTransfers = computed(() => (
+    hasRole('TEAM_REP')
+    && hasAssignedTeam.value
+    && Boolean(user.value?.teamScope?.canEditApplication)
+  ))
+  const canManagePlayers = computed(() => (
+    hasRole('TEAM_REP')
+    && hasAssignedTeam.value
+    && Boolean(user.value?.teamScope?.canEditRoster)
+  ))
 
   const activeTeamName = computed(() => {
     if (!isSuperAdminEditor.value) {
-      return user.value?.teamName || 'Не назначена'
+      return user.value?.teamName || 'Команда не назначена'
     }
     return adminTeams.value.find((team) => String(team.id) === String(selectedAdminTeamId.value))?.name || 'Не выбрана'
   })
@@ -594,6 +606,7 @@ export function useTeamRepDashboard() {
     canOpenDashboard,
     canOpenTransfers,
     canManagePlayers,
+    hasAssignedTeam,
     activeTeamName,
     profile,
     selectedSeasonSummary,

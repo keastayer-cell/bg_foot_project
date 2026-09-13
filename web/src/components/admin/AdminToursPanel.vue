@@ -83,9 +83,17 @@
         :score-label="tourMatchScoreLabel"
         :status-badge-class="protocolStatusBadgeClass"
         :status-label="matchProtocolStatusLabel"
+        :schedule-status-label="matchScheduleStatusLabel"
+        :schedule-editing-id="scheduleEditingId"
+        :schedule-form="scheduleForm"
+        :schedule-saving="scheduleSaving"
         :tour="selectedTour"
+        :venues="venues"
+        @cancel-schedule="closeScheduleEditor"
         @delete="deleteMatch"
+        @edit-schedule="openScheduleEditor"
         @publish="publish"
+        @save-schedule="saveSchedule"
       />
     </div>
 
@@ -151,6 +159,7 @@ const {
   matchAvailabilityMessage,
   matchLimitMessage,
   matchProtocolStatusLabel,
+  matchScheduleStatusLabel,
   matches,
   moveCupDrawTeam,
   needsCupTieWinner,
@@ -158,9 +167,15 @@ const {
   onCompetitionChange,
   onCupTieChange,
   onTourChange,
+  openScheduleEditor,
+  closeScheduleEditor,
   protocolStatusBadgeClass,
   publish,
   saveCupTieWinner,
+  saveSchedule,
+  scheduleEditingId,
+  scheduleForm,
+  scheduleSaving,
   seasonId,
   seasonsList,
   selectedId,
@@ -174,6 +189,7 @@ const {
   tourMatchDeleteTitle,
   tourMatchScoreLabel,
   tours,
+  venues,
 } = toRefs(props.panel)
 </script>
 

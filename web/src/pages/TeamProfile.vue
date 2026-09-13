@@ -41,6 +41,7 @@
               <span v-if="teamProfile.shortName && teamProfile.city"> · </span>
               <span v-if="teamProfile.city">{{ teamProfile.city }}</span>
             </p>
+            <FavoriteButton type="TEAM" :target-id="teamProfile.id" />
           </div>
         </div>
       </article>
@@ -186,6 +187,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 import { matchPageLocation, publicSlug } from '../utils/publicUrls'
+import FavoriteButton from '../components/FavoriteButton.vue'
 
 const PAGE_SIZE = 5
 
@@ -206,7 +208,9 @@ const seasonRosterStatus = ref('WAITING_FILL')
 const seasonRepresentativeName = ref('')
 const activeTeamId = ref(null)
 const returnToHall = computed(() => route.query.from === 'hall-of-fame')
-const backLocation = computed(() => returnToHall.value ? { name: 'hall-of-fame' } : { name: 'teams' })
+const backLocation = computed(() => returnToHall.value
+  ? { name: 'hall-of-fame', query: { season: route.query.season, competition: route.query.competition } }
+  : { name: 'teams', query: { season: route.query.season, competition: route.query.competition } })
 const backLabel = computed(() => returnToHall.value ? 'Назад в Зал славы' : 'К списку команд')
 
 const selectedSeason = computed(() => {

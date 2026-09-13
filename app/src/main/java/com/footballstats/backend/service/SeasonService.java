@@ -124,6 +124,7 @@ public class SeasonService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="SEASON",idParam="seasonId",action="SEASON_UPDATED",actorParam="actorUserId")
     public Season updateSeason(
         Long seasonId,
         String rawName,
@@ -184,6 +185,7 @@ public class SeasonService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="SEASON",idParam="seasonId",action="DEACTIVATED",actorParam="actorUserId")
     public Season deactivateSeason(Long seasonId, Long actorUserId) {
         Season season = getExistingSeason(seasonId);
         if (!season.isActive()) {

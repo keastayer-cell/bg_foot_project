@@ -7,22 +7,16 @@
           <h1 class="section-title home-title">Туры и таблица сезона</h1>
         </div>
 
-        <label class="season-box season-box-wide">
-          <span>Сезон</span>
-          <select v-model="selectedSeasonId" :disabled="loadingSeasons || !seasons.length">
-            <option value="" v-if="!seasons.length">— сезоны не найдены —</option>
-            <option v-for="item in seasons" :key="item.id" :value="String(item.id)">{{ item.name }}</option>
-          </select>
-        </label>
-        <label v-if="competitions.length > 1" class="season-box season-box-wide">
-          <span>Соревнование</span>
-          <select v-model="selectedCompetitionId">
-            <option v-for="item in competitions" :key="item.id" :value="String(item.id)">{{ item.name }}</option>
-          </select>
-        </label>
+        <CompetitionContextPicker
+          v-model:season-id="selectedSeasonId"
+          v-model:competition-id="selectedCompetitionId"
+          :seasons="seasons"
+          :competitions="competitions"
+          :disabled="loadingSeasons || loadingSeasonData"
+        />
       </div>
 
-      <div class="season-meta-grid" v-if="selectedSeason">
+      <div class="season-meta-grid" v-if="selectedCompetition?.type === 'CHAMPIONSHIP' && loadedCompetitionId === selectedCompetitionId && !loadingSeasonData">
         <article class="season-meta-card">
           <span class="season-meta-label">Кругов</span>
           <strong>{{ selectedSeason.roundsCount }}</strong>
@@ -48,7 +42,7 @@
       <CupCompetitionView :competition="selectedCompetition" :stats="competitionStats" />
     </article>
 
-    <div v-else class="home-main-grid" :class="{ 'home-main-grid-wide': seasonViewMode === 'matrix' || seasonViewMode === 'playoff' }">
+    <div v-else-if="selectedCompetition?.type === 'CHAMPIONSHIP'" class="home-main-grid" :class="{ 'home-main-grid-wide': seasonViewMode === 'matrix' || seasonViewMode === 'playoff' }">
       <article class="card standings-card">
         <div class="section-head standings-head">
           <div>
@@ -148,7 +142,8 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import CompetitionContextPicker from '../components/CompetitionContextPicker.vue'
 import SeasonMatrix from '../components/tours/SeasonMatrix.vue'
 import SeasonPlayerStatsCard from '../components/tours/SeasonPlayerStatsCard.vue'
 import SeasonPlayoffBracket from '../components/tours/SeasonPlayoffBracket.vue'
@@ -161,11 +156,19 @@ import { useSeasonPlayoff } from '../composables/useSeasonPlayoff'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 import { createCompetitionsApi } from '../api/competitions'
+import { useCompetitionContext } from '../store/competitionContext'
 
 const { optionalAuthApiRequest } = useAuth()
 const catalogApi = createCatalogApi(optionalAuthApiRequest)
 const competitionsApi = createCompetitionsApi(optionalAuthApiRequest)
 const route = useRoute()
+const router = useRouter()
+const {
+  seasonId: selectedSeasonId,
+  competitionId: selectedCompetitionId,
+  selectAvailable,
+  syncUrl,
+} = useCompetitionContext(route, router)
 const navigationState = window.history.state || {}
 const requestedViewValue = String(navigationState.view || route.query.view || '')
 const requestedView = ['table', 'matrix', 'playoff'].includes(requestedViewValue)
@@ -175,7 +178,6 @@ const requestedSeasonId = String(navigationState.seasonId || route.query.season 
 const requestedTourId = String(navigationState.tourId || route.query.tour || '')
 
 const seasons = ref([])
-const selectedSeasonId = ref('')
 const seasonTeams = ref([])
 const seasonTours = ref([])
 const seasonStandings = ref([])
@@ -183,7 +185,6 @@ const seasonPlayerStats = ref([])
 const playoffBracket = ref(null)
 const standingsConfig = ref(null)
 const competitions = ref([])
-const selectedCompetitionId = ref('')
 const competitionStats = ref([])
 const seasonViewMode = ref(requestedView)
 const sidePanelMode = ref('tours')
@@ -191,6 +192,9 @@ const statsMode = ref('scorers')
 const loadingSeasons = ref(false)
 const loadingSeasonData = ref(false)
 const pageError = ref('')
+const loadedCompetitionId = ref('')
+let initialized = false
+let seasonRequest = 0
 const { topStatsRows, statsEmptyText } = useSeasonPlayerStats(seasonPlayerStats, statsMode)
 
 const selectedSeason = computed(() => {
@@ -260,6 +264,8 @@ watch(selectedSeason, (season) => {
 })
 
 watch(selectedSeasonId, async (seasonId) => {
+  if (!initialized) return
+  syncUrl()
   sidePanelMode.value = 'tours'
   statsMode.value = 'scorers'
   if (!seasonId) {
@@ -274,11 +280,10 @@ watch(selectedSeasonId, async (seasonId) => {
 
   await loadSeasonData(seasonId)
 })
-watch(selectedCompetitionId, async (competitionId) => {
-  competitionStats.value = []
-  if (!competitionId || selectedCompetition.value?.type !== 'CUP') return
-  try { competitionStats.value = await optionalAuthApiRequest(`/api/seasons/${encodeURIComponent(selectedSeasonId.value)}/competitions/${encodeURIComponent(competitionId)}/player-stats`, { method: 'GET' }) }
-  catch (error) { pageError.value = error.message || 'Не удалось загрузить статистику Кубка.' }
+watch(selectedCompetitionId, async () => {
+  syncUrl()
+  if (!initialized || loadingSeasonData.value) return
+  await loadSeasonData(selectedSeasonId.value)
 })
 
 function resetError() {
@@ -305,7 +310,8 @@ async function loadSeasons() {
       const requestedSeason = seasons.value.find(
         (season) => String(season.id) === requestedSeasonId,
       )
-      selectedSeasonId.value = String(requestedSeason?.id || seasons.value[0].id)
+      if (requestedSeason) selectedSeasonId.value = String(requestedSeason.id)
+      selectAvailable(seasons.value)
     }
   } catch (error) {
     seasons.value = []
@@ -320,11 +326,25 @@ async function loadSeasonData(seasonId) {
   resetError()
 
   try {
-    const [overviewPayload, playerStatsPayload, competitionsPayload] = await Promise.all([
-      catalogApi.getSeasonOverview(seasonId),
-      catalogApi.getSeasonPlayerStats(seasonId),
-      competitionsApi.list(seasonId),
+    const requestId = ++seasonRequest
+    loadedCompetitionId.value = ''
+    const competitionsPayload = await competitionsApi.list(seasonId)
+    if (requestId !== seasonRequest || String(seasonId) !== selectedSeasonId.value) return
+    competitions.value = Array.isArray(competitionsPayload) ? competitionsPayload : []
+    if (!competitions.value.length) selectedCompetitionId.value = ''
+    selectAvailable(seasons.value, competitions.value)
+    const competition = selectedCompetition.value
+    if (!competition) throw new Error('В выбранном сезоне нет доступных соревнований.')
+    if (competition.type === 'CUP') {
+      competitionStats.value = await optionalAuthApiRequest(`/api/seasons/${encodeURIComponent(seasonId)}/competitions/${encodeURIComponent(competition.id)}/player-stats`, { method: 'GET' })
+      return
+    }
+    const [overviewPayload, playerStatsPayload] = await Promise.all([
+      catalogApi.getSeasonOverview(seasonId, competition.id),
+      catalogApi.getSeasonPlayerStats(seasonId, competition.id),
     ])
+    if (requestId !== seasonRequest || String(competition.id) !== selectedCompetitionId.value) return
+    loadedCompetitionId.value = String(competition.id)
 
     seasonTeams.value = Array.isArray(overviewPayload?.teams) ? overviewPayload.teams : []
     seasonTours.value = Array.isArray(overviewPayload?.tours) ? overviewPayload.tours : []
@@ -332,8 +352,6 @@ async function loadSeasonData(seasonId) {
     seasonPlayerStats.value = Array.isArray(playerStatsPayload) ? playerStatsPayload : []
     playoffBracket.value = overviewPayload?.playoffBracket || null
     standingsConfig.value = overviewPayload?.standingsConfig || null
-    competitions.value = Array.isArray(competitionsPayload) ? competitionsPayload : []
-    selectedCompetitionId.value = String(competitions.value.find((item) => item.type === 'CHAMPIONSHIP')?.id || competitions.value[0]?.id || '')
   } catch (error) {
     seasonTeams.value = []
     seasonTours.value = []
@@ -341,8 +359,7 @@ async function loadSeasonData(seasonId) {
     seasonPlayerStats.value = []
     playoffBracket.value = null
     standingsConfig.value = null
-    competitions.value = []
-    selectedCompetitionId.value = ''
+    loadedCompetitionId.value = ''
     pageError.value = error.message || 'Не удалось загрузить данные выбранного сезона.'
   } finally {
     loadingSeasonData.value = false
@@ -365,6 +382,8 @@ function formatMatchDateTime(value) {
 
 onMounted(async () => {
   await loadSeasons()
+  initialized = true
+  if (selectedSeasonId.value) await loadSeasonData(selectedSeasonId.value)
 })
 </script>
 

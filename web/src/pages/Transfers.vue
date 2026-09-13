@@ -2,13 +2,13 @@
   <section class="section-wrap catalog-page">
     <PublicCatalogHeader title="Трансферы" description="Переходы игроков между командами лиги." :count="!loadingSeasonData && !pageError ? totalElements : null" count-label="переходов" />
     <div class="catalog-toolbar">
-      <label class="catalog-search transfer-season">
-        <span>Сезон</span>
-        <select v-model="selectedSeasonId" :disabled="loadingSeasons || !seasons.length">
-          <option value="" v-if="!seasons.length">— сезоны не найдены —</option>
-          <option v-for="item in seasons" :key="item.id" :value="String(item.id)">{{ item.name }}</option>
-        </select>
-      </label>
+      <CompetitionContextPicker
+        class="transfer-season"
+        v-model:season-id="selectedSeasonId"
+        :seasons="seasons"
+        :show-competition="false"
+        :disabled="loadingSeasons"
+      />
       <span class="catalog-toolbar-note">Все статусы переходов</span>
     </div>
 
@@ -71,17 +71,22 @@
 
 <script setup>
 import { onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import UiState from '../components/UiState.vue'
 import PublicCatalogHeader from '../components/PublicCatalogHeader.vue'
+import CompetitionContextPicker from '../components/CompetitionContextPicker.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
+import { useCompetitionContext } from '../store/competitionContext'
 
 const { optionalAuthApiRequest } = useAuth()
 const catalogApi = createCatalogApi(optionalAuthApiRequest)
+const route = useRoute()
+const router = useRouter()
+const { seasonId: selectedSeasonId, selectAvailable, syncUrl } = useCompetitionContext(route, router)
 const pageSize = 20
 
 const seasons = ref([])
-const selectedSeasonId = ref('')
 const transfers = ref([])
 const loadingSeasons = ref(false)
 const loadingSeasonData = ref(false)
@@ -91,6 +96,7 @@ const totalPages = ref(0)
 const totalElements = ref(0)
 
 watch(selectedSeasonId, async (seasonId) => {
+  syncUrl()
   if (!seasonId) {
     transfers.value = []
     currentPage.value = 0
@@ -112,9 +118,7 @@ async function loadSeasons() {
     seasons.value = Array.isArray(payload)
       ? payload.filter((item) => String(item?.status || '') === 'ACTIVE')
       : []
-    if (!selectedSeasonId.value && seasons.value.length) {
-      selectedSeasonId.value = String(seasons.value[0].id)
-    }
+    selectAvailable(seasons.value)
   } catch (error) {
     seasons.value = []
     pageError.value = error.message || 'Не удалось загрузить список сезонов.'

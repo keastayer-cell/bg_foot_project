@@ -168,7 +168,7 @@ export function useMatchPage() {
   })
 
   const showProtocolEditor = computed(() => {
-    return canEditProtocol() && !isVerifiedProtocol.value
+    return canEditProtocol() && !isVerifiedProtocol.value && match.value?.scheduleStatus !== 'CANCELLED'
   })
 
   const isTechnicalDefeatDraft = computed(() => {
@@ -547,6 +547,16 @@ export function useMatchPage() {
     return 'Матч запланирован'
   }
 
+  function scheduleStatusLabel(status) {
+    switch (String(status || 'SCHEDULED')) {
+      case 'RESCHEDULED': return 'Матч перенесён'
+      case 'CANCELLED': return 'Матч отменён'
+      case 'COMPLETED': return 'Матч завершён'
+      case 'TECHNICAL_RESULT': return 'Технический результат'
+      default: return 'Матч запланирован'
+    }
+  }
+
   function matchScoreLabel(protocol) {
     const homeScore = Number.isInteger(protocol?.homeScore) ? protocol.homeScore : 0
     const awayScore = Number.isInteger(protocol?.awayScore) ? protocol.awayScore : 0
@@ -682,6 +692,7 @@ export function useMatchPage() {
     suspendedAvailablePlayers,
     formatDateTime,
     matchStatusLabel,
+    scheduleStatusLabel,
     matchScoreLabel,
     protocolResultLabel,
     lineupSubmittedLabel,

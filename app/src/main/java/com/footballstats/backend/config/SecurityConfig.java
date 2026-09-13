@@ -63,6 +63,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/guest", "/api/auth/refresh", "/api/auth/logout", "/api/auth/password-reset/request", "/api/auth/password-reset/complete").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/change-password").authenticated()
+                .requestMatchers("/api/account", "/api/account/**").authenticated()
                 .requestMatchers("/api/health", "/api/health/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/**").hasAnyRole("TEAM_REP", "SUPER_ADMIN", "REFEREE")

@@ -13,11 +13,14 @@ public class CompetitionDisciplineService {
     private final CompetitionService competitionService;
     private final CupTieMatchRepository tieMatchRepository;
     private final MatchEventRepository eventRepository;
+    private final DisciplineCenterService disciplineCenterService;
 
-    public CompetitionDisciplineService(CompetitionService competitionService, CupTieMatchRepository tieMatchRepository, MatchEventRepository eventRepository) {
+    public CompetitionDisciplineService(CompetitionService competitionService, CupTieMatchRepository tieMatchRepository, MatchEventRepository eventRepository,
+        DisciplineCenterService disciplineCenterService) {
         this.competitionService = competitionService;
         this.tieMatchRepository = tieMatchRepository;
         this.eventRepository = eventRepository;
+        this.disciplineCenterService = disciplineCenterService;
     }
 
     @Transactional(readOnly = true)
@@ -31,7 +34,7 @@ public class CompetitionDisciplineService {
         for (var link : tieMatchRepository.findAllDetailedByCompetitionId(competitionId)) {
             TourMatch match = link.getMatch();
             Map<Long, SeasonDisciplineService.PlayerMatchDiscipline> current = currentSuspensions(match, states, competition);
-            if (match.getId().equals(matchId)) return current;
+            if (match.getId().equals(matchId)) return disciplineCenterService.suspendedForMatch(competitionId, matchId, match.getHomeTeam().getId(), match.getAwayTeam().getId());
             consume(match, states);
             if (match.getProtocol() != null && match.getProtocol().getStatus() == MatchProtocolStatus.VERIFIED) {
                 applyCards(match, eventsByMatch.getOrDefault(match.getId(), List.of()), states, competition);
@@ -56,6 +59,7 @@ public class CompetitionDisciplineService {
     }
 
     private void consume(TourMatch match, Map<Long, State> states) {
+        if (match.getScheduleStatus() == MatchScheduleStatus.CANCELLED || match.getProtocol() == null || match.getProtocol().getStatus() != MatchProtocolStatus.VERIFIED) return;
         for (State state : states.values()) {
             if ((match.getHomeTeam().getId().equals(state.teamId) || match.getAwayTeam().getId().equals(state.teamId)) && state.pending > 0) state.pending--;
         }

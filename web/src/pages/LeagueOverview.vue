@@ -86,9 +86,14 @@
         </div>
       </div>
 
-      <label v-if="documentSeasons.length" class="regulation-filter">Сезон
-        <select v-model="documentSeasonId"><option value="all">Все сезоны</option><option v-for="season in documentSeasons" :key="season.id" :value="String(season.id)">{{ season.name }}</option></select>
-      </label>
+      <CompetitionContextPicker
+        v-if="documentSeasons.length"
+        class="regulation-filter"
+        v-model:season-id="documentSeasonId"
+        v-model:competition-id="documentCompetitionId"
+        :seasons="documentSeasons"
+        :competitions="documentCompetitions"
+      />
       <UiState v-if="!regulations.length" title="Документы пока не опубликованы" />
       <div v-if="regulations.length" class="regulation-groups">
         <section v-for="season in visibleDocumentSeasons" :key="season.id" class="regulation-group">
@@ -105,13 +110,24 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import UiState from '../components/UiState.vue'
+import CompetitionContextPicker from '../components/CompetitionContextPicker.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
+import { useCompetitionContext } from '../store/competitionContext'
 
 const { optionalAuthApiRequest } = useAuth()
 const catalogApi = createCatalogApi(optionalAuthApiRequest)
+const route = useRoute()
+const router = useRouter()
+const {
+  seasonId: documentSeasonId,
+  competitionId: documentCompetitionId,
+  selectAvailable,
+  syncUrl,
+} = useCompetitionContext(route, router)
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 
 const sectionLinks = [
@@ -126,7 +142,6 @@ const activeSection = ref('leadership')
 const officials = ref([])
 const venues = ref([])
 const regulations = ref([])
-const documentSeasonId = ref('all')
 const documentSeasons = computed(() => {
   const groups = new Map()
   for (const item of regulations.value) {
@@ -135,7 +150,25 @@ const documentSeasons = computed(() => {
   }
   return [...groups.values()]
 })
-const visibleDocumentSeasons = computed(() => documentSeasons.value.filter((season) => documentSeasonId.value === 'all' || String(season.id) === documentSeasonId.value))
+const documentCompetitions = computed(() => {
+  const values = regulations.value
+    .filter((item) => String(item.seasonId) === documentSeasonId.value && item.targetType === 'COMPETITION')
+    .map((item) => ({
+      id: item.targetId,
+      seasonId: item.seasonId,
+      name: item.competitionName,
+      type: item.competitionType,
+    }))
+  return [...new Map(values.map((item) => [item.id, item])).values()]
+})
+const visibleDocumentSeasons = computed(() => documentSeasons.value
+  .filter((season) => String(season.id) === documentSeasonId.value)
+  .map((season) => ({
+    ...season,
+    documents: season.documents.filter((item) => (
+      item.targetType === 'SEASON' || String(item.targetId) === documentCompetitionId.value
+    )),
+  })))
 
 async function loadLeagueData() {
   loading.value = true
@@ -148,6 +181,15 @@ async function loadLeagueData() {
     officials.value = Array.isArray(payload?.officials) ? payload.officials : []
     venues.value = Array.isArray(payload?.venues) ? payload.venues : []
     regulations.value = Array.isArray(documents) ? documents : []
+    const allCompetitions = regulations.value
+      .filter((item) => item.targetType === 'COMPETITION')
+      .map((item) => ({
+        id: item.targetId,
+        seasonId: item.seasonId,
+        name: item.competitionName,
+        type: item.competitionType,
+      }))
+    selectAvailable(documentSeasons.value, allCompetitions)
   } catch (error) {
     pageError.value = error.message || 'Не удалось загрузить данные о лиге.'
   } finally {
@@ -156,6 +198,13 @@ async function loadLeagueData() {
 }
 
 onMounted(loadLeagueData)
+watch(documentSeasonId, () => {
+  if (!documentCompetitions.value.some((item) => String(item.id) === documentCompetitionId.value)) {
+    documentCompetitionId.value = documentCompetitions.value[0] ? String(documentCompetitions.value[0].id) : ''
+  }
+  syncUrl()
+})
+watch(documentCompetitionId, syncUrl)
 
 function initials(fullName) {
   return String(fullName || '')

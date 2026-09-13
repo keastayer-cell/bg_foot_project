@@ -19,6 +19,7 @@ import com.footballstats.backend.repository.SiteNotificationRepository;
 import com.footballstats.backend.repository.SiteNotificationTemplateRepository;
 import com.footballstats.backend.repository.UserRoleRepository;
 import com.footballstats.backend.repository.UserTeamScopeRepository;
+import com.footballstats.backend.repository.UserFavoriteRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +50,8 @@ class SiteNotificationServiceTest {
     @Mock private UserTeamScopeRepository userTeamScopeRepository;
     @Mock private SiteNotificationTemplateRepository templateRepository;
     @Mock private NotificationEventService notificationEventService;
+    @Mock private NotificationPreferenceService notificationPreferenceService;
+    @Mock private UserFavoriteRepository favoriteRepository;
 
     private SiteNotificationService service;
 
@@ -61,8 +64,13 @@ class SiteNotificationServiceTest {
             userRoleRepository,
             userTeamScopeRepository,
             templateRepository,
-            notificationEventService
+            notificationEventService,
+            notificationPreferenceService,
+            favoriteRepository
         );
+        org.mockito.Mockito.lenient().when(notificationPreferenceService.isEnabled(
+            any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean()
+        )).thenReturn(true);
     }
 
     @Test

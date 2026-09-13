@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const auth = vi.hoisted(() => ({
   isAuthenticated: { value: false },
   hasRole: vi.fn(),
+  hasTeamAccess: vi.fn(),
   ensureSession: vi.fn(),
 }))
 
@@ -16,6 +17,8 @@ describe('requireRouteAccess', () => {
   beforeEach(() => {
     auth.isAuthenticated.value = false
     auth.hasRole.mockReset()
+    auth.hasTeamAccess.mockReset()
+    auth.hasTeamAccess.mockReturnValue(true)
     auth.ensureSession.mockReset()
   })
 
@@ -63,5 +66,26 @@ describe('requireRouteAccess', () => {
     await expect(
       requireRouteAccess({ meta: { requiresAuth: true, ...accessMeta } }),
     ).resolves.toBe('/')
+  })
+
+  it('redirects a team representative without an assigned team', async () => {
+    auth.isAuthenticated.value = true
+    auth.hasRole.mockImplementation((role) => role === 'TEAM_REP')
+    auth.hasTeamAccess.mockReturnValue(false)
+
+    await expect(requireRouteAccess({
+      meta: { requiresAuth: true, requiresTeamRep: true },
+    })).resolves.toBe('/')
+  })
+
+  it('requires application permission for a team representative transfer route', async () => {
+    auth.isAuthenticated.value = true
+    auth.hasRole.mockImplementation((role) => role === 'TEAM_REP')
+    auth.hasTeamAccess.mockImplementation((permission) => permission !== 'canEditApplication')
+
+    await expect(requireRouteAccess({
+      meta: { requiresAuth: true, requiresTransferManager: true },
+    })).resolves.toBe('/')
+    expect(auth.hasTeamAccess).toHaveBeenCalledWith('canEditApplication')
   })
 })

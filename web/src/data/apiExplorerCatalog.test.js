@@ -3,7 +3,14 @@ import { allEndpoints, endpointGroups, findEndpointByKey } from './apiExplorerCa
 
 describe('apiExplorerCatalog', () => {
   it('covers every backend controller mapping', () => {
-    expect(allEndpoints).toHaveLength(97)
+    expect(allEndpoints).toHaveLength(101)
+  })
+
+  it('exposes competition selection in championship requests', () => {
+    for (const key of ['season-overview', 'season-player-stats']) {
+      expect(findEndpointByKey(key).queryParams).toContainEqual(expect.objectContaining({ name: 'competitionId' }))
+    }
+    expect(findEndpointByKey('season-competitions-public').path).toBe('/api/seasons/{seasonId}/competitions')
   })
 
   it('contains unique testable endpoint definitions', () => {

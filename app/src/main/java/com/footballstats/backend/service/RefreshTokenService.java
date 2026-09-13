@@ -89,6 +89,14 @@ public class RefreshTokenService {
             .ifPresent(session -> revokeSession(session, null, OffsetDateTime.now()));
     }
 
+    @Transactional
+    public int revokeAllForUserId(Long userId) {
+        if (userId == null || userId <= 0) {
+            return 0;
+        }
+        return refreshTokenSessionRepository.revokeAllActiveByUserId(userId, OffsetDateTime.now());
+    }
+
     private RefreshTokenRecord createSession(AppUser user, String userAgent, String ipAddress) {
         String rawToken = generateRawToken();
         String tokenHash = hashToken(rawToken);

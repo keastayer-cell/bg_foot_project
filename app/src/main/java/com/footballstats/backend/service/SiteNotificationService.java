@@ -12,6 +12,7 @@ import com.footballstats.backend.domain.SiteNotificationAudienceType;
 import com.footballstats.backend.domain.SiteNotificationRecipient;
 import com.footballstats.backend.domain.SiteNotificationSeverity;
 import com.footballstats.backend.domain.SiteNotificationTemplate;
+import com.footballstats.backend.domain.NotificationCategory;
 import com.footballstats.backend.domain.Tour;
 import com.footballstats.backend.domain.TourMatch;
 import com.footballstats.backend.domain.Player;
@@ -23,6 +24,8 @@ import com.footballstats.backend.repository.SiteNotificationRepository;
 import com.footballstats.backend.repository.SiteNotificationTemplateRepository;
 import com.footballstats.backend.repository.UserRoleRepository;
 import com.footballstats.backend.repository.UserTeamScopeRepository;
+import com.footballstats.backend.repository.UserFavoriteRepository;
+import com.footballstats.backend.domain.FavoriteType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -53,6 +56,8 @@ public class SiteNotificationService {
     private final UserTeamScopeRepository userTeamScopeRepository;
     private final SiteNotificationTemplateRepository templateRepository;
     private final NotificationEventService notificationEventService;
+    private final NotificationPreferenceService notificationPreferenceService;
+    private final UserFavoriteRepository favoriteRepository;
 
     public SiteNotificationService(
         SiteNotificationRepository notificationRepository,
@@ -61,7 +66,9 @@ public class SiteNotificationService {
         UserRoleRepository userRoleRepository,
         UserTeamScopeRepository userTeamScopeRepository,
         SiteNotificationTemplateRepository templateRepository,
-        NotificationEventService notificationEventService
+        NotificationEventService notificationEventService,
+        NotificationPreferenceService notificationPreferenceService,
+        UserFavoriteRepository favoriteRepository
     ) {
         this.notificationRepository = notificationRepository;
         this.recipientRepository = recipientRepository;
@@ -70,6 +77,8 @@ public class SiteNotificationService {
         this.userTeamScopeRepository = userTeamScopeRepository;
         this.templateRepository = templateRepository;
         this.notificationEventService = notificationEventService;
+        this.notificationPreferenceService = notificationPreferenceService;
+        this.favoriteRepository = favoriteRepository;
     }
 
     @Transactional(readOnly = true)
@@ -172,7 +181,11 @@ public class SiteNotificationService {
         notification.setCreatedAt(now);
         notification.setExpiresAt(command.expiresAt());
 
-        return toAdminData(deliver(notification, audience.users()));
+        List<AppUser> bellUsers = filterUsers(
+            audience.users(), NotificationCategory.NEWS,
+            NotificationPreferenceService.Channel.BELL, command.requiresAcknowledgement()
+        );
+        return toAdminData(deliver(notification, bellUsers));
     }
 
     @Transactional(readOnly = true)
@@ -211,6 +224,12 @@ public class SiteNotificationService {
         }
         for (AppUser user : teamUsers(request.getFromTeam().getId(), actorUserId)) {
             recipients.put(user.getId(), user);
+        }
+        if (request.getStatus() == SeasonTransferStatus.APPROVED) {
+            favoriteRepository.findByTargetTypeAndTargetId(FavoriteType.PLAYER, request.getPlayer().getId()).stream()
+                .map(favorite -> favorite.getUser())
+                .filter(user -> !user.getId().equals(actorUserId))
+                .forEach(user -> recipients.put(user.getId(), user));
         }
         if (recipients.isEmpty()) return;
 
@@ -281,6 +300,55 @@ public class SiteNotificationService {
     }
 
     @Transactional
+    public void notifyDisciplineAdjusted(
+        com.footballstats.backend.domain.Competition competition,
+        Player player,
+        Team team,
+        int remainingMatches,
+        String reason,
+        Long actorUserId
+    ) {
+        List<AppUser> recipients = teamUsers(team.getId(), null);
+        if (recipients.isEmpty()) return;
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("playerName", player.getFullName());
+        variables.put("teamName", team.getName());
+        variables.put("tournamentName", competition.getName());
+        variables.put("remainingMatches", remainingMatches);
+        variables.put("reason", reason);
+        variables.put("seasonId", competition.getSeason().getId());
+        variables.put("competitionId", competition.getId());
+        deliverFromTemplate("PLAYER_SUSPENSION_ADJUSTED", variables, recipients, actorUserId,
+            "DISCIPLINE_ADJUSTMENT_PLAYER_" + player.getId(), competition.getId(),
+            "Представители команды «" + team.getName() + "»");
+    }
+
+    @Transactional
+    public void notifyMatchScheduleChanged(TourMatch match, OffsetDateTime previousKickoff, Long actorUserId) {
+        Map<Long, AppUser> recipients = new LinkedHashMap<>();
+        teamUsers(match.getHomeTeam().getId(), null).forEach(user -> recipients.put(user.getId(), user));
+        teamUsers(match.getAwayTeam().getId(), null).forEach(user -> recipients.put(user.getId(), user));
+        for (Long teamId : List.of(match.getHomeTeam().getId(), match.getAwayTeam().getId())) {
+            favoriteRepository.findByTargetTypeAndTargetId(FavoriteType.TEAM, teamId).stream()
+                .map(favorite -> favorite.getUser()).forEach(user -> recipients.put(user.getId(), user));
+        }
+        if (recipients.isEmpty()) return;
+        String matchName = match.getHomeTeam().getName() + " — " + match.getAwayTeam().getName();
+        String summary = switch (match.getScheduleStatus()) {
+            case CANCELLED -> "Матч отменён";
+            case RESCHEDULED -> "Матч перенесён с " + previousKickoff + " на " + match.getKickoffAt();
+            default -> "Расписание матча обновлено";
+        };
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("matchName", matchName); variables.put("matchId", match.getId());
+        variables.put("changeSummary", summary);
+        variables.put("venueName", match.getVenue() == null ? "уточняется" : match.getVenue().getName());
+        variables.put("reason", Objects.toString(match.getScheduleChangeReason(), "не указана"));
+        deliverFromTemplate("MATCH_SCHEDULE_CHANGED", variables, List.copyOf(recipients.values()), actorUserId,
+            "MATCH_SCHEDULE_CHANGE", match.getId(), "Команды матча и подписанные болельщики");
+    }
+
+    @Transactional
     public void notifySeasonApplicationSubmitted(SeasonApplication application, List<AppUser> referees) {
         deliverFromTemplate(
             "SEASON_APPLICATION_SUBMITTED_TO_REFEREE", applicationVariables(application, null), referees,
@@ -331,10 +399,18 @@ public class SiteNotificationService {
         notification.setAudienceValue(audienceValue);
         notification.setCreatedByUserId(actorUserId);
         notification.setCreatedAt(OffsetDateTime.now());
-        SiteNotification saved = deliver(notification, users);
+        NotificationCategory category = categoryFor(eventType);
+        boolean mandatory = template.isRequiresAcknowledgement();
+        List<AppUser> bellUsers = filterUsers(
+            users, category, NotificationPreferenceService.Channel.BELL, mandatory
+        );
+        SiteNotification saved = deliver(notification, bellUsers);
         if (template.isEmailEnabled()) {
             Long emailSourceId = sourceType.startsWith("MATCH_DISCIPLINE_") ? saved.getId() : sourceId;
-            for (AppUser user : users) {
+            List<AppUser> emailUsers = filterUsers(
+                users, category, NotificationPreferenceService.Channel.EMAIL, mandatory
+            );
+            for (AppUser user : emailUsers) {
                 if (user.getEmail() == null || user.getEmail().isBlank()) continue;
                 Map<String, Object> emailVariables = new LinkedHashMap<>();
                 variables.forEach(emailVariables::put);
@@ -343,6 +419,28 @@ public class SiteNotificationService {
                 );
             }
         }
+    }
+
+    private List<AppUser> filterUsers(
+        List<AppUser> users,
+        NotificationCategory category,
+        NotificationPreferenceService.Channel channel,
+        boolean mandatory
+    ) {
+        return users.stream()
+            .filter(user -> notificationPreferenceService.isEnabled(user.getId(), category, channel, mandatory))
+            .toList();
+    }
+
+    private NotificationCategory categoryFor(String eventType) {
+        if (eventType == null) return NotificationCategory.NEWS;
+        if (eventType.startsWith("TRANSFER_")) return NotificationCategory.TRANSFERS;
+        if (eventType.startsWith("PLAYER_SUSPENDED_") || eventType.startsWith("PLAYER_SUSPENSION_")) return NotificationCategory.DISCIPLINE;
+        if (eventType.startsWith("MATCH_")) return NotificationCategory.MATCHES;
+        if (eventType.startsWith("SEASON_") || eventType.startsWith("TOUR_")) {
+            return NotificationCategory.TOURNAMENTS;
+        }
+        return NotificationCategory.NEWS;
     }
 
     private Map<String, Object> transferVariables(SeasonTransferRequest request) {

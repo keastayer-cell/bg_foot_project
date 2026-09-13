@@ -72,6 +72,252 @@ a {
 	padding: 14px clamp(18px, 2vw, 36px) 16px;
 }
 
+.auth-profile-btn {
+	display: grid;
+	justify-items: start;
+	gap: 2px;
+	text-align: left;
+}
+
+.auth-profile-btn small {
+	color: var(--muted);
+	font-size: 0.72rem;
+	font-weight: 600;
+}
+
+.account-page {
+	display: grid;
+	gap: 18px;
+}
+
+.account-hero {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-end;
+	gap: 24px;
+	padding: clamp(24px, 4vw, 46px);
+	background:
+		radial-gradient(circle at 85% 15%, rgba(97, 232, 162, 0.13), transparent 34%),
+		linear-gradient(135deg, rgba(25, 37, 78, 0.98), rgba(10, 16, 38, 0.98));
+}
+
+.account-hero h1 {
+	margin: 8px 0;
+	font-size: clamp(2rem, 4vw, 3.4rem);
+}
+
+.account-kicker {
+	color: var(--brand);
+	font-size: 0.78rem;
+	font-weight: 800;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.account-role-chips {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.account-role-chip {
+	padding: 8px 12px;
+	border: 1px solid rgba(97, 232, 162, 0.3);
+	border-radius: 999px;
+	background: rgba(97, 232, 162, 0.1);
+	color: #b8f8d7;
+	font-weight: 700;
+}
+
+.account-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
+	gap: 18px;
+	align-items: start;
+}
+
+.account-main,
+.account-side {
+	display: grid;
+	gap: 18px;
+}
+
+.account-panel {
+	padding: clamp(20px, 3vw, 30px);
+}
+
+.account-panel-head {
+	margin-bottom: 22px;
+	padding-bottom: 16px;
+	border-bottom: 1px solid var(--line);
+}
+
+.account-panel .section-title {
+	margin: 5px 0 0;
+}
+
+.account-form {
+	display: grid;
+	gap: 16px;
+}
+
+.account-form label {
+	display: grid;
+	gap: 8px;
+	color: var(--muted);
+	font-weight: 700;
+}
+
+.account-form .actions-row {
+	justify-content: flex-end;
+}
+
+.account-access-list,
+.account-team-list,
+.account-shortcuts {
+	display: grid;
+	gap: 10px;
+	margin-top: 18px;
+}
+
+.account-favorites {
+	display: grid;
+	gap: 8px;
+	margin-top: 18px;
+}
+
+.account-favorites > div {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
+	gap: 8px;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 11px;
+	background: rgba(7, 12, 30, 0.42);
+}
+
+.account-favorites a {
+	display: grid;
+	gap: 3px;
+}
+
+.account-favorites small {
+	color: var(--brand);
+	font-size: .62rem;
+	text-transform: uppercase;
+}
+
+.account-favorites button {
+	border: 0;
+	background: transparent;
+	color: var(--muted);
+	font-size: 1.2rem;
+	cursor: pointer;
+}
+
+.account-access-item,
+.account-team {
+	padding: 14px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: rgba(7, 12, 30, 0.42);
+}
+
+.account-access-item p,
+.account-team span {
+	display: block;
+	margin: 5px 0 0;
+	color: var(--muted);
+	font-size: 0.88rem;
+	line-height: 1.45;
+}
+
+.account-danger {
+	border-color: rgba(255, 108, 130, 0.28);
+}
+
+.notification-settings {
+	display: grid;
+	gap: 6px;
+	margin: 20px 0;
+}
+
+.notification-setting-head,
+.notification-setting-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 110px 80px;
+	align-items: center;
+	gap: 14px;
+}
+
+.notification-setting-head {
+	padding: 0 14px 8px;
+	color: var(--muted);
+	font-size: 0.75rem;
+	font-weight: 800;
+	text-transform: uppercase;
+}
+
+.notification-setting-head span:not(:first-child) {
+	text-align: center;
+}
+
+.notification-setting-row {
+	padding: 14px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: rgba(7, 12, 30, 0.42);
+}
+
+.notification-setting-row > span {
+	display: grid;
+	gap: 4px;
+}
+
+.notification-setting-row small {
+	color: var(--muted);
+}
+
+.notification-setting-row input {
+	justify-self: center;
+	width: 20px;
+	height: 20px;
+	accent-color: var(--brand-strong);
+}
+
+.account-state {
+	padding: 24px;
+}
+
+@media (max-width: 860px) {
+	.account-layout {
+		grid-template-columns: 1fr;
+	}
+
+	.account-hero {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.account-role-chips {
+		justify-content: flex-start;
+	}
+}
+
+@media (max-width: 560px) {
+	.notification-setting-head,
+	.notification-setting-row {
+		grid-template-columns: minmax(0, 1fr) 72px 58px;
+		gap: 8px;
+	}
+
+	.notification-setting-head {
+		font-size: 0.65rem;
+	}
+}
+
 .topbar {
 	display: flex;
 	justify-content: space-between;

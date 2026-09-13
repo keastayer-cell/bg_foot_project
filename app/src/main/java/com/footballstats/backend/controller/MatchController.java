@@ -137,6 +137,14 @@ public class MatchController {
             toTeamResponse(match.getHomeTeam()),
             toTeamResponse(match.getAwayTeam()),
             match.getKickoffAt(),
+            match.getScheduleStatus(),
+            match.getOriginalKickoffAt(),
+            match.getScheduleChangeReason(),
+            match.getVenue() == null ? null : new MatchVenueResponse(
+                match.getVenue().getId(),
+                match.getVenue().getName(),
+                match.getVenue().getAddress()
+            ),
             toLineupResponse(data.homeLineup()),
             toLineupResponse(data.awayLineup()),
             new MatchProtocolResponse(
@@ -247,11 +255,17 @@ public class MatchController {
         TeamResponse homeTeam,
         TeamResponse awayTeam,
         OffsetDateTime kickoffAt,
+        com.footballstats.backend.domain.MatchScheduleStatus scheduleStatus,
+        OffsetDateTime originalKickoffAt,
+        String scheduleChangeReason,
+        MatchVenueResponse venue,
         MatchLineupResponse homeLineup,
         MatchLineupResponse awayLineup,
         MatchProtocolResponse protocol,
         List<RefereeResponse> availableReferees
     ) {}
+
+    public record MatchVenueResponse(Long id, String name, String address) {}
 
     public record TeamResponse(Long id, String name, String shortName, String city, String logoDataUrl) {}
 

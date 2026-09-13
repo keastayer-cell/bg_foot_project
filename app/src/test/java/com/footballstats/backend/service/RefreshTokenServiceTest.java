@@ -83,6 +83,20 @@ class RefreshTokenServiceTest {
         assertThat(session.getRevokedAt()).isNotNull();
     }
 
+    @Test
+    void revokesAllActiveSessionsForUser() {
+        when(refreshTokenSessionRepository.revokeAllActiveByUserId(any(Long.class), any(OffsetDateTime.class)))
+            .thenReturn(3);
+
+        int revoked = refreshTokenService.revokeAllForUserId(12L);
+
+        assertThat(revoked).isEqualTo(3);
+        verify(refreshTokenSessionRepository).revokeAllActiveByUserId(
+            org.mockito.ArgumentMatchers.eq(12L),
+            any(OffsetDateTime.class)
+        );
+    }
+
     private RefreshTokenSession activeSession(AppUser user, int tokenVersion) {
         RefreshTokenSession session = new RefreshTokenSession();
         session.setUser(user);

@@ -321,6 +321,7 @@ public class SeasonApplicationService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="APPLICATION",idParam="applicationId",action="APPLICATION_APPROVED",actorParam="reviewerUserId")
     public ReviewDetailsData approve(Long reviewerUserId, Long applicationId, String decisionComment) {
         SeasonApplication application = requireSubmittedApplication(applicationId);
         List<SeasonApplicationPlayer> rows = seasonApplicationPlayerRepository.findAllDetailedByApplicationId(applicationId);
@@ -332,6 +333,7 @@ public class SeasonApplicationService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="APPLICATION",idParam="applicationId",action="APPLICATION_RETURNED",actorParam="reviewerUserId")
     public ReviewDetailsData returnToTeam(Long reviewerUserId, Long applicationId, String decisionComment) {
         SeasonApplication application = requireSubmittedApplication(applicationId);
         setDecision(application, SeasonApplicationStatus.RETURNED, reviewerUserId, normalizeDecisionComment(decisionComment));
@@ -340,6 +342,7 @@ public class SeasonApplicationService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="APPLICATION",idParam="applicationId",action="APPLICATION_REJECTED",actorParam="reviewerUserId")
     public ReviewDetailsData reject(Long reviewerUserId, Long applicationId, String decisionComment) {
         SeasonApplication application = requireSubmittedApplication(applicationId);
         String normalizedComment = requireDecisionComment(decisionComment, "Для отклонения заявки нужно указать комментарий.");

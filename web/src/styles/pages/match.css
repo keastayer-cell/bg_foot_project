@@ -65,6 +65,20 @@
   font-size: 0.82rem;
 }
 
+.match-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.match-schedule-note {
+  margin: 6px 0 0;
+  color: #ffd168;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
 .match-team-card,
 .match-score-card,
 .match-section,

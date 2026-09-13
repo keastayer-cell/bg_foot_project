@@ -52,6 +52,7 @@ public class TeamRepTransferService {
     private final AppUserRepository appUserRepository;
     private final MediaAssetService mediaAssetService;
     private final SiteNotificationService siteNotificationService;
+    private final BusinessAuditService businessAuditService;
 
     public TeamRepTransferService(
         UserTeamScopeRepository userTeamScopeRepository,
@@ -63,7 +64,8 @@ public class TeamRepTransferService {
         SeasonTransferRequestRepository seasonTransferRequestRepository,
         AppUserRepository appUserRepository,
         MediaAssetService mediaAssetService,
-        SiteNotificationService siteNotificationService
+        SiteNotificationService siteNotificationService,
+        BusinessAuditService businessAuditService
     ) {
         this.userTeamScopeRepository = userTeamScopeRepository;
         this.teamRepository = teamRepository;
@@ -75,6 +77,7 @@ public class TeamRepTransferService {
         this.appUserRepository = appUserRepository;
         this.mediaAssetService = mediaAssetService;
         this.siteNotificationService = siteNotificationService;
+        this.businessAuditService = businessAuditService;
     }
 
     @Transactional(readOnly = true)
@@ -222,11 +225,13 @@ public class TeamRepTransferService {
         request.setStatus(SeasonTransferStatus.PENDING);
         seasonTransferRequestRepository.save(request);
         siteNotificationService.notifyTransferRequested(request, actor.userId());
+        businessAuditService.recordCreated("TRANSFER", request.getId(), "TRANSFER_REQUESTED", actor.userId());
 
         return getSeasonTransfers(actor, seasonId);
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="TRANSFER",idParam="requestId",action="TRANSFER_APPROVED",actorParam="actor")
     public TeamRepTransferOverviewData approveTransferRequest(TransferActor actor, Long requestId, String decisionComment) {
         TransferAccessContext access = requireTransferAccess(actor);
         SeasonTransferRequest request = seasonTransferRequestRepository.findDetailedByIdForUpdate(requestId)
@@ -253,6 +258,7 @@ public class TeamRepTransferService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="TRANSFER",idParam="requestId",action="TRANSFER_REJECTED",actorParam="actor")
     public TeamRepTransferOverviewData rejectTransferRequest(TransferActor actor, Long requestId, String decisionComment) {
         TransferAccessContext access = requireTransferAccess(actor);
         SeasonTransferRequest request = seasonTransferRequestRepository.findDetailedByIdForUpdate(requestId)
@@ -271,6 +277,7 @@ public class TeamRepTransferService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="TRANSFER",idParam="requestId",action="TRANSFER_REVOKED",actorParam="actor")
     public TeamRepTransferOverviewData revokeTransferRequest(TransferActor actor, Long requestId, String decisionComment) {
         TransferAccessContext access = requireTransferAccess(actor);
         SeasonTransferRequest request = seasonTransferRequestRepository.findDetailedByIdForUpdate(requestId)

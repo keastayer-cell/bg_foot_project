@@ -62,6 +62,7 @@ public class RefereeManagementService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="REFEREE",idParam="refereeId",action="DEACTIVATED",actorParam="actorUserId")
     public void deactivate(Long refereeId, Long actorUserId) {
         Referee referee = requireReferee(refereeId);
         referee.setActive(false);

@@ -89,6 +89,7 @@ public class LeagueService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="OFFICIAL",idParam="officialId",action="DEACTIVATED",actorParam="actorUserId")
     public void deactivateOfficial(Long officialId, Long actorUserId) {
         LeagueOfficial official = getOfficial(officialId);
         official.setActive(false);
@@ -116,6 +117,7 @@ public class LeagueService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="VENUE",idParam="venueId",action="DEACTIVATED",actorParam="actorUserId")
     public void deactivateVenue(Long venueId, Long actorUserId) {
         LeagueVenue venue = getVenue(venueId);
         venue.setActive(false);
@@ -125,6 +127,7 @@ public class LeagueService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="SEASON",idParam="seasonId",action="REGULATION_UPDATED",actorParam="actorUserId")
     public SeasonDocumentData updateSeasonRegulation(Long seasonId, String documentDataUrl, Long actorUserId) {
         Season season = getSeason(seasonId);
         String normalizedDataUrl = normalizeOptional(documentDataUrl);
@@ -157,6 +160,7 @@ public class LeagueService {
     }
 
     @Transactional
+    @com.footballstats.backend.audit.AuditedAction(entity="SEASON",idParam="seasonId",action="REGULATION_REMOVED",actorParam="actorUserId")
     public SeasonDocumentData removeSeasonRegulation(Long seasonId, Long actorUserId) {
         Season season = getSeason(seasonId);
         season.setRegulationMediaId(null);

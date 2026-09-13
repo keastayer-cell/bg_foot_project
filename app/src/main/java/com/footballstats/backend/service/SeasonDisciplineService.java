@@ -28,17 +28,20 @@ public class SeasonDisciplineService {
     private final SeasonStandingsConfigRepository seasonStandingsConfigRepository;
     private final TourMatchRepository tourMatchRepository;
     private final MatchEventRepository matchEventRepository;
+    private final DisciplineCenterService disciplineCenterService;
 
     public SeasonDisciplineService(
         SeasonRepository seasonRepository,
         SeasonStandingsConfigRepository seasonStandingsConfigRepository,
         TourMatchRepository tourMatchRepository,
-        MatchEventRepository matchEventRepository
+        MatchEventRepository matchEventRepository,
+        DisciplineCenterService disciplineCenterService
     ) {
         this.seasonRepository = seasonRepository;
         this.seasonStandingsConfigRepository = seasonStandingsConfigRepository;
         this.tourMatchRepository = tourMatchRepository;
         this.matchEventRepository = matchEventRepository;
+        this.disciplineCenterService = disciplineCenterService;
     }
 
     @Transactional(readOnly = true)
@@ -62,7 +65,8 @@ public class SeasonDisciplineService {
         for (TourMatch match : matches) {
             Map<Long, PlayerMatchDiscipline> suspendedForCurrentMatch = buildSuspendedMap(match, stateByPlayerId, config, season);
             if (match.getId().equals(matchId)) {
-                return suspendedForCurrentMatch;
+                Long competitionId = match.getTour().getCompetition() == null ? null : match.getTour().getCompetition().getId();
+                return competitionId == null ? suspendedForCurrentMatch : disciplineCenterService.suspendedForMatch(competitionId, matchId, match.getHomeTeam().getId(), match.getAwayTeam().getId());
             }
 
             consumeSuspensions(match, stateByPlayerId);
@@ -101,6 +105,8 @@ public class SeasonDisciplineService {
     }
 
     private void consumeSuspensions(TourMatch match, Map<Long, TeamDisciplineState> stateByPlayerId) {
+        if (match.getScheduleStatus() == com.footballstats.backend.domain.MatchScheduleStatus.CANCELLED
+            || match.getProtocol() == null || match.getProtocol().getStatus() != MatchProtocolStatus.VERIFIED) return;
         consumeTeamSuspensions(match.getHomeTeam().getId(), stateByPlayerId);
         consumeTeamSuspensions(match.getAwayTeam().getId(), stateByPlayerId);
     }
