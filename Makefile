@@ -72,3 +72,12 @@ config: ## Проверить конфигурацию Compose без вывод
 
 config-show: ## Показать конфигурацию Compose; вывод содержит секреты
 	$(COMPOSE) --profile app config
+
+GUIDE_PYTHON ?= python3
+
+.PHONY: product-guide product-guide-check
+product-guide: ## Собрать PDF руководства по продукту из Markdown
+	$(GUIDE_PYTHON) scripts/build-product-guide.py
+
+product-guide-check: ## Проверить, что PDF соответствует исходнику руководства
+	$(GUIDE_PYTHON) scripts/build-product-guide.py --check

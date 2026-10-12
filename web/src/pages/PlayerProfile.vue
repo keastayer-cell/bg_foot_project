@@ -1,6 +1,6 @@
 <template>
   <section class="section-wrap entity-page">
-    <Breadcrumbs :items="[{ label: 'Игроки', to: '/players' }, { label: player?.fullName || 'Игрок' }]" />
+    <Breadcrumbs :items="[{ label: returnToHall ? 'Зал славы' : 'Игроки', to: returnToHall ? '/hall-of-fame' : '/players' }, { label: player?.fullName || 'Игрок' }]" />
     <UiState v-if="loading" tone="loading" title="Загружаем профиль игрока" />
     <UiState v-else-if="error" tone="error" title="Не удалось загрузить игрока" :message="error" action-label="Повторить" @action="load" />
     <template v-else-if="player">
@@ -25,6 +25,7 @@ import UiState from '../components/UiState.vue'
 import { useAuth } from '../store/auth'
 import { createCatalogApi } from '../api/catalog'
 const route=useRoute(); const {optionalAuthApiRequest}=useAuth(); const api=createCatalogApi(optionalAuthApiRequest)
+const returnToHall = (window.history.state?.returnContext || route.query.from) === 'hall-of-fame'
 const player=ref(null);const history=ref([]);const loading=ref(true);const error=ref('')
 const initials=(name)=>String(name||'').split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toUpperCase()
 function formatDate(value){if(!value)return 'Не указана';const date=new Date(value);return Number.isNaN(date.getTime())?'Не указана':new Intl.DateTimeFormat('ru-RU').format(date)}

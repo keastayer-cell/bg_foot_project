@@ -19,12 +19,12 @@
       <div class="topbar-right">
         <nav class="topnav">
           <div class="topnav-primary">
-            <router-link :to="{ path: '/league', query: competitionContextQuery }">О лиге</router-link>
-            <router-link :to="{ path: '/hall-of-fame', query: competitionContextQuery }">Зал славы</router-link>
-            <router-link :to="{ path: '/', query: competitionContextQuery }">Туры</router-link>
-            <router-link :to="{ path: '/transfers', query: competitionContextQuery }">Трансферы</router-link>
-            <router-link :to="{ path: '/players', query: competitionContextQuery }">Игроки</router-link>
-            <router-link :to="{ path: '/teams', query: competitionContextQuery }">Команды</router-link>
+            <router-link :to="{ path: '/league' }">О лиге</router-link>
+            <router-link :to="{ path: '/hall-of-fame' }">Зал славы</router-link>
+            <router-link :to="{ path: '/' }">Туры</router-link>
+            <router-link :to="{ path: '/transfers' }">Трансферы</router-link>
+            <router-link :to="{ path: '/players' }">Игроки</router-link>
+            <router-link :to="{ path: '/teams' }">Команды</router-link>
           </div>
           <div v-if="canSeeAdmin() || canSeeApiExplorer()" class="topnav-tools">
             <router-link v-if="canSeeAdmin()" to="/admin">Админ-панель</router-link>
@@ -229,16 +229,10 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import NotificationBell from './components/NotificationBell.vue'
 import { useAuth } from './store/auth'
 import { requestPasswordReset } from './api/auth'
-import { useCompetitionContext } from './store/competitionContext'
 import bogorodskCoat from './assets/Screenshot at Apr 28 20-18-16.png'
 
 const { user, isAuthenticated, register, login, logout, changePassword, ensureSession, hasRole } = useAuth()
 const router = useRouter()
-const { seasonId: contextSeasonId, competitionId: contextCompetitionId } = useCompetitionContext()
-const competitionContextQuery = computed(() => ({
-  ...(contextSeasonId.value ? { season: contextSeasonId.value } : {}),
-  ...(contextCompetitionId.value ? { competition: contextCompetitionId.value } : {}),
-}))
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
 
 const authModalOpen = ref(false)

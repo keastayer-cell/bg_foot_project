@@ -32,6 +32,10 @@ while IFS=$'\t' read -r status old_path new_path; do
 
   case "$status" in
     A*)
+      # Flyway callbacks run around migrations and do not have version numbers.
+      if [[ "$filename" =~ ^afterMigrate(__[a-z0-9_]+)?\.sql$ ]]; then
+        continue
+      fi
       if [[ ! "$filename" =~ ^V([0-9]+)__ ]]; then
         echo "Invalid new migration name: $path" >&2
         exit 1

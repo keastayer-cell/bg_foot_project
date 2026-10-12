@@ -207,10 +207,10 @@ const seasonRoster = ref([])
 const seasonRosterStatus = ref('WAITING_FILL')
 const seasonRepresentativeName = ref('')
 const activeTeamId = ref(null)
-const returnToHall = computed(() => route.query.from === 'hall-of-fame')
+const returnToHall = computed(() => (window.history.state?.returnContext || route.query.from) === 'hall-of-fame')
 const backLocation = computed(() => returnToHall.value
-  ? { name: 'hall-of-fame', query: { season: route.query.season, competition: route.query.competition } }
-  : { name: 'teams', query: { season: route.query.season, competition: route.query.competition } })
+  ? { name: 'hall-of-fame' }
+  : { name: 'teams' })
 const backLabel = computed(() => returnToHall.value ? 'Назад в Зал славы' : 'К списку команд')
 
 const selectedSeason = computed(() => {

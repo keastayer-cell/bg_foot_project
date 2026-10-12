@@ -320,3 +320,22 @@ DB/JWT/SMTP credentials в GitHub не передаются. Они находя
 - [Управление секретами](docs/Рефакторинг%2028.07.2026/secrets-management.md)
 
 Документация внутри репозитория является актуальной. Локальные каталоги вне репозитория не считаются source of truth.
+
+## Руководство по продукту
+
+Правила работы с лигой, роли, заявки, трансферы, протоколы, дисциплина и награды:
+[редактируемое руководство](docs/Руководство-по-продукту.md) и
+[PDF для передачи управления](docs/Руководство-по-продукту.pdf).
+
+При каждом релизе проверять актуальность руководства. При изменении поведения обновлять соответствующий раздел, версию, дату и основание сборки; затем пересобирать PDF. Если правила не затронуты, явно отметить это в записи релиза. Полный порядок закреплён в [AGENTS.md](AGENTS.md) и [RELEASE.md](RELEASE.md).
+
+Сборка документа (отдельное окружение, зависимости не входят в runtime сайта):
+
+```bash
+python3 -m venv /tmp/bg-product-guide-venv
+/tmp/bg-product-guide-venv/bin/pip install -r scripts/product-guide-requirements.txt
+make product-guide GUIDE_PYTHON=/tmp/bg-product-guide-venv/bin/python
+make product-guide-check GUIDE_PYTHON=/tmp/bg-product-guide-venv/bin/python
+```
+
+Для кириллицы используется Arial на macOS либо DejaVu Sans на Linux. При других путях можно задать `GUIDE_FONT_REGULAR` и `GUIDE_FONT_BOLD`. Проверка сравнивает отпечаток текста в PDF с исходником; она не заменяет сверку бизнес-правил и визуальную проверку страниц.

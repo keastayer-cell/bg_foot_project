@@ -129,4 +129,39 @@ if ENV_ROOT="$TEST_ROOT/env" \
   exit 1
 fi
 
+# Check callbacks without relaxing protection of published migration files.
+history_repo="$TEST_ROOT/migration-history"
+mkdir -p "$history_repo/scripts" "$history_repo/app/src/main/resources/db/migration"
+cp "$REPO_ROOT/scripts/check-migration-history.sh" "$history_repo/scripts/"
+git -C "$history_repo" init -q
+git -C "$history_repo" config user.name 'Migration test'
+git -C "$history_repo" config user.email 'migration-test@example.invalid'
+migration_dir="$history_repo/app/src/main/resources/db/migration"
+printf 'SELECT 1;\n' >"$migration_dir/V1__initial.sql"
+git -C "$history_repo" add .
+git -C "$history_repo" commit -qm 'Initial migration'
+history_base="$(git -C "$history_repo" rev-parse HEAD)"
+printf 'SELECT 2;\n' >"$migration_dir/V2__next.sql"
+printf 'SELECT 1;\n' >"$migration_dir/afterMigrate__validate_database_comments.sql"
+git -C "$history_repo" add .
+git -C "$history_repo" commit -qm 'Add migration and callback'
+bash "$history_repo/scripts/check-migration-history.sh" "$history_base"
+callback_base="$(git -C "$history_repo" rev-parse HEAD)"
+printf 'SELECT 3;\n' >"$migration_dir/afterMigrate__validate_database_comments.sql"
+git -C "$history_repo" add .
+git -C "$history_repo" commit -qm 'Change published callback'
+if bash "$history_repo/scripts/check-migration-history.sh" "$callback_base" >"$TEST_ROOT/history-error" 2>&1; then
+  echo "Published callback modification unexpectedly passed." >&2
+  exit 1
+fi
+grep -q 'Published migration must not be modified' "$TEST_ROOT/history-error"
+printf 'SELECT 9;\n' >"$migration_dir/V1__initial.sql"
+git -C "$history_repo" add .
+git -C "$history_repo" commit -qm 'Change published migration'
+if bash "$history_repo/scripts/check-migration-history.sh" "$history_base" >"$TEST_ROOT/history-error" 2>&1; then
+  echo "Published migration modification unexpectedly passed." >&2
+  exit 1
+fi
+grep -q 'Published migration must not be modified' "$TEST_ROOT/history-error"
+
 echo "Operational script tests passed."

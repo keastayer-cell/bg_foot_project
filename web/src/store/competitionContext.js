@@ -71,14 +71,27 @@ export function useCompetitionContext(route = null, router = null) {
   function syncUrl() {
     if (!router || !route) return
     const query = { ...route.query }
-    if (seasonId.value) query.season = seasonId.value
-    else delete query.season
-    if (competitionId.value) query.competition = competitionId.value
-    else delete query.competition
-    const unchanged = String(route.query.season || '') === seasonId.value
-      && String(route.query.competition || '') === competitionId.value
-    if (!unchanged) void router.replace({ query })
+    delete query.season
+    delete query.competition
+    persist()
+    if ('season' in route.query || 'competition' in route.query) void router.replace({ query })
   }
 
   return { seasonId, competitionId, selectAvailable, syncUrl }
+}
+
+export function cleanCompetitionUrl(to) {
+  const season = normalizeId(to.query.season)
+  const competition = normalizeId(to.query.competition)
+  if (season) {
+    if (season !== seasonId.value) competitionId.value = ''
+    seasonId.value = season
+  }
+  if (competition) competitionId.value = competition
+  if (!('season' in to.query || 'competition' in to.query)) return
+  persist()
+  const query = { ...to.query }
+  delete query.season
+  delete query.competition
+  return { path: to.path, query, hash: to.hash, replace: true }
 }

@@ -81,8 +81,8 @@ const podium = (entry) => (entry.awards || []).filter((award) => podiumCodes.has
 const individualAwards = (entry) => (entry.awards || []).filter((award) => !podiumCodes.has(award.code))
 const awardIcon = (code) => ({ CHAMPION: '1', SILVER: '2', BRONZE: '3' })[code] || '•'
 const initials = (name) => String(name || '').trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase()
-const playerLink = (playerId) => ({ name: 'player-profile', params: { playerId }, query: { from: 'hall-of-fame', season: seasonId.value, competition: competitionId.value } })
-const teamLink = (teamId) => ({ name: 'team-profile', params: { slug: teamId }, query: { from: 'hall-of-fame', season: seasonId.value, competition: competitionId.value } })
+const playerLink = (playerId) => ({ name: 'player-profile', params: { playerId }, state: { returnContext: 'hall-of-fame' } })
+const teamLink = (teamId) => ({ name: 'team-profile', params: { slug: teamId }, state: { returnContext: 'hall-of-fame' } })
 function playerPitchName(name) {
   const cleanName = String(name || '').replace(/\s*\([^)]*\)\s*$/, '').trim()
   const parts = cleanName.split(/\s+/).filter(Boolean)
