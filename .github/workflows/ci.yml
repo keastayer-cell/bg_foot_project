@@ -150,3 +150,5 @@ jobs:
         run: bash scripts/validate-secret-layout.sh
       - name: Validate operational scripts
         run: bash scripts/test-ops-scripts.sh
+      - name: Validate deployment wrapper
+        run: python3 scripts/test-deploy-wrapper.py

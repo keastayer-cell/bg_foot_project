@@ -17,7 +17,7 @@ Git хранит только имена переменных, безопасн�
 | GitHub test | Environment `test`: SSH secrets и `PUBLIC_BASE_URL` |
 | GitHub prod | Environment `prod`: отдельные SSH secrets и `PUBLIC_BASE_URL` |
 
-Сейчас test/prod серверов нет, поэтому runtime-файлы и новые GitHub Environment secrets ещё не созданы.
+Для test подготовлены серверные runtime-файлы и GitHub Environment `test`. Production этим пакетом не разворачивается. Публичный адрес задаётся через `PUBLIC_BASE_URL`.
 
 ## Разделение серверных файлов
 
@@ -76,7 +76,7 @@ sudo bash scripts/install-backup-policy.sh
 Для test deploy создаётся Environment `test`:
 
 - `VPS_HOST` — адрес сервера;
-- `VPS_USER` — SSH user;
+- `VPS_USER` — отдельный непривилегированный пользователь `bgfootdeploy`;
 - `VPS_SSH_KEY` — отдельный deploy private key;
 - `VPS_HOST_FINGERPRINT` — fingerprint host key;
 - `PUBLIC_BASE_URL` — environment variable, например `https://test.example.com`.
@@ -109,3 +109,9 @@ sudo bash scripts/install-backup-policy.sh
 - соответствие `APP_PROFILE` среде;
 - отсутствие placeholder values;
 - SMTP credentials при режиме `smtp`.
+
+## Ограниченный доступ test — 12.10.2026
+
+Отдельный SSH-ключ с `restrict` разрешён только для `bgfootdeploy`, без общего sudo-доступа. Релиз загружается в `/var/lib/bg-foot-upload/<sha>/release`; единственная разрешённая команда sudo — `/usr/local/sbin/bg-foot-deploy <sha>`. Установщик проверяет SHA, владельца и тип файлов, пути и ссылки внутри frontend-архива.
+
+Загруженные shell-скрипты и systemd units не выполняются: используется root-owned политика из `/usr/local/lib/bg-foot-deploy`. Её обновления устанавливает владелец сервера; обычные сборки backend, mailer и frontend устанавливаются автоматически. Временная локальная копия private key удаляется после записи в GitHub. Личный SSH-доступ владельца не меняется.

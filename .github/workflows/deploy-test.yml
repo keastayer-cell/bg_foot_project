@@ -86,7 +86,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
           source: release
-          target: /tmp/bg-foot-${{ github.sha }}
+          target: /var/lib/bg-foot-upload/${{ github.sha }}
 
       - name: Deploy on test VPS
         uses: appleboy/ssh-action@v1
@@ -97,10 +97,8 @@ jobs:
           fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
           script: |
             set -euo pipefail
-            release_root=/tmp/bg-foot-${{ github.sha }}/release
-            chmod +x "$release_root"/*.sh
-            RELEASE_ID=${{ github.sha }} bash "$release_root/deploy-test-remote.sh" "$release_root"
-            rm -rf /tmp/bg-foot-${{ github.sha }}
+            sudo -n /usr/local/sbin/bg-foot-deploy '${{ github.sha }}'
+            rm -rf '/var/lib/bg-foot-upload/${{ github.sha }}'
 
       - name: Public post-deploy smoke
         run: bash scripts/smoke-check.sh --base-url "${{ vars.PUBLIC_BASE_URL }}" --retries 15

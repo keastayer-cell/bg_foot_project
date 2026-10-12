@@ -57,6 +57,22 @@ Test-сервер должен содержать:
 Database restore не запускается автоматически. Это отдельная аварийная операция.
 Runtime-копии старше 30 дней и database backup старше заданного retention удаляются автоматически.
 
+## Ограниченный доступ автодеплоя test
+
+GitHub Environment `test` хранит SSH secrets и `PUBLIC_BASE_URL`. Для доступа по IP используется `http://<server-ip>`.
+
+- Пользователь: `bgfootdeploy`; отдельный ключ с `restrict`, без общего sudo.
+- Upload: `/var/lib/bg-foot-upload/<sha>/release`.
+- Установка: `sudo -n /usr/local/sbin/bg-foot-deploy <sha>`. Код: `ops/deploy/bg-foot-deploy.py`; установленная копия принадлежит root и недоступна deploy-пользователю для записи.
+- Root-owned политика: `/usr/local/lib/bg-foot-deploy` — deployment scripts и каталоги `ops/systemd`, `ops/journald`, `ops/logrotate`. Изменения политики устанавливает владелец сервера.
+- Backend: `127.0.0.1:18080`, mailer: `127.0.0.1:18090`. Nginx по IP отдаёт football frontend и проксирует `/api/` на 18080; другие virtual hosts сохраняются.
+- Runtime и база test изолированы: `/etc/bg-foot/test`, `football_test`. JVM ограничены серверным `JAVA_TOOL_OPTIONS`.
+- Для HTTP задаётся `AUTH_REFRESH_COOKIE_SECURE=false`. При переходе на HTTPS установить `true`, обновить `APP_PUBLIC_WEB_URL` и `PUBLIC_BASE_URL`.
+
+Установщик принимает только app.jar, mailer.jar, web-dist.tgz и git-sha. Скрипты из upload не выполняются с правами root. В sudoers разрешён только фиксированный установщик с одним полным Git SHA. Проверки: `python3 scripts/test-deploy-wrapper.py`.
+
+Перед первоначальным восстановлением локальной базы снимается custom-format dump PostgreSQL той же основной версии. Архив хранится в приватном backup-каталоге сервера. Перенос не перезаписывает другую базу; количества строк сравниваются до запуска приложения. Почтовая очередь проверяется до запуска mailer.
+
 ## Smoke-check
 
 Публичная проверка:
